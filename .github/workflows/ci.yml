@@ -79,16 +79,19 @@ jobs:
     - name: Install vsce
       run: npm install -g @vscode/vsce
 
+    - name: Create build directory
+      run: mkdir -p build
+
     - name: Package VSIX
       run: npm run package
 
     - name: Verify VSIX created
       run: |
-        if [ ! -f build/pine-script-extension-*.vsix ]; then
+        if [ ! -f build/pinescript-v6-extension-*.vsix ]; then
           echo "❌ VSIX package not created"
           exit 1
         fi
-        VSIX_SIZE=$(du -h build/pine-script-extension-*.vsix | cut -f1)
+        VSIX_SIZE=$(du -h build/pinescript-v6-extension-*.vsix | cut -f1)
         echo "✅ VSIX package created: $VSIX_SIZE"
 
     - name: Upload VSIX artifact
