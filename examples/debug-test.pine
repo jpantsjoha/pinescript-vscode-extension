@@ -1,0 +1,8 @@
+//@version=6
+indicator("Debug Test")
+
+// Valid functions - should NOT error
+input.bool(true, "Test Bool")
+input.color(color.red, "Test Color")
+
+

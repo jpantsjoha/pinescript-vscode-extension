@@ -1,0 +1,221 @@
+///https://www.tradingview.com/script/N607po7g-MTF-State-of-Delivery-by-traderprimez/
+//@version=5
+indicator("MTF State of Delivery by @traderprimez", overlay=true)
+
+color bullishColor = input.color(color.new(#1763A6, 0), "Bullish Orderflow Color", group = "LTF Orderflow")
+color bearishColor = input.color(color.new(#D90416, 0), "Bearish Orderflow Color", group = "LTF Orderflow")
+int lineWidth = input.int(3, "Line Width", minval = 1, maxval = 5, group = "LTF Orderflow")
+bool showPending = input.bool(true, "Show Pending Lines", group = "LTF Pending Levels")
+color pendingBullishColor = input.color(color.new(#1763A6, 40), "   ↳ Pending Bullish Color", group = "LTF Pending Levels")
+color pendingBearishColor = input.color(color.new(#D90416, 40), "   ↳ Pending Bearish Color", group = "LTF Pending Levels")
+int pendingLineWidth = input.int(2, "   ↳ Pending Line Width", minval = 1, maxval = 5, group = "LTF Pending Levels")
+bool showHTF = input.bool(true, "Show HTF Orderflow", group = "HTF Orderflow")
+color htfBullishColor = input.color(color.new(#1763A6, 0), "   ↳ Confirmed Bullish Color", group = "HTF Orderflow")
+color htfBearishColor = input.color(color.new(#D90416, 0), "   ↳ Confirmed Bearish Color", group = "HTF Orderflow")
+int htfLineWidth = input.int(5, "   ↳ Confirmed Line Width", minval = 1, maxval = 5, group = "HTF Orderflow")
+bool showHTFPending = input.bool(false, "   ↳ Show Pending Lines", group = "HTF Orderflow")
+color htfPendingBullishColor = input.color(color.new(#1763A6, 40), "   ↳ Pending Bullish Color", group = "HTF Orderflow")
+color htfPendingBearishColor = input.color(color.new(#D90416, 40), "   ↳ Pending Bearish Color", group = "HTF Orderflow")
+int htfPendingLineWidth = input.int(5, "   ↳ Pending Line Width", minval = 1, maxval = 5, group = "HTF Orderflow")
+bool showTable = input.bool(true, "Show Status Table", group = "Status Table")
+
+getHTF() =>
+    string currentTf = timeframe.period
+    switch currentTf
+        "1" => "15"
+        "3" => "15"
+        "5" => "60"
+        "15" => "240"
+        "60" => "D"
+        "240" => "W"
+        "D" => "M"
+        => ""
+
+
+f_getBullLevel() =>
+    isBull = close > open
+    isBear = close < open
+    var float bullLvl = na
+    int prevRealCandleOffset = 1
+    for i = 1 to 10
+        if open[i] != close[i]
+            prevRealCandleOffset := i
+            break
+    bool prevIsBull = close[prevRealCandleOffset] > open[prevRealCandleOffset]
+    if prevIsBull and isBear
+        bullLvl := math.max(close[prevRealCandleOffset], open)
+    if not na(bullLvl) and isBull and close > bullLvl
+        bullLvl := na
+    bullLvl
+
+f_getBullTime() =>
+    isBull = close > open
+    isBear = close < open
+    var float bullLvl = na
+    var int bullTime = na
+    int prevRealCandleOffset = 1
+    for i = 1 to 10
+        if open[i] != close[i]
+            prevRealCandleOffset := i
+            break
+    bool prevIsBull = close[prevRealCandleOffset] > open[prevRealCandleOffset]
+    if prevIsBull and isBear
+        bullLvl := math.max(close[prevRealCandleOffset], open)
+        bullTime := time[prevRealCandleOffset]
+    if not na(bullLvl) and isBull and close > bullLvl
+        bullLvl := na, bullTime := na
+    bullTime
+
+f_getBearLevel() =>
+    isBull = close > open
+    isBear = close < open
+    var float bearLvl = na
+    int prevRealCandleOffset = 1
+    for i = 1 to 10
+        if open[i] != close[i]
+            prevRealCandleOffset := i
+            break
+    bool prevIsBear = close[prevRealCandleOffset] < open[prevRealCandleOffset]
+    if prevIsBear and isBull
+        bearLvl := math.min(close[prevRealCandleOffset], open)
+    if not na(bearLvl) and isBear and close < bearLvl
+        bearLvl := na
+    bearLvl
+
+f_getBearTime() =>
+    isBull = close > open
+    isBear = close < open
+    var float bearLvl = na
+    var int bearTime = na
+    int prevRealCandleOffset = 1
+    for i = 1 to 10
+        if open[i] != close[i]
+            prevRealCandleOffset := i
+            break
+    bool prevIsBear = close[prevRealCandleOffset] < open[prevRealCandleOffset]
+    if prevIsBear and isBull
+        bearLvl := math.min(close[prevRealCandleOffset], open)
+        bearTime := time[prevRealCandleOffset]
+    if not na(bearLvl) and isBear and close < bearLvl
+        bearLvl := na, bearTime := na
+    bearTime
+
+string htf = getHTF()
+string htf_safe = htf == "" ? timeframe.period : htf
+htf_bullLvl  = request.security(syminfo.tickerid, htf_safe, f_getBullLevel(), barmerge.gaps_off, barmerge.lookahead_off)[1]
+htf_bullTime = request.security(syminfo.tickerid, htf_safe, f_getBullTime(), barmerge.gaps_off, barmerge.lookahead_off)[1]
+htf_bearLvl  = request.security(syminfo.tickerid, htf_safe, f_getBearLevel(), barmerge.gaps_off, barmerge.lookahead_off)[1]
+htf_bearTime = request.security(syminfo.tickerid, htf_safe, f_getBearTime(), barmerge.gaps_off, barmerge.lookahead_off)[1]
+
+var string ltf_orderflow_state = "NEUTRAL"
+var string htf_orderflow_state = "NEUTRAL"
+var float bullishSwitchLevel = na
+var int   bullishSwitchBarIndex = na
+var float bearishSwitchLevel = na
+var int   bearishSwitchBarIndex = na
+var line  bullishPendingLine = na
+var line  bearishPendingLine = na
+
+isBullish = close > open
+isBearish = close < open
+
+int prevRealCandleOffset = 1
+for i = 1 to 10
+    if open[i] != close[i]
+        prevRealCandleOffset := i
+        break
+
+bool prevIsBullish = close[prevRealCandleOffset] > open[prevRealCandleOffset]
+bool prevIsBearish = close[prevRealCandleOffset] < open[prevRealCandleOffset]
+
+if prevIsBullish and isBearish
+    bullishSwitchLevel := math.max(close[prevRealCandleOffset], open)
+    bullishSwitchBarIndex := bar_index[prevRealCandleOffset] 
+    if showPending
+        if not na(bullishPendingLine)
+            line.delete(bullishPendingLine) 
+        bullishPendingLine := line.new(time[prevRealCandleOffset], bullishSwitchLevel, time, bullishSwitchLevel, xloc=xloc.bar_time, color=pendingBullishColor, width=pendingLineWidth, style=line.style_dotted, extend=extend.right)
+
+if prevIsBearish and isBullish
+    bearishSwitchLevel := math.min(close[prevRealCandleOffset], open)
+    bearishSwitchBarIndex := bar_index[prevRealCandleOffset]
+    if showPending
+        if not na(bearishPendingLine)
+            line.delete(bearishPendingLine)
+        bearishPendingLine := line.new(time[prevRealCandleOffset], bearishSwitchLevel, time, bearishSwitchLevel, xloc=xloc.bar_time, color=pendingBearishColor, width=pendingLineWidth, style=line.style_dotted, extend=extend.right)
+
+if not na(bullishSwitchLevel) and isBullish and close > bullishSwitchLevel
+    line.new(bullishSwitchBarIndex, bullishSwitchLevel, bar_index, bullishSwitchLevel, color=bullishColor, width=lineWidth)
+    if showPending and not na(bullishPendingLine)
+        line.delete(bullishPendingLine)
+    ltf_orderflow_state := "BULLISH"
+    bullishSwitchLevel := na
+
+if not na(bearishSwitchLevel) and isBearish and close < bearishSwitchLevel
+    line.new(bearishSwitchBarIndex, bearishSwitchLevel, bar_index, bearishSwitchLevel, color=bearishColor, width=lineWidth)
+    if showPending and not na(bearishPendingLine)
+        line.delete(bearishPendingLine)
+    ltf_orderflow_state := "BEARISH"
+    bearishSwitchLevel := na
+
+if showHTF and htf != ""
+    var float htfBullSwitchLevel = na
+    var int   htfBullSwitchTime = na
+    var float htfBearSwitchLevel = na
+    var int   htfBearSwitchTime = na
+    var line htfBullishPendingLine = na
+    var line htfBearishPendingLine = na
+
+    if not na(htf_bullLvl)
+        htfBullSwitchLevel := htf_bullLvl
+        htfBullSwitchTime := htf_bullTime
+        if showHTFPending
+            if not na(htfBullishPendingLine)
+                line.delete(htfBullishPendingLine)
+            htfBullishPendingLine := line.new(htfBullSwitchTime, htfBullSwitchLevel, time, htfBullSwitchLevel, xloc=xloc.bar_time, color=htfPendingBullishColor, width=htfPendingLineWidth, style=line.style_dotted, extend=extend.right)
+
+    if not na(htf_bearLvl)
+        htfBearSwitchLevel := htf_bearLvl
+        htfBearSwitchTime := htf_bearTime
+        if showHTFPending
+            if not na(htfBearishPendingLine)
+                line.delete(htfBearishPendingLine)
+            htfBearishPendingLine := line.new(htfBearSwitchTime, htfBearSwitchLevel, time, htfBearSwitchLevel, xloc=xloc.bar_time, color=htfPendingBearishColor, width=htfPendingLineWidth, style=line.style_dotted, extend=extend.right)
+
+    if not na(htfBullSwitchLevel) and isBullish and close > htfBullSwitchLevel
+        line.new(htfBullSwitchTime, htfBullSwitchLevel, time, htfBullSwitchLevel, xloc=xloc.bar_time, color=htfBullishColor, width=htfLineWidth)
+        if showHTFPending and not na(htfBullishPendingLine)
+            line.delete(htfBullishPendingLine)
+        htf_orderflow_state := "BULLISH"
+        htfBullSwitchLevel := na
+
+    if not na(htfBearSwitchLevel) and isBearish and close < htfBearSwitchLevel
+        line.new(htfBearSwitchTime, htfBearSwitchLevel, time, htfBearSwitchLevel, xloc=xloc.bar_time, color=htfBearishColor, width=htfLineWidth)
+        if showHTFPending and not na(htfBearishPendingLine)
+            line.delete(htfBearishPendingLine)
+        htf_orderflow_state := "BEARISH"
+        htfBearSwitchLevel := na
+
+if showTable
+    var table statusTable = table.new(position.top_center, 3, 4, border_width=1, border_color=color.new(color.gray, 50))
+    if barstate.islast
+        table.clear(statusTable, 0, 0, 2, 3)
+
+        color ltf_bgColor = ltf_orderflow_state == "BULLISH" ? bullishColor : ltf_orderflow_state == "BEARISH" ? bearishColor : color.new(color.gray, 20)
+        string htf_display_state = showHTF and htf != "" ? htf_orderflow_state : "DISABLED"
+        color htf_bgColor = htf_display_state == "BULLISH" ? htfBullishColor : htf_display_state == "BEARISH" ? htfBearishColor : color.new(color.gray, 20)
+        
+        table.cell(statusTable, 0, 0, "MTF Orderflow by @traderprimez", text_halign=text.align_center, bgcolor=color.new(#024040, 0), text_color=color.white, text_font_family = font.family_monospace)
+        table.merge_cells(statusTable, 0, 0, 2, 0)
+
+        table.cell(statusTable, 0, 1, "Timeframe", text_halign=text.align_center, bgcolor=color.new(color.gray, 80), text_font_family = font.family_monospace)
+        table.cell(statusTable, 1, 1, "#", text_halign=text.align_center, bgcolor=color.new(color.gray, 80), text_font_family = font.family_monospace)
+        table.cell(statusTable, 2, 1, "State of Delivery", text_halign=text.align_center, bgcolor=color.new(color.gray, 80), text_font_family = font.family_monospace)
+
+        table.cell(statusTable, 0, 2, "HTF", text_halign=text.align_center, bgcolor=color.new(color.gray, 90), text_font_family = font.family_monospace)
+        table.cell(statusTable, 1, 2, htf == "" ? "N/A" : htf, text_halign=text.align_center, bgcolor=color.new(color.gray, 90), text_font_family = font.family_monospace)
+        table.cell(statusTable, 2, 2, htf_display_state, text_halign=text.align_center, bgcolor=htf_bgColor, text_color=color.white, text_font_family = font.family_monospace)
+
+        table.cell(statusTable, 0, 3, "LTF", text_halign=text.align_center, bgcolor=color.new(color.gray, 90), text_font_family = font.family_monospace)
+        table.cell(statusTable, 1, 3, timeframe.period, text_halign=text.align_center, bgcolor=color.new(color.gray, 90), text_font_family = font.family_monospace)
+        table.cell(statusTable, 2, 3, ltf_orderflow_state, text_halign=text.align_center, bgcolor=ltf_bgColor, text_color=color.white, text_font_family = font.family_monospace)

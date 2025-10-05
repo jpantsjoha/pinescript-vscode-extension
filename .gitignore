@@ -1,0 +1,56 @@
+# Build output
+dist/
+*.tsbuildinfo
+build/
+!build/pine-script-extension-*.vsix
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# IDE & Editor
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# Agent definitions (private development context)
+multi-agent-devex/
+.CLAUDE.md
+GEMINI.md
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Scraped documentation (regenerate as needed)
+v6/raw/
+v6/docs-crawled/
+v6/scripts/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Local development & secrets
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Personal notes (not for public repo)
+NOTES.md
+TODO-personal.md

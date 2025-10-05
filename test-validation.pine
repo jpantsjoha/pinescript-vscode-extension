@@ -1,0 +1,18 @@
+//@version=6
+indicator("Validation Test")
+
+// ===== VALID CODE (should have NO errors) =====
+plot(close, style=plot.style_line)              // Line 5: VALID
+plot(close, style=plot.style_linebr)            // Line 6: VALID
+plot(close, style=plot.style_histogram)         // Line 7: VALID
+
+absValue = math.abs(-10)                         // Line 9: VALID
+maxValue = math.max(close, open)                 // Line 10: VALID
+formattedText = str.tostring(close)              // Line 11: VALID
+
+// ===== INVALID CODE (SHOULD have errors) =====
+sometin()                                        // Line 14: ERROR - undefined function
+plot.styl                                        // Line 15: ERROR - incomplete reference
+plot(333.33, some)                               // Line 16: ERROR - undefined variable 'some'
+math.nonexistent(10)                             // Line 17: ERROR - undefined function
+plot(close, style=plot.style_invalid)            // Line 18: ERROR - invalid constant

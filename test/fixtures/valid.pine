@@ -1,0 +1,85 @@
+//@version=6
+// VALID Pine Script v6 Code
+// These should NOT produce validation errors
+
+//──────────────────────────────────────────────────────────
+// Valid Indicator Declarations
+//──────────────────────────────────────────────────────────
+
+indicator("Valid Indicator - Title Only")
+
+indicator("Valid Indicator - With Overlay", overlay=true)
+
+indicator("Valid Indicator - Multiple Params",
+     shorttitle="VI",
+     overlay=true,
+     max_labels_count=500)
+
+//──────────────────────────────────────────────────────────
+// Valid Strategy Declarations
+//──────────────────────────────────────────────────────────
+
+strategy("Valid Strategy", overlay=true, default_qty_value=100)
+
+//──────────────────────────────────────────────────────────
+// Valid Input Functions
+//──────────────────────────────────────────────────────────
+
+myInt = input.int(14, "Period")
+myFloat = input.float(0.5, "Threshold", minval=0, maxval=1)
+myBool = input.bool(true, "Show Signals")
+myString = input.string("Option1", "Mode", options=["Option1", "Option2"])
+myColor = input.color(color.blue, "Line Color")
+
+//──────────────────────────────────────────────────────────
+// Valid Plot Functions
+//──────────────────────────────────────────────────────────
+
+plot(close)
+plot(close, "Close Price", color=color.blue, linewidth=2)
+plotshape(close > open, style=shape.triangleup, location=location.belowbar)
+plotchar(close > open, char="▲")
+
+//──────────────────────────────────────────────────────────
+// Valid Alert Functions
+//──────────────────────────────────────────────────────────
+
+crossUp = ta.crossover(close, ta.sma(close, 20))
+
+if crossUp
+    alert("Price crossed above MA", alert.freq_once_per_bar)
+
+alertcondition(crossUp, "Cross Up", "Price crossed moving average")
+alertcondition(crossUp)  // Minimal - only required param
+
+//──────────────────────────────────────────────────────────
+// Valid TA Functions
+//──────────────────────────────────────────────────────────
+
+sma20 = ta.sma(close, 20)
+ema50 = ta.ema(close, 50)
+rsi14 = ta.rsi(close, 14)
+
+crossOver = ta.crossover(close, sma20)
+crossUnder = ta.crossunder(close, sma20)
+
+//──────────────────────────────────────────────────────────
+// Valid Color/Style Functions
+//──────────────────────────────────────────────────────────
+
+bgcolor(close > open ? color.new(color.green, 90) : color.new(color.red, 90))
+barcolor(close > open ? color.green : color.red)
+
+plot1 = plot(sma20, color=color.blue)
+plot2 = plot(ema50, color=color.red)
+fill(plot1, plot2, color=color.new(color.gray, 80))
+
+hline(0, "Zero Line", color=color.gray, linestyle=hline.style_dashed)
+
+//──────────────────────────────────────────────────────────
+// Valid Array Functions
+//──────────────────────────────────────────────────────────
+
+prices = array.new_float(0)
+array.push(prices, close)
+lastPrice = array.get(prices, 0)

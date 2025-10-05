@@ -1,0 +1,261 @@
+//@version=6
+// Pine Script v6 Test File
+// Tests all major features of the VS Code extension
+
+//==============================================================================
+// INDICATOR DECLARATION - Test autocomplete and signature help
+//==============================================================================
+indicator("Pine v6 Feature Test", overlay=true, max_labels_count=50)
+
+//==============================================================================
+// INPUTS - Test input.* namespace completions
+//==============================================================================
+// Type "input." to see all input functions with descriptions
+lengthSMA = input.int(20, "SMA Length", minval=1, maxval=200)
+lengthEMA = input.int(50, "EMA Length")
+useHTF = input.bool(true, "Use Higher Timeframe")
+htfPeriod = input.timeframe("15", "HTF Period")
+sourcePrice = input.source(close, "Price Source")
+sessionTime = input.session("0930-1600", "Trading Session")
+colorBull = input.color(color.green, "Bull Color")
+
+//==============================================================================
+// TECHNICAL ANALYSIS - Test ta.* namespace
+//==============================================================================
+// Type "ta." to see all technical analysis functions
+// Hover over any function to see full documentation
+
+// Moving averages
+sma = ta.sma(sourcePrice, lengthSMA)
+ema = ta.ema(sourcePrice, lengthEMA)
+wma = ta.wma(sourcePrice, 10)
+vwma = ta.vwma(sourcePrice, 20)
+
+// Oscillators
+rsi = ta.rsi(sourcePrice, 14)
+[macdLine, signalLine, histLine] = ta.macd(sourcePrice, 12, 26, 9)
+cci = ta.cci(sourcePrice, 20)
+mfi = ta.mfi(hlc3, 14)
+stochK = ta.stoch(sourcePrice, high, low, 14)
+
+// Bollinger Bands
+[bbMiddle, bbUpper, bbLower] = ta.bb(sourcePrice, 20, 2.0)
+bbWidth = ta.bbw(sourcePrice, 20, 2.0)
+
+// Volatility
+atr = ta.atr(14)
+trueRange = ta.tr
+
+// Trends
+highest20 = ta.highest(high, 20)
+lowest20 = ta.lowest(low, 20)
+priceChange = ta.change(close)
+momentum = ta.mom(close, 10)
+roc = ta.roc(close, 10)
+
+// Crossovers - hover to see description
+smaCross = ta.cross(sma, ema)
+bullCross = ta.crossover(close, sma)
+bearCross = ta.crossunder(close, sma)
+
+//==============================================================================
+// MATHEMATICAL FUNCTIONS - Test math.* namespace
+//==============================================================================
+// Type "math." to see all math functions
+
+absValue = math.abs(-10)
+maxValue = math.max(close, open, high, low)
+minValue = math.min(close, open, high, low)
+avgValue = math.avg(close, open)
+roundedValue = math.round(close, 2)
+sqrtValue = math.sqrt(volume)
+powValue = math.pow(close, 2)
+signValue = math.sign(close - open)
+
+//==============================================================================
+// STRING OPERATIONS - Test str.* namespace
+//==============================================================================
+// Type "str." to see all string functions
+
+tickerName = str.tostring(syminfo.ticker)
+priceString = str.tostring(close, format.mintick)
+upperTicker = str.upper(tickerName)
+lowerTicker = str.lower(tickerName)
+tickerLength = str.length(tickerName)
+containsTest = str.contains(tickerName, "USD")
+
+//==============================================================================
+// COLOR OPERATIONS - Test color.* namespace
+//==============================================================================
+// Type "color." to see color functions and constants
+
+dynamicColor = color.new(color.blue, 50)
+rgbColor = color.rgb(255, 100, 50, 30)
+gradientColor = color.from_gradient(rsi, 0, 100, color.red, color.green)
+
+// Color constants - hover to see hex values
+myRed = color.red
+myGreen = color.green
+myBlue = color.blue
+myYellow = color.yellow
+myOrange = color.orange
+
+//==============================================================================
+// ARRAYS - Test array.* namespace
+//==============================================================================
+// Type "array." to see all array functions
+
+var prices = array.new_float(0)
+array.push(prices, close)
+array.push(prices, open)
+arraySize = array.size(prices)
+maxPrice = array.max(prices)
+minPrice = array.min(prices)
+avgPrice = array.avg(prices)
+
+//==============================================================================
+// REQUEST FUNCTIONS - Test request.* namespace
+//==============================================================================
+// Type "request." to see data request functions
+
+// Higher timeframe data
+htfClose = request.security(syminfo.tickerid, htfPeriod, close)
+htfVolume = request.security(syminfo.tickerid, "D", volume)
+
+//==============================================================================
+// BUILT-IN VARIABLES - Test hover on these
+//==============================================================================
+// Hover over each variable to see description and type
+
+// Price data
+currentClose = close
+currentOpen = open
+currentHigh = high
+currentLow = low
+currentVolume = volume
+
+// Price shortcuts
+hl2Price = hl2
+hlc3Price = hlc3
+ohlc4Price = ohlc4
+
+// Bar information
+currentBarIndex = bar_index
+lastBarIndex = last_bar_index
+currentTime = time
+
+// Time components
+currentYear = year
+currentMonth = month
+currentDay = dayofmonth
+currentHour = hour
+currentMinute = minute
+
+// Bar state - hover to see when these are true
+isFirstBar = barstate.isfirst
+isLastBar = barstate.islast
+isHistoricalBar = barstate.ishistory
+isRealtimeBar = barstate.isrealtime
+isNewBar = barstate.isnew
+
+// Symbol information
+ticker = syminfo.ticker
+tickerId = syminfo.tickerid
+symbolType = syminfo.type
+baseCurrency = syminfo.basecurrency
+quoteCurrency = syminfo.currency
+
+// Timeframe information
+currentTF = timeframe.period
+tfMultiplier = timeframe.multiplier
+isIntraday = timeframe.isintraday
+isDaily = timeframe.isdaily
+
+//==============================================================================
+// PLOTTING - Test plot* functions with signature help
+//==============================================================================
+// Type the function name and opening paren to see parameter hints
+// Example: plot( <- signature help appears here
+
+plot(sma, "SMA", color=color.blue, linewidth=2)
+plot(ema, "EMA", color=color.red, linewidth=2)
+plot(rsi, "RSI", color=color.purple)
+
+hline(70, "Overbought", color=color.red, linestyle=hline.style_dashed)
+hline(30, "Oversold", color=color.green, linestyle=hline.style_dashed)
+
+plotshape(bullCross, "Bull Signal", style=shape.triangleup, location=location.belowbar, color=color.green)
+plotshape(bearCross, "Bear Signal", style=shape.triangledown, location=location.abovebar, color=color.red)
+
+bgcolor(bullCross ? color.new(color.green, 90) : bearCross ? color.new(color.red, 90) : na)
+
+//==============================================================================
+// ALERTS - Test alert functions
+//==============================================================================
+
+alertcondition(bullCross, "Bull Cross Alert", "SMA crossed above EMA")
+alertcondition(bearCross, "Bear Cross Alert", "SMA crossed below EMA")
+
+if bullCross
+    alert("Bullish crossover detected!", alert.freq_once_per_bar)
+
+if bearCross
+    alert("Bearish crossover detected!", alert.freq_once_per_bar)
+
+//==============================================================================
+// CONDITIONAL LOGIC - Test keyword highlighting
+//==============================================================================
+
+// If-else structures
+// Note: bgcolor() must be called at global scope in Pine Script v6
+// Use ternary operator for conditional backgrounds
+rsiColor = rsi > 70 ? color.new(color.red, 85) : rsi < 30 ? color.new(color.green, 85) : na
+bgcolor(rsiColor)
+
+// Switch statement (v6 feature)
+priceAction = switch
+    close > open => "Bullish"
+    close < open => "Bearish"
+    => "Neutral"
+
+// For loops
+var float sum = 0.0
+for i = 0 to 9
+    sum := sum + close[i]
+
+// While loops
+var int counter = 0
+while counter < 5
+    counter += 1
+
+//==============================================================================
+// TYPE ANNOTATIONS - Test v6 type system
+//==============================================================================
+
+float myFloat = 10.5
+int myInt = 10
+bool myBool = true
+string myString = "test"
+color myColor = color.blue
+
+series float seriesValue = close
+simple int simpleValue = 10
+
+//==============================================================================
+// STRATEGY FUNCTIONS (if using strategy instead of indicator)
+//==============================================================================
+// Uncomment to test strategy-specific completions
+// strategy.entry("Long", strategy.long, when=bullCross)
+// strategy.close("Long", when=bearCross)
+// strategy.exit("Exit", "Long", profit=100, loss=50)
+
+//==============================================================================
+// TEST SUMMARY
+//==============================================================================
+// This file tests:
+// ✅ Completions for all namespaces (ta, math, str, color, input, request, array)
+// ✅ Hover documentation for built-in variables and functions
+// ✅ Signature help (parameter hints) for functions
+// ✅ Syntax highlighting for keywords, types, and constructs
+// ✅ Diagnostics and validation
+//==============================================================================

@@ -1,0 +1,35 @@
+# IDE & Version Control
+.vscode/**
+.git/**
+.gitignore
+.claude/**
+
+# Dependencies
+node_modules/**
+
+# Source & Build
+src/**
+test/**
+tsconfig.json
+package-lock.json
+*.tsbuildinfo
+
+# Documentation (dev only - keep README.md for marketplace)
+docs/**
+*.md
+!README.md
+
+# Scripts & Tools
+v6/scripts/**
+v6/raw/**
+
+# Examples & Test Files
+examples/**
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.vsix
+.vscodeignore

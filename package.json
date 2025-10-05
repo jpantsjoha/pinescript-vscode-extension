@@ -1,0 +1,111 @@
+{
+  "name": "pine-script-extension",
+  "displayName": "Pine Script v6 Professional",
+  "description": "Complete Pine Script v6 IDE: 100% language coverage (6,665 items), IntelliSense, parameter hints, hover docs, and zero false positives.",
+  "publisher": "jaroslav",
+  "version": "0.4.0",
+  "icon": "images/pinescript-extension.png",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:pine"
+  ],
+  "main": "./dist/src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "pine.validate",
+        "title": "Pine: Validate current file"
+      },
+      {
+        "command": "pine.showDocs",
+        "title": "Pine: Show docs for symbol"
+      }
+    ],
+    "configuration": {
+      "title": "Pine Script Extension",
+      "properties": {
+        "pine.docsMode": {
+          "type": "string",
+          "default": "full",
+          "enum": [
+            "full",
+            "summary"
+          ],
+          "description": "Controls whether hovers/completions show full docs or a brief summary."
+        },
+        "pine.applyFileAssociation": {
+          "type": "boolean",
+          "default": true,
+          "description": "On activation, ensure files.associations maps *.pine to the pine language."
+        },
+        "pine.httpSuggestions.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable HTTP suggestion hook for AI completions."
+        },
+        "pine.httpSuggestions.endpoint": {
+          "type": "string",
+          "default": "https://localhost:11434/suggest",
+          "description": "HTTP(S) endpoint for suggestion provider."
+        },
+        "pine.httpSuggestions.timeoutMs": {
+          "type": "number",
+          "default": 1200,
+          "description": "Request timeout in milliseconds."
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "pine",
+        "aliases": [
+          "Pine",
+          "Pine Script",
+          "pine"
+        ],
+        "extensions": [
+          ".pine"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "pine",
+        "scopeName": "source.pine",
+        "path": "./syntaxes/pine.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "clean": "rm -rf dist && rm -f build/*.vsix",
+    "build": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "test": "npm run build && node --test test/*.test.js",
+    "test:validation": "npm run build && node --test test/validation.test.js",
+    "test:benchmark": "node --test test/benchmark.test.js",
+    "package": "vsce package --out build/",
+    "rebuild": "npm run clean && npm run build && npm test && npm run package",
+    "rebuild:skip-tests": "npm run clean && npm run build && npm run package",
+    "crawl": "node v6/scripts/crawl-docs.js",
+    "generate": "node v6/scripts/generate-builtins.js",
+    "scrape": "node v6/scripts/scrape-builtins.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.88.0",
+    "cheerio": "^1.1.2",
+    "playwright": "^1.48.0",
+    "typescript": "^5.4.5"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jaroslav/Pine-Script-Extension"
+  }
+}

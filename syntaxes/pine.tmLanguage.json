@@ -1,0 +1,507 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Pine Script",
+  "scopeName": "source.pine",
+  "patterns": [
+    { "include": "#annotations" },
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#booleans" },
+    { "include": "#keywords" },
+    { "include": "#storage" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#operators" },
+    { "include": "#function-declarations" },
+    { "include": "#function-calls" },
+    { "include": "#method-calls" },
+    { "include": "#namespaces" },
+    { "include": "#variables" }
+  ],
+  "repository": {
+    "annotations": {
+      "patterns": [
+        {
+          "name": "comment.line.annotation.pine",
+          "match": "^\\s*(//\\s*@(version|strategy_alert_message|description))\\s*(=)?\\s*(.*)$",
+          "captures": {
+            "1": { "name": "keyword.control.annotation.pine" },
+            "2": { "name": "entity.name.tag.annotation.pine" },
+            "3": { "name": "keyword.operator.assignment.pine" },
+            "4": { "name": "constant.numeric.annotation.pine" }
+          }
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.pine",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "captures": {
+            "0": { "name": "punctuation.definition.comment.pine" }
+          }
+        },
+        {
+          "name": "comment.line.double-slash.pine",
+          "match": "//.*$",
+          "captures": {
+            "0": { "name": "punctuation.definition.comment.pine" }
+          }
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.pine",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.pine",
+              "match": "\\\\([\"\\\\/bfnrt]|u[0-9a-fA-F]{4})"
+            },
+            {
+              "name": "invalid.illegal.unrecognized-string-escape.pine",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.pine",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.pine",
+              "match": "\\\\(['\\\\/bfnrt]|u[0-9a-fA-F]{4})"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.pine",
+          "match": "\\b0x[0-9A-Fa-f]+\\b"
+        },
+        {
+          "name": "constant.numeric.float.pine",
+          "match": "\\b([0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?|\\.[0-9]+([eE][+-]?[0-9]+)?)\\b"
+        },
+        {
+          "name": "constant.numeric.integer.pine",
+          "match": "\\b[0-9]+([eE][+-]?[0-9]+)?\\b"
+        }
+      ]
+    },
+    "booleans": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.pine",
+          "match": "\\b(true|false)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.conditional.pine",
+          "match": "\\b(if|else|switch|case|default)\\b"
+        },
+        {
+          "name": "keyword.control.loop.pine",
+          "match": "\\b(for|while|break|continue)\\b"
+        },
+        {
+          "name": "keyword.control.flow.pine",
+          "match": "\\b(return)\\b"
+        },
+        {
+          "name": "keyword.control.import.pine",
+          "match": "\\b(import|export|as)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.pine",
+          "match": "\\b(and|or|not)\\b"
+        },
+        {
+          "name": "keyword.other.pine",
+          "match": "\\b(method|type)\\b"
+        }
+      ]
+    },
+    "storage": {
+      "patterns": [
+        {
+          "name": "storage.type.variable.pine",
+          "match": "\\b(var|varip)\\b"
+        },
+        {
+          "name": "storage.modifier.pine",
+          "match": "\\b(const|simple|series|input)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.pine",
+          "match": "\\b(int|float|bool|string|color)\\b"
+        },
+        {
+          "name": "support.type.object.pine",
+          "match": "\\b(line|label|box|table|array|matrix|map|polyline)\\b"
+        },
+        {
+          "name": "support.type.special.pine",
+          "match": "\\b(void|na)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.na.pine",
+          "match": "\\bna\\b"
+        },
+        {
+          "name": "support.constant.color.pine",
+          "match": "\\bcolor\\.(red|green|blue|yellow|white|black|orange|aqua|fuchsia|gray|grey|lime|maroon|navy|olive|purple|silver|teal)\\b"
+        },
+        {
+          "name": "support.constant.strategy.pine",
+          "match": "\\bstrategy\\.(long|short|fixed|percent_of_equity|cash|commission\\.percent|commission\\.cash_per_contract|commission\\.cash_per_order|oca\\.none|oca\\.cancel|oca\\.reduce)\\b"
+        },
+        {
+          "name": "support.constant.location.pine",
+          "match": "\\blocation\\.(absolute|abovebar|belowbar|top|bottom)\\b"
+        },
+        {
+          "name": "support.constant.shape.pine",
+          "match": "\\bshape\\.(xcross|cross|circle|triangleup|triangledown|flag|arrowup|arrowdown|square|diamond|labelup|labeldown)\\b"
+        },
+        {
+          "name": "support.constant.linestyle.pine",
+          "match": "\\b(line|hline)\\.style_(solid|dotted|dashed)\\b"
+        },
+        {
+          "name": "support.constant.plot.pine",
+          "match": "\\bplot\\.style_(line|stepline|histogram|cross|area|columns|circles|linebreaks|areabr)\\b"
+        },
+        {
+          "name": "support.constant.format.pine",
+          "match": "\\bformat\\.(inherit|price|volume|percent|mintick)\\b"
+        },
+        {
+          "name": "support.constant.scale.pine",
+          "match": "\\bscale\\.(right|left|none)\\b"
+        },
+        {
+          "name": "support.constant.display.pine",
+          "match": "\\bdisplay\\.(none|all|data_window|pane|status_line)\\b"
+        },
+        {
+          "name": "support.constant.barmerge.pine",
+          "match": "\\bbarmerge\\.(gaps_off|gaps_on|lookahead_off|lookahead_on)\\b"
+        },
+        {
+          "name": "support.constant.alert.pine",
+          "match": "\\balert\\.freq_(once_per_bar|once_per_bar_close|all)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.pine",
+          "match": "(:=|=)"
+        },
+        {
+          "name": "keyword.operator.comparison.pine",
+          "match": "(==|!=|<=|>=|<|>)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.pine",
+          "match": "(\\+|-|\\*|/|%)"
+        },
+        {
+          "name": "keyword.operator.ternary.pine",
+          "match": "(\\?|:)"
+        },
+        {
+          "name": "keyword.operator.arrow.pine",
+          "match": "(=>)"
+        }
+      ]
+    },
+    "function-declarations": {
+      "patterns": [
+        {
+          "name": "meta.function.declaration.pine",
+          "match": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
+          "captures": {
+            "1": { "name": "entity.name.function.declaration.pine" }
+          }
+        },
+        {
+          "name": "support.function.builtin.declaration.pine",
+          "match": "\\b(indicator|strategy|library)\\s*\\(",
+          "captures": {
+            "1": { "name": "entity.name.function.builtin.pine" }
+          }
+        }
+      ]
+    },
+    "function-calls": {
+      "patterns": [
+        {
+          "name": "meta.function-call.pine",
+          "match": "\\b(plot|plotshape|plotchar|plotarrow|plotbar|plotcandle|hline|fill|bgcolor|label\\.new|line\\.new|box\\.new|table\\.new|alertcondition|alert)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.plot.pine" }
+          }
+        },
+        {
+          "name": "meta.function-call.builtin.pine",
+          "match": "\\b(nz|na|log|log10|exp|sqrt|pow|abs|min|max|avg|sum|sign|ceil|floor|round|timestamp|time|year|month|weekofyear|dayofmonth|dayofweek|hour|minute|second|timenow)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.function.builtin.pine" }
+          }
+        }
+      ]
+    },
+    "method-calls": {
+      "patterns": [
+        {
+          "name": "meta.method-call.ta.pine",
+          "match": "\\b(ta)\\.(sma|ema|wma|vwma|rma|swma|alma|rsi|macd|cci|mfi|bb|bbw|kc|kcw|stoch|atr|tr|highest|lowest|highestbars|lowestbars|valuewhen|barssince|change|mom|roc|cross|crossover|crossunder|pivothigh|pivotlow|vwap|sar|supertrend|linreg|median|mode|percentile_linear_interpolation|percentile_nearest_rank|percentrank|cum|dev|stdev|variance|correlation|cog|falling|rising|pivot_point_levels)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.ta.pine" },
+            "2": { "name": "entity.name.function.ta.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.math.pine",
+          "match": "\\b(math)\\.(abs|acos|asin|atan|avg|ceil|cos|exp|floor|log|log10|max|min|pow|random|round|round_to_mintick|sign|sin|sqrt|sum|tan|todegrees|toradians)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.math.pine" },
+            "2": { "name": "entity.name.function.math.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.input.pine",
+          "match": "\\b(input)\\.(int|float|bool|string|timeframe|symbol|session|source|color|price|time|text_area)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.input.pine" },
+            "2": { "name": "entity.name.function.input.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.request.pine",
+          "match": "\\b(request)\\.(security|security_lower_tf|dividends|splits|earnings|quandl|financial|economic|seed)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.request.pine" },
+            "2": { "name": "entity.name.function.request.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.str.pine",
+          "match": "\\b(str)\\.(contains|endswith|startswith|format|length|lower|upper|match|pos|replace|replace_all|split|substring|tonumber|tostring)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.str.pine" },
+            "2": { "name": "entity.name.function.str.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.color.pine",
+          "match": "\\b(color)\\.(new|rgb|from_gradient|r|g|b|t)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.color.pine" },
+            "2": { "name": "entity.name.function.color.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.array.pine",
+          "match": "\\b(array)\\.(new|new_int|new_float|new_bool|new_color|new_string|new_line|new_label|new_box|new_table|from|push|pop|unshift|shift|get|set|size|clear|concat|copy|includes|indexof|insert|join|lastindexof|remove|reverse|slice|sort|sum|min|max|avg|median|mode|variance|stdev|covariance|range|fill)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.array.pine" },
+            "2": { "name": "entity.name.function.array.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.matrix.pine",
+          "match": "\\b(matrix)\\.(new|copy|get|set|fill|rows|columns|elements_count|add_row|add_col|remove_row|remove_col|swap_rows|swap_columns|reverse|transpose|sort|avg|max|min|median|mode|sum|pow|mult|det|inv|pinv|rank|is_zero|is_identity|is_binary|is_square|is_stochastic|is_symmetric|is_antisymmetric|trace|eigenvalues|eigenvectors|kron)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.matrix.pine" },
+            "2": { "name": "entity.name.function.matrix.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.strategy.pine",
+          "match": "\\b(strategy)\\.(entry|close|close_all|exit|order|cancel|cancel_all|risk\\.allow_entry_in|risk\\.max_cons_loss_days|risk\\.max_drawdown|risk\\.max_intraday_filled_orders|risk\\.max_intraday_loss|risk\\.max_position_size)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.strategy.pine" },
+            "2": { "name": "entity.name.function.strategy.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.label.pine",
+          "match": "\\b(label)\\.(new|copy|delete|delete_all|get_x|get_y|get_text|get_text_color|get_size|get_style|get_color|get_textcolor|get_tooltip|set_x|set_y|set_text|set_text_color|set_size|set_style|set_color|set_textcolor|set_tooltip|set_xy|set_xloc|set_yloc)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.label.pine" },
+            "2": { "name": "entity.name.function.label.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.line.pine",
+          "match": "\\b(line)\\.(new|copy|delete|delete_all|get_x1|get_x2|get_y1|get_y2|get_color|get_width|get_style|set_x1|set_x2|set_y1|set_y2|set_color|set_width|set_style|set_xy1|set_xy2|set_xloc|set_extend)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.line.pine" },
+            "2": { "name": "entity.name.function.line.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.box.pine",
+          "match": "\\b(box)\\.(new|copy|delete|delete_all|get_left|get_right|get_top|get_bottom|get_bgcolor|get_border_color|get_border_width|get_border_style|get_text|get_text_size|get_text_color|set_left|set_right|set_top|set_bottom|set_bgcolor|set_border_color|set_border_width|set_border_style|set_text|set_text_size|set_text_color|set_lefttop|set_rightbottom)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.box.pine" },
+            "2": { "name": "entity.name.function.box.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.table.pine",
+          "match": "\\b(table)\\.(new|cell|delete|delete_all|clear|cell_set_text|cell_set_bgcolor|cell_set_text_color|cell_set_text_size|cell_set_text_halign|cell_set_text_valign|cell_set_width|cell_set_height|cell_set_tooltip|merge_cells)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.table.pine" },
+            "2": { "name": "entity.name.function.table.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.timeframe.pine",
+          "match": "\\b(timeframe)\\.(in_seconds|from_seconds)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.timeframe.pine" },
+            "2": { "name": "entity.name.function.timeframe.pine" }
+          }
+        },
+        {
+          "name": "meta.method-call.ticker.pine",
+          "match": "\\b(ticker)\\.(new|standard|heikinashi|renko|linebreak|kagi|pointfigure|modify|inherit)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "support.namespace.ticker.pine" },
+            "2": { "name": "entity.name.function.ticker.pine" }
+          }
+        }
+      ]
+    },
+    "namespaces": {
+      "patterns": [
+        {
+          "name": "support.namespace.ta.pine",
+          "match": "\\bta(?=\\.)"
+        },
+        {
+          "name": "support.namespace.math.pine",
+          "match": "\\bmath(?=\\.)"
+        },
+        {
+          "name": "support.namespace.input.pine",
+          "match": "\\binput(?=\\.)"
+        },
+        {
+          "name": "support.namespace.request.pine",
+          "match": "\\brequest(?=\\.)"
+        },
+        {
+          "name": "support.namespace.str.pine",
+          "match": "\\bstr(?=\\.)"
+        },
+        {
+          "name": "support.namespace.color.pine",
+          "match": "\\bcolor(?=\\.)"
+        },
+        {
+          "name": "support.namespace.array.pine",
+          "match": "\\barray(?=\\.)"
+        },
+        {
+          "name": "support.namespace.matrix.pine",
+          "match": "\\bmatrix(?=\\.)"
+        },
+        {
+          "name": "support.namespace.map.pine",
+          "match": "\\bmap(?=\\.)"
+        },
+        {
+          "name": "support.namespace.strategy.pine",
+          "match": "\\bstrategy(?=\\.)"
+        },
+        {
+          "name": "support.namespace.syminfo.pine",
+          "match": "\\bsyminfo(?=\\.)"
+        },
+        {
+          "name": "support.namespace.barstate.pine",
+          "match": "\\bbarstate(?=\\.)"
+        },
+        {
+          "name": "support.namespace.timeframe.pine",
+          "match": "\\btimeframe(?=\\.)"
+        },
+        {
+          "name": "support.namespace.chart.pine",
+          "match": "\\bchart(?=\\.)"
+        },
+        {
+          "name": "support.namespace.label.pine",
+          "match": "\\blabel(?=\\.)"
+        },
+        {
+          "name": "support.namespace.line.pine",
+          "match": "\\bline(?=\\.)"
+        },
+        {
+          "name": "support.namespace.box.pine",
+          "match": "\\bbox(?=\\.)"
+        },
+        {
+          "name": "support.namespace.table.pine",
+          "match": "\\btable(?=\\.)"
+        },
+        {
+          "name": "support.namespace.ticker.pine",
+          "match": "\\bticker(?=\\.)"
+        },
+        {
+          "name": "support.namespace.runtime.pine",
+          "match": "\\bruntime(?=\\.)"
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.language.builtin.pine",
+          "match": "\\b(open|high|low|close|volume|time|bar_index|last_bar_index|last_bar_time|hl2|hlc3|ohlc4|hlcc4|year|month|weekofyear|dayofmonth|dayofweek|hour|minute|second|timenow|ask|bid)\\b"
+        },
+        {
+          "name": "variable.other.property.pine",
+          "match": "\\b(syminfo|barstate|strategy|chart|timeframe|runtime)\\.[a-z_][a-z0-9_]*\\b"
+        },
+        {
+          "name": "variable.parameter.pine",
+          "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*(?=\\s*[,)])"
+        },
+        {
+          "name": "variable.other.pine",
+          "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+}

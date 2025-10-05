@@ -1,0 +1,238 @@
+//@version=6
+indicator("Point-Clip Unified Indicator v2.3 (Pine v6)", overlay=true, timeframe_gaps=true, max_boxes_count=60, max_labels_count=300)
+
+// ───────────────────────── Inputs ─────────────────────────
+grp1 = "Volume & Structure"
+volLen   = input.int(20,  "Volume MA Length", group=grp1)
+volMult  = input.float(2, "Volume Spike Multiplier", step=0.1, group=grp1)
+rangeLen = input.int(30,  "Range Lookback (bars)", group=grp1)
+useORB   = input.bool(true, "Use Opening Range (first minutes)", group=grp1)
+orbMin   = input.int(30, "ORB Minutes", minval=5, group=grp1)
+brkType  = input.string("RangeHighLow", "Breakout Type", options=["RangeHighLow","PrevBar","VWAP","AVWAP_Open"], group=grp1)
+
+grp2 = "Trend Filters"
+useTrend   = input.bool(true, "Use LTF Trend (EMA 20/50)", group=grp2)
+emaFastLen = input.int(20, "EMA Fast", group=grp2)
+emaSlowLen = input.int(50, "EMA Slow", group=grp2)
+useHTF     = input.bool(true, "Use Higher-TF Confirm", group=grp2)
+htfTF      = input.timeframe("15", "HTF (minutes)", group=grp2)
+htfEMA     = input.int(50, "HTF EMA Length", group=grp2)
+
+grp3 = "Patterns (bar close)"
+useEngulf = input.bool(true,  "Engulfing on", group=grp3)
+useHammer = input.bool(false, "Hammer/Star on", group=grp3)
+useDoji   = input.bool(false, "Trend-Doji on", group=grp3)
+dojiBody  = input.float(0.25, "Max Doji Body % of range", step=0.01, group=grp3)
+
+grp4 = "Sessions"
+useSess = input.bool(true, "Filter by Sessions", group=grp4)
+sess1   = input.session("0800-1030", "Session 1 (BST)", group=grp4)
+sess2   = input.session("1430-1600", "Session 2 (BST)", group=grp4)
+shadeSessions = input.bool(true, "Shade sessions", group=grp4)
+
+grp5 = "Scoring & Alerts"
+wVol      = input.float(0.45, "Weight: Volume", step=0.05, group=grp5)
+wTrend    = input.float(0.35, "Weight: Trend", step=0.05, group=grp5)
+wStruct   = input.float(0.20, "Weight: Structure/Pattern", step=0.05, group=grp5)
+preThresh = input.float(0.45, "Pre-Signal threshold", step=0.05, group=grp5)
+armThresh = input.float(0.58, "Armed threshold", step=0.01, group=grp5)
+minLong   = input.float(0.65, "Min Score LONG", step=0.05, group=grp5)
+minShort  = input.float(0.65, "Min Score SHORT", step=0.05, group=grp5)
+plotLabels   = input.bool(true, "Plot Signal Labels", group=grp5)
+showScoreDots= input.bool(true, "Show score dots", group=grp5)
+
+grp6 = "Panel"
+showPanel = input.bool(true, "Show Signal Panel", group=grp6)
+panelPos  = input.string("top_right", "Panel Position", options=["top_left","top_right","bottom_left","bottom_right"], group=grp6)
+
+// ───────────────────────── Helpers ─────────────────────────
+inSession(sessionStr) =>
+    not na(time(timeframe.period, sessionStr))
+
+clamp01(x) =>
+    math.min(1.0, math.max(0.0, x))
+
+// ───────────────────────── Series ─────────────────────────
+vol    = volume
+volMA  = ta.sma(vol, volLen)
+vSpike = vol > volMA * volMult
+
+emaF = ta.ema(close, emaFastLen)
+emaS = ta.ema(close, emaSlowLen)
+trUp = emaF > emaS
+trDn = emaF < emaS
+
+// HTF confirm
+htfClose = request.security(syminfo.tickerid, htfTF, close)
+htfEma   = request.security(syminfo.tickerid, htfTF, ta.ema(close, htfEMA))
+htfUp    = htfClose > htfEma
+htfDn    = htfClose < htfEma
+
+// VWAP & AVWAP (anchored to session start)
+vwap = ta.vwap
+var float cumPV = na, cumV = na, avwap = na
+inS1 = not useSess or inSession(sess1)
+inS2 = not useSess or inSession(sess2)
+inSess = inS1 or inS2
+var bool prevInSess = false
+newSessStart = inSess and not prevInSess[1]
+if newSessStart
+    cumPV := close * volume
+    cumV  := volume
+else
+    cumPV := nz(cumPV) + close * volume
+    cumV  := nz(cumV)  + volume
+avwap := cumV > 0 ? cumPV / cumV : na
+prevInSess := inSess
+
+// Range & ORB (bar-count, not time())
+rHigh = ta.highest(high, rangeLen)
+rLow  = ta.lowest(low, rangeLen)
+tfSec   = timeframe.in_seconds(timeframe.period)
+orbBars = math.max(1, math.round(orbMin * 60.0 / tfSec))
+var int  orbStartIndex = na
+var float orbH = na, orbL = na
+if newSessStart
+    orbStartIndex := bar_index, orbH := high, orbL := low
+orbActive = useORB and inSess and not na(orbStartIndex) and (bar_index - orbStartIndex < orbBars)
+if orbActive
+    orbH := math.max(orbH, high)
+    orbL := math.min(orbL, low)
+
+// Breakouts
+brPrevUp   = close > high[1]
+brPrevDn   = close < low[1]
+brRangeUp  = close > rHigh
+brRangeDn  = close < rLow
+brVWAPUp   = close > vwap and close[1] <= vwap
+brVWAPDn   = close < vwap and close[1] >= vwap
+brAVWAPUp  = close > avwap and close[1] <= avwap
+brAVWAPDn  = close < avwap and close[1] >= avwap
+brORBUp    = (not orbActive) and not na(orbH) and close > orbH
+brORBDn    = (not orbActive) and not na(orbL) and close < orbL
+
+longBrk = false
+shortBrk = false
+if brkType == "PrevBar"
+    longBrk := brPrevUp
+    shortBrk := brPrevDn
+else if brkType == "RangeHighLow"
+    longBrk := brRangeUp or brORBUp
+    shortBrk := brRangeDn or brORBDn
+else if brkType == "VWAP"
+    longBrk := brVWAPUp
+    shortBrk := brVWAPDn
+else
+    longBrk := brAVWAPUp
+    shortBrk := brAVWAPDn
+
+// Patterns (bar-close)
+rng   = high - low
+body  = math.abs(close - open)
+uW    = high - math.max(close, open)
+lW    = math.min(close, open) - low
+bullE = (close > open) and (close[1] < open[1]) and (close >= open[1]) and (open <= close[1])
+bearE = (close < open) and (close[1] > open[1]) and (close <= open[1]) and (open >= close[1])
+isHammer = rng > 0 and lW/rng >= 0.5 and body/rng <= 0.35
+isStar   = rng > 0 and uW/rng >= 0.5 and body/rng <= 0.35
+isDoji   = rng > 0 ? (body/rng) <= dojiBody : false
+
+allowLongPat  = (not useEngulf and not useHammer and not useDoji) or (useEngulf and bullE) or (useHammer and isHammer) or (useDoji and isDoji and trUp)
+allowShortPat = (not useEngulf and not useHammer and not useDoji) or (useEngulf and bearE) or (useHammer and isStar)   or (useDoji and isDoji and trDn)
+
+// Trend OK
+trendOK_L = useTrend ? (trUp and (not useHTF or htfUp)) : (not useHTF or htfUp)
+trendOK_S = useTrend ? (trDn and (not useHTF or htfDn)) : (not useHTF or htfDn)
+
+// Scoring
+volRatio = volMA > 0 ? (vol/volMA) : 1.0
+volScore = clamp01((volRatio - 1.0) / math.max(0.0001, volMult - 1.0))
+trendScoreL = clamp01((trUp?0.6:0.0) + ((useHTF and htfUp)?0.4:(useHTF?0.0:0.4)))
+trendScoreS = clamp01((trDn?0.6:0.0) + ((useHTF and htfDn)?0.4:(useHTF?0.0:0.4)))
+structL = (longBrk ? 0.7:0.0) + (allowLongPat?0.3:0.0)
+structS = (shortBrk?0.7:0.0) + (allowShortPat?0.3:0.0)
+scoreL = wVol*volScore + wTrend*trendScoreL + wStruct*structL
+scoreS = wVol*volScore + wTrend*trendScoreS + wStruct*structS
+
+// States
+sessionOK = inSess
+preLong   = sessionOK and vSpike and trendOK_L and scoreL >= preThresh
+preShort  = sessionOK and vSpike and trendOK_S and scoreS >= preThresh
+armedLong  = preLong  and (longBrk  or scoreL >= armThresh)
+armedShort = preShort and (shortBrk or scoreS >= armThresh)
+
+// Final signals (bar close)
+longSig  = barstate.isconfirmed and armedLong  and longBrk  and allowLongPat  and scoreL >= minLong
+shortSig = barstate.isconfirmed and armedShort and shortBrk and allowShortPat and scoreS >= minShort
+
+// ───────────────────────── Visuals ─────────────────────────
+// Session shading
+if shadeSessions and inS1
+    bgcolor(color.new(color.blue, 92))
+if shadeSessions and inS2
+    bgcolor(color.new(color.purple, 92))
+
+// Pre/Armed ribbons
+bgcolor(preLong  ? color.new(color.lime, 88)  : na)
+bgcolor(preShort ? color.new(color.red,  88)  : na)
+bgcolor(armedLong  ? color.new(color.lime, 80) : na)
+bgcolor(armedShort ? color.new(color.red,  80) : na)
+
+// ORB box
+var box orbBox = na
+if newSessStart
+    if not na(orbBox)
+        box.delete(orbBox)
+    orbBox := box.new(left=bar_index, top=high, right=bar_index, bottom=low, bgcolor=color.new(color.orange, 90), border_color=color.new(color.orange, 0))
+if orbActive
+    box.set_right(orbBox, bar_index)
+    box.set_top(orbBox,  math.max(box.get_top(orbBox), high))
+    box.set_bottom(orbBox, math.min(box.get_bottom(orbBox), low))
+
+// Lines
+plot(vwap, "VWAP", color=color.new(color.blue,0), linewidth=2)
+plot(avwap,"AVWAP",color=color.new(color.teal,0), linewidth=2)
+plot(rHigh,"Range High", color=color.new(color.gray,65), style=plot.style_linebr)
+plot(rLow, "Range Low",  color=color.new(color.gray,65), style=plot.style_linebr)
+plot(orbH, "ORB High", color=color.new(color.orange,10))
+plot(orbL, "ORB Low",  color=color.new(color.orange,10))
+
+// Score dots
+dotSizeL = scoreL >= minLong  ? size.large  : scoreL >= armThresh ? size.normal : scoreL >= preThresh ? size.tiny : size.tiny
+dotSizeS = scoreS >= minShort ? size.large  : scoreS >= armThresh ? size.normal : scoreS >= preThresh ? size.tiny : size.tiny
+plotshape(showScoreDots and preLong,  title="ScoreL", style=shape.circle, color=color.new(color.lime,0), location=location.abovebar, size=dotSizeL)
+plotshape(showScoreDots and preShort, title="ScoreS", style=shape.circle, color=color.new(color.red,0),  location=location.belowbar, size=dotSizeS)
+
+// Entry markers
+if plotLabels and longSig
+    label.new(bar_index, low,  "BUY\n"+str.tostring(close, format.mintick),  style=label.style_label_up,   color=color.new(color.green,0), textcolor=color.white)
+if plotLabels and shortSig
+    label.new(bar_index, high, "SELL\n"+str.tostring(close, format.mintick), style=label.style_label_down, color=color.new(color.red,0),   textcolor=color.white)
+
+barcolor(longSig ? color.new(color.green,65) : shortSig ? color.new(color.red,65) : na)
+
+// Alerts
+alertcondition(longSig,  "TA Point-Clip LONG",  "LONG signal (confluence met)")
+alertcondition(shortSig, "TA Point-Clip SHORT", "SHORT signal (confluence met)")
+
+// Panel
+var table pnl = na
+if showPanel and na(pnl)
+    pnl := table.new(panelPos=="top_left"?position.top_left:panelPos=="top_right"?position.top_right:panelPos=="bottom_left"?position.bottom_left:position.bottom_right, 2, 10, frame_color=color.new(color.gray,70), border_width=1)
+cell(t, r, c, txt, clr, bclr) =>
+    table.cell(t, r, c, txt, text_color=clr, bgcolor=bclr)
+stateTxt = longSig ? "SIGNAL LONG" : shortSig ? "SIGNAL SHORT" : armedLong ? "ARMED L" : armedShort ? "ARMED S" : preLong ? "PRE L" : preShort ? "PRE S" : "—"
+if showPanel
+    cell(pnl,0,0,"Point-Clip", color.white, na), cell(pnl,0,1,syminfo.ticker+" ("+stateTxt+")", color.white, na)
+    cell(pnl,1,0,"Vol Ratio", color.silver, na), cell(pnl,1,1,str.tostring(volRatio,"#.##")+"x", vSpike?color.lime:color.silver, vSpike?color.new(color.lime,85):na)
+    cell(pnl,2,0,"Trend LTF", color.silver, na), cell(pnl,2,1,trUp?"UP":trDn?"DOWN":"FLAT", trUp?color.lime:trDn?color.red:color.yellow, na)
+    cell(pnl,3,0,"Trend HTF", color.silver, na), cell(pnl,3,1,htfUp?"UP":htfDn?"DOWN":"FLAT", htfUp?color.lime:htfDn?color.red:color.yellow, na)
+    cell(pnl,4,0,"Breakout",  color.silver, na), cell(pnl,4,1,longBrk?"LONG":shortBrk?"SHORT":"None", longBrk?color.lime:shortBrk?color.red:color.silver, na)
+    cell(pnl,5,0,"Pattern",   color.silver, na), cell(pnl,5,1,allowLongPat?"Long OK":allowShortPat?"Short OK":"No", allowLongPat?color.lime:allowShortPat?color.red:color.silver, na)
+    cell(pnl,6,0,"Session",   color.silver, na), cell(pnl,6,1,inSess?"YES":"NO", inSess?color.lime:color.red, na)
+    cell(pnl,7,0,"ORB",       color.silver, na), cell(pnl,7,1,orbActive?"ACTIVE":"DONE", orbActive?color.yellow:color.silver, na)
+    cell(pnl,8,0,"Scores",    color.aqua,   color.new(color.aqua,85))
+    cell(pnl,8,1,"L "+str.tostring(scoreL,"#.##")+" / S "+str.tostring(scoreS,"#.##"), color.white, color.new(color.aqua,85))
+    cell(pnl,9,0,"Tip", color.silver, na), cell(pnl,9,1,"Trade only ARMED→SIGNAL", color.silver, na)
+
+

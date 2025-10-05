@@ -1,0 +1,51 @@
+//@version=6
+indicator("Multi-TF FVG Kerze Break Alert", overlay=true)
+
+// === Inputs ===
+tfList = input.string("2,5,15", "Timeframes (Comma separated)")
+alertOnce = input.bool(true, "Alarm nur einmal pro Pattern")
+
+// Funktion: FVG + Kerze, die hineinragt + späterer Bruch
+fvgSignal(_high, _low, _close) =>
+    fvgBull = _low[1] > _high[2]
+    candleInFVG = fvgBull and _low < _low[1] and _high > _low[1]
+    var float candleLevel = na
+    var bool monitor = false
+
+    if candleInFVG
+        candleLevel := _low
+        monitor := true
+    
+    fvgBroken = monitor and _close < candleLevel
+    [candleLevel, monitor, fvgBroken]
+
+// To address a compiler warning about function calls in a local scope,
+// we call the function once in the global scope. This ensures consistent
+// behavior between the main chart series and the 'request.security' contexts.
+// The result of this global call is not used for plotting or alerts.
+fvgSignal(high, low, close)
+
+// === Multi-Timeframe Processing ===
+tfArray = str.split(tfList, ",")
+var float[] plotLevels = array.new_float()
+
+for tf in tfArray
+    tf = str.trim(tf)
+    [clvl, mon, broken] = request.security(syminfo.tickerid, tf, fvgSignal(high, low, close))
+    
+    // Nur Plot speichern, wenn Level existiert
+    if not na(clvl)
+        array.push(plotLevels, clvl)
+    
+    // Alarm
+    if broken
+        alert("FVG Kerze im " + tf + " Timeframe gebrochen!", alert.freq_once_per_bar_close)
+
+// === Plot Level für Übersicht (festes title, max 3 Timeframes) ===
+level1 = array.size(plotLevels) > 0 ? array.get(plotLevels, 0) : na
+level2 = array.size(plotLevels) > 1 ? array.get(plotLevels, 1) : na
+level3 = array.size(plotLevels) > 2 ? array.get(plotLevels, 2) : na
+
+plot(level1, title="Candle Level 1", color=color.new(color.green,0))
+plot(level2, title="Candle Level 2", color=color.new(color.blue,0))
+plot(level3, title="Candle Level 3", color=color.new(color.orange,0))

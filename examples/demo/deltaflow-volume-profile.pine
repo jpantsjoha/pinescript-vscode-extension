@@ -1,0 +1,128 @@
+// This work is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International  
+// https://creativecommons.org/licenses/by-nc-sa/4.0/
+// © BigBeluga
+
+//@version=6
+indicator("DeltaFlow Volume Profile [BigBeluga]", overlay = true, max_boxes_count = 500)
+plot(na)
+
+
+
+// ＩＮＰＵＴＳ ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+lookBack     = input.int(200, "LookBack")
+binsAmount   = input.int(30, "Bins", maxval = 100, minval = 10)
+offset       = input.int(5)
+
+deltaHeatMap = input.bool(true, "Delta Heat Map", group = "Features")
+deltaDisplay = input.bool(true, "Delta", group = "Features")
+volumeBars   = input.bool(true, "Volume Bars", group = "Features")
+pocDisplay   = input.bool(true, "", inline = "poc", group = "Features")
+pocColor     = input.color(color.rgb(0, 183, 255), "PoC Color", inline = "poc", group = "Features")
+
+bullcolor    = input.color(color.teal, "Volume +/-", inline = "vol")
+bearcolor    = input.color(color.rgb(230, 150, 30), "", inline = "vol")
+
+
+type vp_ 
+    array<float> volumeArry
+    array<float> bearVolume
+    array<float> bullVolume
+    
+
+vp = vp_.new(array.new<float>(binsAmount, 0.), array.new<float>(binsAmount, 0.), array.new<float>(binsAmount, 0.))
+
+MaxMin     = array.new<float>()
+var boxes  = array.new<box>()
+// }
+
+
+// ＣＡＬＣＵＬＡＴＩＯＮＳ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+if barstate.islast
+
+    if boxes.size() > 0 
+        for b in boxes 
+            b.delete()
+
+
+    for i = 0 to lookBack 
+        MaxMin.push(high[i])
+        MaxMin.push(low[i])
+
+
+    top = MaxMin.max()
+    bot = MaxMin.min()
+    step = (top-bot)/binsAmount
+
+    for i = 0 to lookBack
+
+        price = close[i]
+        isBear = close[i] < open[i]
+        voll = volume[i]
+
+
+        for k = 0 to binsAmount - 1
+            lower = bot + step * k
+            mid   = lower + step/2
+
+            if math.abs(mid - price) <= step 
+                vp.volumeArry.set(k, vp.volumeArry.get(k) + voll)
+
+                if isBear 
+                    vp.bearVolume.set(k, vp.bearVolume.get(k) + voll)
+                else 
+                    vp.bullVolume.set(k, vp.bullVolume.get(k) + voll)
+
+
+
+// ＰＬＯＴ ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+    for i = 0 to binsAmount - 1
+
+        start = bar_index + 100+offset
+
+        volumeArryvalue = vp.volumeArry.get(i)
+
+        lower = bot + step * i 
+        upper = lower + step 
+        mid   = lower + step /2
+        vol   = int(vp.volumeArry.get(i) / vp.volumeArry.max() * 100)
+
+        bullV = math.floor(vp.bullVolume.get(i) / vp.volumeArry.max() * 100)
+        bearV = math.floor(vp.bearVolume.get(i) / vp.volumeArry.max() * 100)
+
+        size  = (start - start-vol) 
+
+        bullsPercent = math.abs(bullV/size*100)
+        bearsPercent = math.abs(bearV/size*100)
+
+        bullsPercent := bullsPercent > 100 ? 100 : bullsPercent
+
+        delta       = bullsPercent - bearsPercent
+        deltaColor  = color.from_gradient(delta, -30, 30, bearcolor, bullcolor)
+
+        box poc      = na 
+        box labelBox = na
+        box MapBody  = na
+        box bulls    = na
+        box bears    = na 
+
+        if deltaHeatMap  
+            MapBody  := box.new(start-lookBack-50-vol, upper, start, lower, border_color = chart.bg_color, border_width = 0, bgcolor = color.from_gradient(vol, 0, 100, color.new(deltaColor, 100), color.new(deltaColor, 70)))
+        if vol == 100 and pocDisplay
+            poc := box.new(start-lookBack-50-vol, upper, start, lower, border_color = pocColor, border_width = 1, bgcolor = na, text = str.tostring(volumeArryvalue, format.volume), text_color = chart.fg_color)
+        if deltaDisplay
+            labelBox := box.new(start+15, upper, start, lower, border_color = chart.bg_color, border_width = 1, bgcolor = color.new(deltaColor, 80), text = "Δ " + str.tostring(delta, format.percent), text_color = deltaColor)  
+
+        body        = box.new(start-vol, upper, start, lower, border_color = chart.bg_color, border_width = 1, bgcolor = color.new(deltaColor, 50))
+
+        if volumeBars
+            bulls  := box.new(start-bullV, mid, start, lower, bgcolor = bullcolor, border_color = chart.bg_color, border_width = 1, text = str.tostring(bullsPercent, format = format.percent), text_halign = text.align_right)
+            bears  := box.new(start-bearV, upper, start, mid, bgcolor = bearcolor, border_color = chart.bg_color, border_width = 1, text = str.tostring(bearsPercent, format = format.percent), text_halign = text.align_right)
+
+ 
+        boxes.push(poc)
+        boxes.push(labelBox)
+        boxes.push(MapBody)
+        boxes.push(body)
+        boxes.push(bulls)
+        boxes.push(bears)
+// }

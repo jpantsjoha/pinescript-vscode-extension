@@ -1,0 +1,30 @@
+{
+  "version": "0.3.0",
+  "testDate": "2025-10-05",
+  "totalFunctions": 457,
+  "falsePositives": 0,
+  "falseNegatives": 2,
+  "namespaces": 23,
+  "topNamespaces": [
+    {
+      "namespace": "ta",
+      "functions": 59
+    },
+    {
+      "namespace": "array",
+      "functions": 55
+    },
+    {
+      "namespace": "matrix",
+      "functions": 49
+    },
+    {
+      "namespace": "strategy",
+      "functions": 47
+    },
+    {
+      "namespace": "<global>",
+      "functions": 41
+    }
+  ]
+}

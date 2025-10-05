@@ -1,0 +1,88 @@
+//@version=6
+// INVALID Pine Script v6 Code
+// These SHOULD produce validation errors
+
+//──────────────────────────────────────────────────────────
+// INVALID: Missing Required Parameters
+//──────────────────────────────────────────────────────────
+
+// ERROR: indicator() missing required 'title' parameter
+// indicator()
+
+// ERROR: input.string() missing required 'defval' parameter
+test = input.string()
+
+// ERROR: input.int() missing required 'defval' parameter
+period = input.int()
+
+// ERROR: plot() missing required 'series' parameter
+// plot()
+
+// ERROR: ta.sma() missing required parameters
+// sma = ta.sma()
+
+//──────────────────────────────────────────────────────────
+// INVALID: Too Many Parameters
+//──────────────────────────────────────────────────────────
+
+// ERROR: Too Many - alertcondition() expects max 3 params (condition, title?, message?)
+// but got 5
+shortSig = close < open
+alertcondition(shortSig, 333, "tetette", 333, 333)
+
+// ERROR: Too Many - library() expects 1 param (title) but got 3
+// library("MyLib", "extra", "params")
+
+//──────────────────────────────────────────────────────────
+// INVALID: Wrong Parameter Names
+//──────────────────────────────────────────────────────────
+
+// ERROR: Wrong Parameter - plotshape uses 'style' not 'shape'
+// plotshape(close > open, shape=shape.circle)
+
+// ERROR: Wrong Parameter - input.int uses 'defval' not 'default'
+// myInput = input.int(default=10)
+
+//──────────────────────────────────────────────────────────
+// INVALID: Undefined Variables & Namespaces
+//──────────────────────────────────────────────────────────
+
+// ERROR: Undefined namespace 'ssss'
+plot(ssss.adas, 33)
+
+// ERROR: Undefined variable 'undefinedVar'
+plot(undefinedVar)
+
+// ERROR: Undefined function 'sometin'
+sometin()
+
+// ERROR: Undefined function in valid namespace
+result = ta.nonexistentfunction(close, 14)
+
+//──────────────────────────────────────────────────────────
+// INVALID: Type Mismatches
+//──────────────────────────────────────────────────────────
+
+// ERROR: input.bool expects bool default, got string
+// boolInput = input.bool("true")
+
+// ERROR: ta.sma expects int length, got string
+// smaValue = ta.sma(close, "14")
+
+//──────────────────────────────────────────────────────────
+// INVALID: Incorrect Function Usage
+//──────────────────────────────────────────────────────────
+
+// ERROR: alert() requires message parameter
+// alert()
+
+// ERROR: strategy() missing required title
+// strategy()
+
+//──────────────────────────────────────────────────────────
+// INVALID: Comma-Separated Variable Declarations (v6 Syntax Error)
+//──────────────────────────────────────────────────────────
+
+// ERROR: Pine Script v6 doesn't allow comma-separated var declarations
+var float invalidA = na, invalidB = na
+var int badX = 0, badY = 0

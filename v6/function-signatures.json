@@ -1,0 +1,178 @@
+[
+  {
+    "function": "indicator",
+    "syntax": "indicator(title, shorttitle, overlay, format, precision, scale, max_bars_back, timeframe, timeframe_gaps, explicit_plot_zorder, max_lines_count, max_labels_count, max_boxes_count, calc_bars_count, max_polylines_count, dynamic_requests, behind_chart)",
+    "rawParams": "title, shorttitle, overlay, format, precision, scale, max_bars_back, timeframe, timeframe_gaps, explicit_plot_zorder, max_lines_count, max_labels_count, max_boxes_count, calc_bars_count, max_polylines_count, dynamic_requests, behind_chart",
+    "required": [
+      "title",
+      "shorttitle",
+      "overlay",
+      "format",
+      "precision",
+      "scale",
+      "max_bars_back",
+      "timeframe",
+      "timeframe_gaps",
+      "explicit_plot_zorder",
+      "max_lines_count",
+      "max_labels_count",
+      "max_boxes_count",
+      "calc_bars_count",
+      "max_polylines_count",
+      "dynamic_requests",
+      "behind_chart"
+    ],
+    "optional": []
+  },
+  {
+    "function": "strategy",
+    "syntax": "strategy(title, shorttitle, overlay, format, precision, scale, pyramiding, calc_on_order_fills, calc_on_every_tick, max_bars_back, backtest_fill_limits_assumption, default_qty_type, default_qty_value, initial_capital, currency, slippage, commission_type, commission_value, process_orders_on_close, close_entries_rule, margin_long, margin_short, explicit_plot_zorder, max_lines_count, max_labels_count, max_boxes_count, calc_bars_count, risk_free_rate, use_bar_magnifier, fill_orders_on_standard_ohlc, max_polylines_count, dynamic_requests, behind_chart)",
+    "rawParams": "title, shorttitle, overlay, format, precision, scale, pyramiding, calc_on_order_fills, calc_on_every_tick, max_bars_back, backtest_fill_limits_assumption, default_qty_type, default_qty_value, initial_capital, currency, slippage, commission_type, commission_value, process_orders_on_close, close_entries_rule, margin_long, margin_short, explicit_plot_zorder, max_lines_count, max_labels_count, max_boxes_count, calc_bars_count, risk_free_rate, use_bar_magnifier, fill_orders_on_standard_ohlc, max_polylines_count, dynamic_requests, behind_chart",
+    "required": [
+      "title",
+      "shorttitle",
+      "overlay",
+      "format",
+      "precision",
+      "scale",
+      "pyramiding",
+      "calc_on_order_fills",
+      "calc_on_every_tick",
+      "max_bars_back",
+      "backtest_fill_limits_assumption",
+      "default_qty_type",
+      "default_qty_value",
+      "initial_capital",
+      "currency",
+      "slippage",
+      "commission_type",
+      "commission_value",
+      "process_orders_on_close",
+      "close_entries_rule",
+      "margin_long",
+      "margin_short",
+      "explicit_plot_zorder",
+      "max_lines_count",
+      "max_labels_count",
+      "max_boxes_count",
+      "calc_bars_count",
+      "risk_free_rate",
+      "use_bar_magnifier",
+      "fill_orders_on_standard_ohlc",
+      "max_polylines_count",
+      "dynamic_requests",
+      "behind_chart"
+    ],
+    "optional": []
+  },
+  {
+    "function": "plot",
+    "syntax": "plot(series, title, color, linewidth, style, trackprice, histbase, offset, join, editable, show_last, display, format, precision, force_overlay, linestyle)",
+    "rawParams": "series, title, color, linewidth, style, trackprice, histbase, offset, join, editable, show_last, display, format, precision, force_overlay, linestyle",
+    "required": [
+      "series",
+      "title",
+      "color",
+      "linewidth",
+      "style",
+      "trackprice",
+      "histbase",
+      "offset",
+      "join",
+      "editable",
+      "show_last",
+      "display",
+      "format",
+      "precision",
+      "force_overlay",
+      "linestyle"
+    ],
+    "optional": []
+  },
+  {
+    "function": "plotshape",
+    "syntax": "plotshape(series, title, style, location, color, offset, text, textcolor, editable, size, show_last, display, format, precision, force_overlay)",
+    "rawParams": "series, title, style, location, color, offset, text, textcolor, editable, size, show_last, display, format, precision, force_overlay",
+    "required": [
+      "series",
+      "title",
+      "style",
+      "location",
+      "color",
+      "offset",
+      "text",
+      "textcolor",
+      "editable",
+      "size",
+      "show_last",
+      "display",
+      "format",
+      "precision",
+      "force_overlay"
+    ],
+    "optional": []
+  },
+  {
+    "function": "plotchar",
+    "syntax": "plotchar(series, title, char, location, color, offset, text, textcolor, editable, size, show_last, display, format, precision, force_overlay)",
+    "rawParams": "series, title, char, location, color, offset, text, textcolor, editable, size, show_last, display, format, precision, force_overlay",
+    "required": [
+      "series",
+      "title",
+      "char",
+      "location",
+      "color",
+      "offset",
+      "text",
+      "textcolor",
+      "editable",
+      "size",
+      "show_last",
+      "display",
+      "format",
+      "precision",
+      "force_overlay"
+    ],
+    "optional": []
+  },
+  {
+    "function": "bgcolor",
+    "syntax": "bgcolor(color, offset, editable, show_last, title, display, force_overlay)",
+    "rawParams": "color, offset, editable, show_last, title, display, force_overlay",
+    "required": [
+      "color",
+      "offset",
+      "editable",
+      "show_last",
+      "title",
+      "display",
+      "force_overlay"
+    ],
+    "optional": []
+  },
+  {
+    "function": "barcolor",
+    "syntax": "barcolor(color, offset, editable, show_last, title, display)",
+    "rawParams": "color, offset, editable, show_last, title, display",
+    "required": [
+      "color",
+      "offset",
+      "editable",
+      "show_last",
+      "title",
+      "display"
+    ],
+    "optional": []
+  },
+  {
+    "function": "alertcondition",
+    "syntax": "alertcondition(condition, title, message)",
+    "rawParams": "condition, title, message",
+    "required": [
+      "condition",
+      "title",
+      "message"
+    ],
+    "optional": []
+  }
+]
