@@ -7,8 +7,8 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
-const { ALL_FUNCTION_SIGNATURES } = require('../v6/parameter-requirements.ts');
-const { PINE_FUNCTIONS } = require('../v6/parameter-requirements-generated.ts');
+const { ALL_FUNCTION_SIGNATURES } = require('../dist/v6/parameter-requirements.js');
+const { PINE_FUNCTIONS } = require('../dist/v6/parameter-requirements-generated.js');
 
 describe('Parameter Requirements Validation', () => {
 
