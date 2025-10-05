@@ -46,11 +46,11 @@ jobs:
           echo "❌ dist/ directory not created"
           exit 1
         fi
-        if [ ! -f "dist/extension.js" ]; then
+        if [ ! -f "dist/src/extension.js" ]; then
           echo "❌ extension.js not built"
           exit 1
         fi
-        echo "✅ Build artifacts verified"
+        echo "✅ Build artifacts verified (dist/src/extension.js)"
 
     - name: Check for TypeScript errors
       run: npx tsc --noEmit
