@@ -32,7 +32,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # Scraped documentation (regenerate as needed)
-v6/raw/
+v6/raw/*
+!v6/raw/v6-language-constructs.json
 v6/docs-crawled/
 v6/scripts/
 
