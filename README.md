@@ -1,6 +1,6 @@
-# Pine Script v6 Professional - VS Code Extension
+# Pine Script v6 Language Support - VS Code Extension
 
-> **Complete Pine Script v6 IDE** with 100% language coverage, IntelliSense, real-time diagnostics, and zero false positives.
+> **Complete Pine Script v6 language support** with 100% construct coverage, intelligent IntelliSense, real-time diagnostics, and zero false positives. Community-driven open source project.
 
 [![CI/CD Pipeline](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://github.com/jpantsjoha/pinescript-vscode-extension/releases)
@@ -12,9 +12,11 @@
 
 ## 🎯 What is This?
 
-A professional-grade Visual Studio Code extension for **Pine Script v6** developers. Write TradingView indicators and strategies with the power of modern IDE features: intelligent code completion, real-time error detection, and comprehensive language support.
+A community-driven Visual Studio Code extension for **Pine Script v6** developers. Write TradingView indicators and strategies with modern IDE features: intelligent code completion, real-time error detection, and comprehensive language support.
 
-**Key Achievement:** 100% coverage of Pine Script v6 language constructs (all 6,665 official items from TradingView documentation).
+**Key Achievement:** 100% coverage of Pine Script v6 language constructs (all official language features from TradingView documentation).
+
+**Created by:** [Jaroslav Pantsjoha](https://github.com/jpantsjoha) and the community.
 
 ---
 

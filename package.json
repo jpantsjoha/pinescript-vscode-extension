@@ -1,8 +1,12 @@
 {
   "name": "pine-script-extension",
-  "displayName": "Pine Script v6 Professional",
-  "description": "Complete Pine Script v6 IDE: 100% language coverage (6,665 items), IntelliSense, parameter hints, hover docs, and zero false positives.",
+  "displayName": "Pine Script v6 Language Support",
+  "description": "Complete Pine Script v6 language support with 100% construct coverage, intelligent IntelliSense, real-time diagnostics, and zero false positives. Community-driven open source project.",
   "publisher": "jaroslav",
+  "author": {
+    "name": "Jaroslav Pantsjoha",
+    "url": "https://github.com/jpantsjoha"
+  },
   "version": "0.4.0",
   "icon": "images/pinescript-extension.png",
   "repository": {
@@ -17,7 +21,22 @@
     "vscode": "^1.88.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Linters",
+    "Snippets"
+  ],
+  "keywords": [
+    "pine",
+    "pinescript",
+    "pine-script",
+    "tradingview",
+    "trading",
+    "indicators",
+    "strategies",
+    "syntax",
+    "intellisense",
+    "diagnostics",
+    "v6"
   ],
   "activationEvents": [
     "onLanguage:pine"

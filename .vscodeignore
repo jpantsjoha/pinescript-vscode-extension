@@ -18,13 +18,29 @@ package-lock.json
 docs/**
 *.md
 !README.md
+!CHANGELOG.md
+!LICENSE
+
+# Agent definitions (private)
+multi-agent-devex/**
+.CLAUDE.md
+
+# GitHub workflows (not needed in extension)
+.github/**
 
 # Scripts & Tools
 v6/scripts/**
 v6/raw/**
+scripts/**
 
 # Examples & Test Files
 examples/**
+
+# Development files
+check-functions.js
+test-comprehensive-validator.js
+test-validation.pine
+PRE-RELEASE-CLEANUP-REPORT.md
 
 # OS & IDE
 .DS_Store
@@ -32,4 +48,3 @@ Thumbs.db
 
 # Build artifacts
 *.vsix
-.vscodeignore
