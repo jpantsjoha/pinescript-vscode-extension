@@ -25,7 +25,7 @@ fi
 
 # Uninstall existing version
 echo "🗑️  Uninstalling existing version (if any)..."
-code --uninstall-extension jaroslav.pine-script-extension 2>/dev/null || true
+code --uninstall-extension jpantsjoha.pine-script-extension 2>/dev/null || true
 
 # Install from VSIX
 echo ""

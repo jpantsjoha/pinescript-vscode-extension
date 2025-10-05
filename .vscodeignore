@@ -1,18 +1,27 @@
 # IDE & Version Control
 .vscode/**
+.vscode-test/**
 .git/**
 .gitignore
+.gitattributes
 .claude/**
 
 # Dependencies
 node_modules/**
 
+# Coverage
+coverage/**
+.nyc_output/**
+
 # Source & Build
 src/**
 test/**
+tests/**
 tsconfig.json
 package-lock.json
 *.tsbuildinfo
+*.map
+**/*.map
 
 # Documentation (dev only - keep README.md for marketplace)
 docs/**

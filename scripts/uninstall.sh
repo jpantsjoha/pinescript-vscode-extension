@@ -11,7 +11,7 @@ echo ""
 
 # Method 1: Uninstall via vsce (if installed from marketplace/vsix)
 echo "1️⃣  Uninstalling via VSCode CLI..."
-code --uninstall-extension jaroslav.pine-script-extension 2>/dev/null && echo "   ✅ Uninstalled via CLI" || echo "   ⚠️  Not installed via CLI"
+code --uninstall-extension jpantsjoha.pine-script-extension 2>/dev/null && echo "   ✅ Uninstalled via CLI" || echo "   ⚠️  Not installed via CLI"
 
 # Method 2: Remove symlink (if installed in dev mode)
 if [ -L "${EXTENSION_DIR}" ]; then

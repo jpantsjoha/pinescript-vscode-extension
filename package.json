@@ -1,8 +1,8 @@
 {
-  "name": "pine-script-extension",
+  "name": "pinescript-v6-extension",
   "displayName": "Pine Script v6 Language Support",
   "description": "Complete Pine Script v6 language support with 100% construct coverage, intelligent IntelliSense, real-time diagnostics, and zero false positives. Community-driven open source project.",
-  "publisher": "JaroslavPantsjoha",
+  "publisher": "jpantsjoha",
   "author": {
     "name": "Jaroslav Pantsjoha",
     "url": "https://github.com/jpantsjoha"
@@ -17,8 +17,13 @@
     "url": "https://github.com/jpantsjoha/pinescript-vscode-extension/issues"
   },
   "homepage": "https://github.com/jpantsjoha/pinescript-vscode-extension#readme",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.88.0"
+  },
+  "galleryBanner": {
+    "color": "#0E1626",
+    "theme": "dark"
   },
   "categories": [
     "Programming Languages",
@@ -133,6 +138,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jaroslav/Pine-Script-Extension"
+    "url": "https://github.com/jpantsjoha/pinescript-vscode-extension.git"
   }
 }

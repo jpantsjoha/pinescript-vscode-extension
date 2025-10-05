@@ -79,8 +79,8 @@ vsce --version
 2. **Create new publisher:**
    - Click **Create publisher**
    - Fill in details:
-     - **ID**: `jaroslav` (or your chosen ID - must be unique, lowercase, no spaces)
-     - **Name**: "Jaroslav" (display name)
+     - **ID**: `jpantsjoha` (or your chosen ID - must be unique, lowercase, no spaces)
+     - **Name**: "Jaroslav Pantsjoha" (display name)
      - **Email**: Your verified email
      - **Website** (optional): GitHub repo or personal site
    - Click **Create**
@@ -88,7 +88,7 @@ vsce --version
 3. **Update package.json:**
    ```json
    {
-     "publisher": "jaroslav"
+     "publisher": "jpantsjoha"
    }
    ```
 
@@ -189,7 +189,7 @@ code --install-extension build/pine-script-extension-0.2.1.vsix
 ### 6.3 Uninstall Test Extension
 
 ```bash
-code --uninstall-extension jaroslav.pine-script-extension
+code --uninstall-extension jpantsjoha.pine-script-extension
 ```
 
 ---
@@ -199,7 +199,7 @@ code --uninstall-extension jaroslav.pine-script-extension
 ### 7.1 Login with vsce
 
 ```bash
-vsce login jaroslav
+vsce login jpantsjoha
 ```
 
 **Enter your Personal Access Token** when prompted.
@@ -236,7 +236,7 @@ npm run package
 ## Step 8: Verify Publication
 
 1. **Check marketplace listing:**
-   - https://marketplace.visualstudio.com/items?itemName=jaroslav.pine-script-extension
+   - https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pine-script-extension
 
 2. **Verify metadata:**
    - Icon displays correctly
@@ -246,7 +246,7 @@ npm run package
 
 3. **Test installation from marketplace:**
    ```bash
-   code --install-extension jaroslav.pine-script-extension
+   code --install-extension jpantsjoha.pine-script-extension
    ```
 
 ---
@@ -318,8 +318,8 @@ vsce publish major   # 0.2.1 → 1.0.0
 3. **GitHub README:**
    - Add marketplace badge:
      ```markdown
-     ![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/jaroslav.pine-script-extension)
-     ![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/jaroslav.pine-script-extension)
+     ![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/jpantsjoha.pine-script-extension)
+     ![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/jpantsjoha.pine-script-extension)
      ```
 
 4. **Social media:**
@@ -382,7 +382,7 @@ vsce publish
 vsce publish patch|minor|major
 
 # Unpublish (careful!)
-vsce unpublish jaroslav.pine-script-extension
+vsce unpublish jpantsjoha.pine-script-extension
 ```
 
 ---
