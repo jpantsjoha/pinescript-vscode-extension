@@ -2,9 +2,11 @@
 
 > **Complete Pine Script v6 IDE** with 100% language coverage, IntelliSense, real-time diagnostics, and zero false positives.
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://github.com/YourGitHub/pine-script-vscode-extension)
+[![CI/CD Pipeline](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://github.com/jpantsjoha/pinescript-vscode-extension/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 [![Language Coverage](https://img.shields.io/badge/v6_coverage-100%25-success.svg)](./docs/V0.4.0-COVERAGE-ANALYSIS.md)
+[![Tests](https://img.shields.io/badge/tests-67%2F67_passing-success.svg)](./test)
 
 ---
 
@@ -285,8 +287,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## 📬 Support
 
-- **Issues:** Report bugs via [GitHub Issues](#)
-- **Questions:** Ask in [GitHub Discussions](#)
+- **Issues:** Report bugs via [GitHub Issues](https://github.com/jpantsjoha/pinescript-vscode-extension/issues)
+- **Questions:** Ask in [GitHub Discussions](https://github.com/jpantsjoha/pinescript-vscode-extension/discussions)
 - **Updates:** Watch this repo for new releases
 
 ---

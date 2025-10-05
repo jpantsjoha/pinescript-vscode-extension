@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: 'npm'
+
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Verify version matches package.json
+      run: |
+        PACKAGE_VERSION=$(node -p "require('./package.json').version")
+        TAG_VERSION="${{ steps.get_version.outputs.VERSION }}"
+        if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+          echo "❌ Version mismatch: package.json=$PACKAGE_VERSION, tag=$TAG_VERSION"
+          exit 1
+        fi
+        echo "✅ Version verified: $PACKAGE_VERSION"
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run tests
+      run: npm test
+
+    - name: Run self-test
+      run: node test/v0.4.0-self-test.js
+
+    - name: Build extension
+      run: npm run build
+
+    - name: Install vsce
+      run: npm install -g @vscode/vsce
+
+    - name: Package VSIX
+      run: npm run package
+
+    - name: Extract changelog for version
+      id: changelog
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        # Extract changelog section for this version
+        CHANGELOG=$(awk "/## \[${VERSION}\]/,/## \[/" CHANGELOG.md | sed '$d' | tail -n +2)
+        if [ -z "$CHANGELOG" ]; then
+          echo "No changelog found for version $VERSION, using default"
+          CHANGELOG="Release $VERSION - See CHANGELOG.md for details"
+        fi
+        # Save to file for multiline output
+        echo "$CHANGELOG" > /tmp/release-notes.md
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Pine Script v6 Professional - v${{ steps.get_version.outputs.VERSION }}
+        body_path: /tmp/release-notes.md
+        files: |
+          build/*.vsix
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Release Summary
+      run: |
+        echo "✅ Release v${{ steps.get_version.outputs.VERSION }} created successfully"
+        echo "📦 VSIX package uploaded to GitHub Releases"
+        echo "🔗 https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_version.outputs.VERSION }}"

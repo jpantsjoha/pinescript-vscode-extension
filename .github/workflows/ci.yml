@@ -1,0 +1,170 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run linter
+      run: npm run lint --if-present || echo "No lint script found, skipping"
+
+    - name: Build TypeScript
+      run: npm run build
+
+    - name: Run unit tests
+      run: npm test
+
+    - name: Run v0.4.0 self-test
+      run: node test/v0.4.0-self-test.js
+
+    - name: Verify build artifacts
+      run: |
+        if [ ! -d "dist" ]; then
+          echo "❌ dist/ directory not created"
+          exit 1
+        fi
+        if [ ! -f "dist/extension.js" ]; then
+          echo "❌ extension.js not built"
+          exit 1
+        fi
+        echo "✅ Build artifacts verified"
+
+    - name: Check for TypeScript errors
+      run: npx tsc --noEmit
+
+  package:
+    name: Package Extension
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build extension
+      run: npm run build
+
+    - name: Install vsce
+      run: npm install -g @vscode/vsce
+
+    - name: Package VSIX
+      run: npm run package
+
+    - name: Verify VSIX created
+      run: |
+        if [ ! -f build/pine-script-extension-*.vsix ]; then
+          echo "❌ VSIX package not created"
+          exit 1
+        fi
+        VSIX_SIZE=$(du -h build/pine-script-extension-*.vsix | cut -f1)
+        echo "✅ VSIX package created: $VSIX_SIZE"
+
+    - name: Upload VSIX artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: vsix-package
+        path: build/*.vsix
+        retention-days: 30
+
+  quality-gates:
+    name: Quality Gates
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build
+      run: npm run build
+
+    - name: Verify 100% test pass rate
+      run: |
+        npm test 2>&1 | tee test-output.txt
+        if grep -q "failing" test-output.txt; then
+          echo "❌ Tests failing"
+          exit 1
+        fi
+        echo "✅ All tests passing"
+
+    - name: Verify language coverage
+      run: |
+        node test/v0.4.0-self-test.js 2>&1 | tee self-test-output.txt
+        if grep -q "❌" self-test-output.txt; then
+          echo "❌ Self-test failed"
+          exit 1
+        fi
+        if ! grep -q "7/7 tests passed" self-test-output.txt; then
+          echo "❌ Not all self-tests passing"
+          exit 1
+        fi
+        echo "✅ 100% language coverage verified"
+
+    - name: Check package.json version
+      run: |
+        VERSION=$(node -p "require('./package.json').version")
+        echo "Package version: $VERSION"
+        if [ -z "$VERSION" ]; then
+          echo "❌ No version in package.json"
+          exit 1
+        fi
+        echo "✅ Version: $VERSION"
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+
+    - name: Run npm audit
+      run: |
+        npm audit --audit-level=moderate || true
+        echo "Security audit completed"

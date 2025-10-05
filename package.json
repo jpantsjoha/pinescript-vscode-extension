@@ -5,6 +5,14 @@
   "publisher": "jaroslav",
   "version": "0.4.0",
   "icon": "images/pinescript-extension.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jpantsjoha/pinescript-vscode-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jpantsjoha/pinescript-vscode-extension/issues"
+  },
+  "homepage": "https://github.com/jpantsjoha/pinescript-vscode-extension#readme",
   "engines": {
     "vscode": "^1.88.0"
   },
