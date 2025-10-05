@@ -1,13 +1,13 @@
 {
   "name": "pinescript-v6-extension",
-  "displayName": "Pine Script v6 Language Support",
-  "description": "Complete Pine Script v6 language support with 100% construct coverage, intelligent IntelliSense, real-time diagnostics, and zero false positives. Community-driven open source project.",
+  "displayName": "Pine Script v6 IDE Tools",
+  "description": "Unofficial Pine Script v6 support for VS Code — IntelliSense, hover docs, and real-time validation with 100% language coverage.",
   "publisher": "jpantsjoha",
   "author": {
     "name": "Jaroslav Pantsjoha",
     "url": "https://github.com/jpantsjoha"
   },
-  "version": "0.4.0",
+  "version": "0.4.1",
   "icon": "images/pinescript-extension.png",
   "repository": {
     "type": "git",

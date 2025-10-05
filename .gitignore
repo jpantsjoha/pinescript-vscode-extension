@@ -18,7 +18,7 @@ node_modules/
 # Agent definitions (private development context)
 multi-agent-devex/
 .CLAUDE.md
-GEMINI.md
+# GEMINI.md - Now public! AI assistant context for Pine Script v6
 
 # OS files
 .DS_Store

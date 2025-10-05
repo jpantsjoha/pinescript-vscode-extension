@@ -220,12 +220,52 @@ code --install-extension build/pine-script-extension-0.4.0.vsix
 
 ---
 
+## 🤖 AI Code Assistant - Gemini Pine Script v6 Expert
+
+Want an AI assistant that's an **expert in Pine Script v6**? We've created a comprehensive context file for Google Gemini!
+
+### Features
+- **6,665 official language constructs** knowledge
+- **100% v6 syntax mastery** with zero false positives
+- **Code generation** following TradingView best practices
+- **Anti-repainting patterns** and performance optimization
+- **Self-referencing documentation** (auto-lookup from TradingView docs)
+
+### Quick Setup
+
+1. **Install Gemini CLI:**
+   ```bash
+   npm install -g @google-gemini/gemini-cli
+   ```
+
+2. **Use the expert context:**
+   ```bash
+   gemini chat --context GEMINI.md
+   ```
+
+3. **Ask Pine Script v6 questions:**
+   ```
+   > How do I prevent repainting with request.security()?
+   > Generate a strategy with trailing stop loss
+   > Optimize this indicator for performance
+   ```
+
+**See:** [GEMINI.md](./GEMINI.md) - Complete Pine Script v6 expert system context
+
+**Gemini CLI:** https://github.com/google-gemini/gemini-cli
+
+---
+
 ## 📖 Documentation
 
 ### For Users
 - **[Quick Start Guide](./docs/QUICK-START.md)** - Get started in 5 minutes
 - **[Testing Guide](./docs/V0.4.0-TESTING-GUIDE.md)** - Verify everything works
 - **[Syntax Highlighting](./docs/SYNTAX-HIGHLIGHTING-GUIDE.md)** - Customize colors
+
+### For AI/LLM Development
+- **[GEMINI.md](./GEMINI.md)** - Complete Pine Script v6 expert context for Gemini
+- **[AI Assistant Guide](./docs/AI-ASSISTANT-GUIDE.md)** - Pine Script v6 agent workflows
 
 ### For Contributors
 - **[Contributing Guide](./docs/CONTRIBUTING.md)** - How to contribute
