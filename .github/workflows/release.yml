@@ -54,6 +54,9 @@ jobs:
     - name: Install vsce
       run: npm install -g @vscode/vsce
 
+    - name: Create build directory
+      run: mkdir -p build
+
     - name: Package VSIX
       run: npm run package
 
