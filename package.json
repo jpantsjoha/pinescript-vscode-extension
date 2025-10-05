@@ -2,7 +2,7 @@
   "name": "pine-script-extension",
   "displayName": "Pine Script v6 Language Support",
   "description": "Complete Pine Script v6 language support with 100% construct coverage, intelligent IntelliSense, real-time diagnostics, and zero false positives. Community-driven open source project.",
-  "publisher": "jaroslav",
+  "publisher": "JaroslavPantsjoha",
   "author": {
     "name": "Jaroslav Pantsjoha",
     "url": "https://github.com/jpantsjoha"
