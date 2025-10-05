@@ -6,7 +6,6 @@ build/
 
 # Dependencies
 node_modules/
-package-lock.json
 
 # IDE & Editor
 .vscode/
