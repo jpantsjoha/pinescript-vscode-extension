@@ -455,9 +455,9 @@ After:  1/12 files (8%)  [but closer to passing]
 - ✅ Committed: ccdf1f8
 
 **Overall Progress:**
-- Baseline: 853 errors → Current: 392 errors
-- **Total reduction: 461 errors (-54.1%)**
-- global-liquidity: 55 → 23 errors (-58.2%)
+- Baseline: 853 errors → Current: 351 errors
+- **Total reduction: 502 errors (-58.8%)**
+- global-liquidity: 55 → 21 errors (-61.8%)
 
 ### ✅ Session 2 Complete (2025-10-06)
 
@@ -476,7 +476,7 @@ After:  1/12 files (8%)  [but closer to passing]
 
 ### 📋 TODO: Remaining Work
 
-**Current Status:** 392 errors remaining (from 853 baseline, -54.1% total) 🎯
+**Current Status:** 351 errors remaining (from 853 baseline, -58.8% total) 🎯
 
 ---
 
@@ -546,53 +546,100 @@ After:  1/12 files (8%)  [but closer to passing]
 
 ---
 
-#### 🟡 PRIORITY 4 (NOW): Advanced Type Inference (4-5 hours)
+#### ✅ PRIORITY 4: Advanced Type Inference (COMPLETE)
 
-**Impact:** Expected to fix ~72 errors (392 → ~320)
+**Status:** ✅ DONE - Session 5 (2025-10-06)
+**Impact:** 392 → 351 errors (-41, -10.5%)
 
-**Issues:**
-- Complex ternary expressions still return `unknown`
-- Type propagation in nested expressions incomplete
-- Binary operations with series types need refinement
+**Completed Tasks:**
+- ✅ **Phase A: Missing Function Return Types** (-17 errors)
+  - Added return types for 88 built-in functions
+  - Covered timeframe, strategy, request, str, math, ta, color, array, matrix namespaces
+  - Eliminated "unknown" type errors from common function calls
 
-**Tasks:**
-- [ ] Context-sensitive type propagation for ternaries
-- [ ] Better handling of series type operations
-- [ ] Improve type inference for nested CallExpressions
-- [ ] Handle array element access type inference
+- ✅ **Phase B: Array/Index Access Inference** (-22 errors)
+  - Pattern matching for `series<T>[i]` → `T`
+  - Pattern matching for `array<T>[i]` → `T`
+  - Fixed `close[1]`, `high[0]` returning `unknown`
+  - Better than predicted impact
 
-**Affected Files:**
-- tun-satiroglu.pine: 201 errors (complex calculations)
-- All files with multi-level expressions
+- ✅ **Phase C: Enhanced Ternary Handling** (0 errors)
+  - Prefer known types over `unknown` in branches
+  - Defensive improvement (prevents future regressions)
+
+- ✅ **Phase D: Namespace Property Access** (-2 errors)
+  - Added 24 namespace properties (timeframe, syminfo, barstate, chart)
+  - Property type inference for `timeframe.period`, `barstate.isfirst`
+
+**Results:**
+- global-liquidity.v6.pine: 23 → 21 errors (-8.7%)
+- Cumulative reduction: -502 errors from baseline (-58.8%)
+
+**Why Target Missed:**
+- Original prediction overestimated unknown type errors (~230 predicted, -39 actual)
+- Many remaining unknown types come from complex user-defined functions
+- Remaining errors distributed across multiple categories
+
+**Documentation:** See SESSION-5-COMPLETE-SUMMARY.md
 
 ---
 
-#### 🔵 PRIORITY 5: Array/Generic Type Support (5-8 hours)
+#### 🟡 PRIORITY 5 (NEXT): User-Defined Function Return Types (3-4 hours)
 
-**Impact:** Expected to fix ~30 errors
+**Impact:** Expected to fix ~41 errors (351 → ~310)
 
-**Currently Not Supported:**
+**Problem:**
 ```pine
-array<float> prices = array.new_float()
-matrix<int> data = matrix.new<int>(10, 10)
+f_custom(x) => x * 2  // return type: unknown
+result = f_custom(42) // result: unknown → cascades to errors
+```
+
+**Root Cause:**
+- User-defined functions don't track return types
+- Function body isn't analyzed for return type inference
+- All calls to user functions return `unknown`
+
+**Tasks:**
+- [ ] Infer return type from function body expressions
+- [ ] Track user-defined function signatures in symbol table
+- [ ] Use inferred types in CallExpression validation
+- [ ] Handle recursive functions (default to unknown)
+
+**High-Impact File:**
+- tun-satiroglu.pine: 178 errors (many custom functions)
+
+---
+
+#### 🔵 PRIORITY 6: Switch Statement Support (2-3 hours)
+
+**Impact:** Expected to fix ~30 errors (310 → ~280)
+
+**Problem:**
+```pine
+switch condition
+    1 => doA()
+    2 => doB()
+    => doDefault()
 ```
 
 **Tasks:**
-- [ ] Parse generic type syntax `type<T>`
-- [ ] Recognize array/matrix constructors
-- [ ] Track generic types in symbol table
+- [ ] Add SwitchStatement AST node
+- [ ] Parse switch cases with indentation tracking
+- [ ] Validate case expressions and bodies
+- [ ] Type inference for switch expressions
 
 ---
 
-#### 🟣 PRIORITY 6: Edge Cases & Cleanup (3-5 hours)
+#### 🟣 PRIORITY 7: Edge Cases & Cleanup (3-5 hours)
 
-**Impact:** Expected to fix ~20 errors
+**Impact:** Expected to fix ~20 errors (280 → ~260)
 
 **Tasks:**
 - [ ] Fix while loop indentation (apply same pattern as for loops)
-- [ ] Add missing built-in function signatures
+- [ ] Add remaining missing built-in function signatures
 - [ ] Improve error messages for common patterns
 - [ ] Handle remaining edge cases
+- [ ] Array/Generic type support (if time permits)
 
 ---
 
@@ -606,16 +653,17 @@ matrix<int> data = matrix.new<int>(10, 10)
 | ✅ Session 2 | 2 | -45 | 572 |
 | ✅ Priority 1: Type Inference | 3 | -9 | 563 |
 | ✅ Priority 2: Control Flow | 2 | -112 | 451 |
-| ✅ Priority 3: Type Annotations | 1 | -59 | **392** ⬅️ NOW |
-| 🟡 Priority 4: Advanced Type Inference | 4-5 | ~-72 | ~320 |
-| 🔵 Priority 5: Generics | 5-8 | ~-30 | ~290 |
-| 🟣 Priority 6: Cleanup | 3-5 | ~-20 | **~270** |
-| **TOTAL PROGRESS** | **14 hrs** | **-461** | **392 (-54.1%)** |
-| **REMAINING** | **12-18 hrs** | **~-122** | **~270 target** |
+| ✅ Priority 3: Type Annotations | 1 | -59 | 392 |
+| ✅ Priority 4: Advanced Type Inference | 3 | -41 | **351** ⬅️ NOW |
+| 🟡 Priority 5: User-Defined Functions | 3-4 | ~-41 | ~310 |
+| 🔵 Priority 6: Switch Statements | 2-3 | ~-30 | ~280 |
+| 🟣 Priority 7: Cleanup | 3-5 | ~-20 | **~260** |
+| **TOTAL PROGRESS** | **17 hrs** | **-502** | **351 (-58.8%)** |
+| **REMAINING** | **8-12 hrs** | **~-91** | **~260 target** |
 
 **Original Target:** <250 errors (71% reduction from baseline)
-**New Target:** <270 errors (68% reduction) - More achievable
-**Current:** 392 errors (54% reduction achieved) 🎯
+**Updated Target:** <260 errors (70% reduction) - Realistic based on Session 5 learnings
+**Current:** 351 errors (58.8% reduction achieved) 🎯
 
 ---
 

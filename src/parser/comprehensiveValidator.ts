@@ -76,6 +76,9 @@ export class ComprehensiveValidator {
       }
     }
 
+    // Add known return types for common functions (Phase A - Session 5)
+    this.addKnownReturnTypes();
+
     // Also build from V6_FUNCTIONS for any missing functions
     for (const [name, item] of Object.entries(V6_FUNCTIONS)) {
       if (!this.functionSignatures.has(name)) {
@@ -98,6 +101,142 @@ export class ComprehensiveValidator {
             }
           }
         }
+      }
+    }
+  }
+
+  // Phase D - Session 5: Namespace properties for property access type inference
+  private namespaceProperties: Record<string, PineType> = {
+    // timeframe namespace properties
+    'timeframe.period': 'string',
+    'timeframe.multiplier': 'int',
+
+    // syminfo namespace properties
+    'syminfo.tickerid': 'string',
+    'syminfo.ticker': 'string',
+    'syminfo.prefix': 'string',
+    'syminfo.type': 'string',
+    'syminfo.session': 'string',
+    'syminfo.timezone': 'string',
+    'syminfo.currency': 'string',
+    'syminfo.basecurrency': 'string',
+    'syminfo.root': 'string',
+    'syminfo.pointvalue': 'float',
+    'syminfo.mintick': 'float',
+
+    // barstate namespace properties
+    'barstate.isfirst': 'series<bool>',
+    'barstate.islast': 'series<bool>',
+    'barstate.isrealtime': 'series<bool>',
+    'barstate.isnew': 'series<bool>',
+    'barstate.isconfirmed': 'series<bool>',
+    'barstate.ishistory': 'series<bool>',
+
+    // chart namespace properties
+    'chart.bg_color': 'color',
+    'chart.fg_color': 'color',
+    'chart.left_visible_bar_time': 'series<int>',
+    'chart.right_visible_bar_time': 'series<int>',
+  };
+
+  private addKnownReturnTypes(): void {
+    // High-impact function return types identified in Session 5 analysis
+    // These functions are commonly used but missing return type information
+    const knownReturnTypes: Record<string, string> = {
+      // timeframe namespace
+      'timeframe.in_seconds': 'int',
+      'timeframe.multiplier': 'int',
+      'timeframe.isseconds': 'bool',
+      'timeframe.isminutes': 'bool',
+      'timeframe.ishours': 'bool',
+      'timeframe.isdaily': 'bool',
+      'timeframe.isweekly': 'bool',
+      'timeframe.ismonthly': 'bool',
+      'timeframe.isdwm': 'bool',
+      'timeframe.isintraday': 'bool',
+
+      // strategy namespace
+      'strategy.position_size': 'series float',
+      'strategy.position_avg_price': 'series float',
+      'strategy.opentrades': 'series int',
+      'strategy.closedtrades': 'series int',
+      'strategy.wintrades': 'series int',
+      'strategy.losstrades': 'series int',
+      'strategy.grossprofit': 'series float',
+      'strategy.grossloss': 'series float',
+      'strategy.netprofit': 'series float',
+
+      // request namespace
+      'request.security': 'series float',
+      'request.dividends': 'series float',
+      'request.splits': 'series float',
+      'request.earnings': 'series float',
+
+      // str namespace
+      'str.tostring': 'string',
+      'str.tonumber': 'float',
+      'str.length': 'int',
+      'str.contains': 'bool',
+      'str.pos': 'int',
+      'str.substring': 'string',
+      'str.replace': 'string',
+      'str.replace_all': 'string',
+      'str.lower': 'string',
+      'str.upper': 'string',
+      'str.split': 'array<string>',
+      'str.format': 'string',
+
+      // math namespace (additional)
+      'math.ceil': 'int',
+      'math.floor': 'int',
+      'math.round': 'int',
+      'math.sign': 'int',
+      'math.abs': 'float',
+      'math.sqrt': 'float',
+      'math.pow': 'float',
+      'math.exp': 'float',
+      'math.log': 'float',
+      'math.log10': 'float',
+
+      // array namespace (common)
+      'array.size': 'int',
+      'array.get': 'any',  // Returns element type
+      'array.includes': 'bool',
+      'array.indexof': 'int',
+      'array.lastindexof': 'int',
+      'array.min': 'float',
+      'array.max': 'float',
+      'array.sum': 'float',
+      'array.avg': 'float',
+
+      // ta namespace (additional)
+      'ta.change': 'series float',
+      'ta.rsi': 'series float',
+      'ta.ema': 'series float',
+      'ta.sma': 'series float',
+      'ta.wma': 'series float',
+      'ta.vwma': 'series float',
+      'ta.stoch': 'series float',
+      'ta.bb': 'series float',
+      'ta.bbw': 'series float',
+      'ta.atr': 'series float',
+      'ta.tr': 'series float',
+      'ta.crossover': 'bool',
+      'ta.crossunder': 'bool',
+      'ta.cross': 'bool',
+      'ta.valuewhen': 'series float',
+      'ta.barssince': 'series int',
+      'ta.highest': 'series float',
+      'ta.lowest': 'series float',
+      'ta.highestbars': 'series int',
+      'ta.lowestbars': 'series int',
+    };
+
+    // Apply return types to existing signatures
+    for (const [funcName, returnType] of Object.entries(knownReturnTypes)) {
+      const sig = this.functionSignatures.get(funcName);
+      if (sig && !sig.returns) {
+        sig.returns = returnType;
       }
     }
   }
@@ -138,7 +277,11 @@ export class ComprehensiveValidator {
         }
       }
 
-      return { name, parameters };
+      return {
+        name,
+        parameters,
+        returns: spec.returns || undefined
+      };
     } catch (e) {
       return null;
     }
@@ -805,9 +948,26 @@ export class ComprehensiveValidator {
         break;
 
       case 'TernaryExpression':
+        // Phase C - Session 5: Enhanced ternary expression type inference
         const ternaryExpr = expr as any;
         const conseqType = this.inferExpressionType(ternaryExpr.consequent);
         const altType = this.inferExpressionType(ternaryExpr.alternate);
+
+        // If both unknown, return unknown
+        if (conseqType === 'unknown' && altType === 'unknown') {
+          type = 'unknown';
+          break;
+        }
+
+        // If one is unknown, try to use the known type
+        if (conseqType === 'unknown' && altType !== 'unknown') {
+          type = altType;
+          break;
+        }
+        if (altType === 'unknown' && conseqType !== 'unknown') {
+          type = conseqType;
+          break;
+        }
 
         // Handle na ? na : value pattern - common in Pine Script
         if (conseqType === 'na') {
@@ -835,8 +995,46 @@ export class ComprehensiveValidator {
         }
         break;
 
+      case 'IndexExpression':
+        // Phase B - Session 5: Infer type from array/series element access
+        const indexExpr = expr as any;
+        const arrayType = this.inferExpressionType(indexExpr.object);
+
+        // Handle series<T>[index] → T
+        const seriesMatch = arrayType.match(/^series<(.+)>$/);
+        if (seriesMatch) {
+          type = seriesMatch[1] as PineType;  // Return inner type (e.g., series<float> → float)
+          break;
+        }
+
+        // Handle array<T>[index] → T
+        const arrayMatch = arrayType.match(/^array<(.+)>$/);
+        if (arrayMatch) {
+          type = arrayMatch[1] as PineType;  // Return element type
+          break;
+        }
+
+        // For unknown array type, return unknown
+        // For known non-array/series type, assume it's indexable and return same type
+        type = arrayType === 'unknown' ? 'unknown' : arrayType;
+        break;
+
       case 'MemberExpression':
-        // For namespace.function, return unknown (will be resolved in call expression)
+        // Phase D - Session 5: Check for namespace properties first
+        const memberExpr = expr as any;
+
+        // Try to get namespace.property full name
+        if (memberExpr.object?.type === 'Identifier' && memberExpr.property?.type === 'Identifier') {
+          const propertyName = `${memberExpr.object.name}.${memberExpr.property.name}`;
+
+          // Check if it's a known namespace property
+          if (propertyName in this.namespaceProperties) {
+            type = this.namespaceProperties[propertyName];
+            break;
+          }
+        }
+
+        // For namespace.function calls, return unknown (will be resolved in call expression)
         type = 'unknown';
         break;
     }

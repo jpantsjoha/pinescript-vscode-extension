@@ -23,6 +23,7 @@ export interface FunctionSignatureSpec {
   optionalParams: string[];
   signature: string;
   parameters: FunctionParameter[];
+  returns?: string;  // Added in Session 5 for type inference
 }
 
 export const PINE_FUNCTIONS: Record<string, FunctionSignatureSpec> = {
