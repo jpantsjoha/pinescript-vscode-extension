@@ -105,6 +105,40 @@ export class ComprehensiveValidator {
     }
   }
 
+  // Phase D - Session 5: Namespace properties for property access type inference
+  private namespaceProperties: Record<string, PineType> = {
+    // timeframe namespace properties
+    'timeframe.period': 'string',
+    'timeframe.multiplier': 'int',
+
+    // syminfo namespace properties
+    'syminfo.tickerid': 'string',
+    'syminfo.ticker': 'string',
+    'syminfo.prefix': 'string',
+    'syminfo.type': 'string',
+    'syminfo.session': 'string',
+    'syminfo.timezone': 'string',
+    'syminfo.currency': 'string',
+    'syminfo.basecurrency': 'string',
+    'syminfo.root': 'string',
+    'syminfo.pointvalue': 'float',
+    'syminfo.mintick': 'float',
+
+    // barstate namespace properties
+    'barstate.isfirst': 'series<bool>',
+    'barstate.islast': 'series<bool>',
+    'barstate.isrealtime': 'series<bool>',
+    'barstate.isnew': 'series<bool>',
+    'barstate.isconfirmed': 'series<bool>',
+    'barstate.ishistory': 'series<bool>',
+
+    // chart namespace properties
+    'chart.bg_color': 'color',
+    'chart.fg_color': 'color',
+    'chart.left_visible_bar_time': 'series<int>',
+    'chart.right_visible_bar_time': 'series<int>',
+  };
+
   private addKnownReturnTypes(): void {
     // High-impact function return types identified in Session 5 analysis
     // These functions are commonly used but missing return type information
@@ -986,7 +1020,21 @@ export class ComprehensiveValidator {
         break;
 
       case 'MemberExpression':
-        // For namespace.function, return unknown (will be resolved in call expression)
+        // Phase D - Session 5: Check for namespace properties first
+        const memberExpr = expr as any;
+
+        // Try to get namespace.property full name
+        if (memberExpr.object?.type === 'Identifier' && memberExpr.property?.type === 'Identifier') {
+          const propertyName = `${memberExpr.object.name}.${memberExpr.property.name}`;
+
+          // Check if it's a known namespace property
+          if (propertyName in this.namespaceProperties) {
+            type = this.namespaceProperties[propertyName];
+            break;
+          }
+        }
+
+        // For namespace.function calls, return unknown (will be resolved in call expression)
         type = 'unknown';
         break;
     }
