@@ -1,0 +1,82 @@
+//@version=6
+indicator("Session 4 Edge Case Tests", overlay=true)
+
+// Test 1: Nested if/else with varying indentation
+testNestedIfElse(x) =>
+    if x > 10
+        result1 = x * 2
+        result2 = result1 + 5
+        if x > 20
+            final = result2 * 3
+            final
+        else
+            final = result2 * 2
+            final
+    else
+        result1 = x / 2
+        result2 = result1 - 5
+        result2
+
+// Test 2: For loops with complex bodies
+testForLoopComplex() =>
+    sum = 0.0
+    for i = 1 to 10
+        temp = i * 2.5
+        if temp > 15
+            sum := sum + temp
+        else
+            sum := sum + (temp / 2)
+    sum
+
+// Test 3: Type annotations - all variations
+int myInt = 42
+float myFloat = 3.14
+bool myBool = true
+var int varInt = 0
+var float varFloat = 0.0
+var bool varBool = false
+
+// Test 4: For loop iterator in expressions
+testIteratorScope() =>
+    result = 0
+    for i = 0 to 100
+        result := result + i
+        factor = i * 2
+        result := result + factor
+    result
+
+// Test 5: If/else with single line vs multi-line
+testMixedIndent(x) =>
+    if x > 0
+        x * 2
+    else
+        negative = x * -1
+        adjusted = negative + 10
+        adjusted
+
+// Test 6: Deeply nested control flow
+testDeepNesting(x) =>
+    if x > 0
+        for i = 1 to 5
+            if i > 3
+                temp1 = x * i
+                temp2 = temp1 + 10
+                temp2
+            else
+                temp3 = x / i
+                temp3
+    else
+        for j = 1 to 3
+            value = x * j
+            value
+
+// Test 7: Type annotations in complex expressions
+var float complexCalc = 10.0 * 2.5 + 3.14
+int baseValue = 100
+bool isValid = baseValue > 50
+
+// Execute tests
+plot(testNestedIfElse(15), "Nested If/Else", color.blue)
+plot(testForLoopComplex(), "For Loop Complex", color.red)
+plot(testIteratorScope(), "Iterator Scope", color.green)
+plot(testMixedIndent(5), "Mixed Indent", color.orange)

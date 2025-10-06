@@ -1,0 +1,199 @@
+[
+  {
+    "file": "examples/test-v6-features.pine",
+    "lines": 262,
+    "statements": 60,
+    "errors": 9,
+    "warnings": 97,
+    "errorTypes": {
+      "Undefined variable 'bullCross'": 1,
+      "Condition must be boolean, got unknown": 2,
+      "Undefined variable 'bearCross'": 1,
+      "Undefined variable 'rsi'": 2,
+      "Type mismatch": 2,
+      "Undefined variable 'switch'": 1
+    }
+  },
+  {
+    "file": "examples/mysample.v6.pine",
+    "lines": 180,
+    "statements": 74,
+    "errors": 21,
+    "warnings": 103,
+    "errorTypes": {
+      "Type mismatch": 17,
+      "Undefined variable 'orbActive'": 3,
+      "Condition must be boolean, got unknown": 1
+    }
+  },
+  {
+    "file": "examples/indicator.2.3.pine",
+    "lines": 239,
+    "statements": 81,
+    "errors": 32,
+    "warnings": 107,
+    "errorTypes": {
+      "Undefined variable 'inSess'": 2,
+      "Type mismatch": 17,
+      "Undefined variable 'orbActive'": 3,
+      "Condition must be boolean, got unknown": 1,
+      "Type mismatch for argument 4": 1,
+      "Type mismatch for parameter 'text_color'": 1,
+      "Type mismatch for parameter 'bgcolor'": 1,
+      "Undefined variable 'longSig'": 1,
+      "Undefined variable 'shortSig'": 1,
+      "Undefined variable 'armedLong'": 1,
+      "Undefined variable 'armedShort'": 1,
+      "Undefined variable 'preLong'": 1,
+      "Undefined variable 'preShort'": 1
+    }
+  },
+  {
+    "file": "examples/global-liquidity.v6.pine",
+    "lines": 112,
+    "statements": 62,
+    "errors": 21,
+    "warnings": 93,
+    "errorTypes": {
+      "Type mismatch": 21
+    }
+  },
+  {
+    "file": "examples/debug-test.pine",
+    "lines": 9,
+    "statements": 3,
+    "errors": 0,
+    "warnings": 72,
+    "errorTypes": {}
+  },
+  {
+    "file": "examples/demo/tun-satiroglu.pine",
+    "lines": 726,
+    "statements": 95,
+    "errors": 178,
+    "warnings": 90,
+    "errorTypes": {
+      "Undefined variable 'longStop'": 1,
+      "Type mismatch": 60,
+      "Undefined variable 'doji4price'": 2,
+      "Condition must be boolean, got unknown": 8,
+      "Undefined variable 'longStopPrev'": 5,
+      "Undefined variable 'lowPrice'": 2,
+      "Undefined variable 'src'. Did you mean 'str'?": 1,
+      "Undefined variable 'atr'. Did you mean 'str'?": 1,
+      "Undefined variable 'highPrice'": 2,
+      "Undefined variable 'repaint'": 4,
+      "Undefined variable 'ln'. Did you mean 'i'?": 1,
+      "Undefined variable 'coefs'": 2,
+      "Undefined variable 'tb'. Did you mean 'ta'?": 1,
+      "Undefined variable 'reg_div_l_style_'. Did you mean 'reg_div_l_style'?": 2,
+      "Undefined variable 'hid_div_l_style_'. Did you mean 'hid_div_l_style'?": 2,
+      "Undefined variable 'showindis'": 13,
+      "Undefined variable 'pos_reg_div_col'": 1,
+      "Undefined variable 'neg_reg_div_col'": 1,
+      "Undefined variable 'pos_hid_div_col'": 1,
+      "Undefined variable 'neg_hid_div_col'": 1,
+      "Too many arguments for 'ta.pivothigh'. Expected 2, got 3": 1,
+      "Undefined variable 'sourceDivergence'": 4,
+      "Undefined variable 'prd'. Did you mean 'd'?": 4,
+      "Too many arguments for 'ta.pivotlow'. Expected 2, got 3": 1,
+      "Undefined variable 'ph_vals'": 4,
+      "Undefined variable 'pl_vals'": 4,
+      "Undefined variable 'dontconfirm'": 5,
+      "Undefined variable 'maxpp'. Did you mean 'map'?": 2,
+      "Undefined variable 'by'. Did you mean 'x'?": 4,
+      "Undefined variable 'prd'. Did you mean 'src'?": 2,
+      "Undefined variable 'maxbars'": 2,
+      "Undefined variable 'by'. Did you mean 'y'?": 2,
+      "Undefined variable 'searchdiv'": 8,
+      "Undefined variable 'showlimit'": 1,
+      "Undefined variable 'by'. Did you mean 'j'?": 6,
+      "Undefined variable 'y'. Did you mean 'd'?": 6,
+      "Undefined variable 'showlast'": 4,
+      "Undefined variable 'new_line'": 2,
+      "Undefined variable 'div_type'": 3,
+      "Undefined variable 'x'. Did you mean 'd'?": 2
+    }
+  },
+  {
+    "file": "examples/demo/multi-tf-fvg.pine",
+    "lines": 51,
+    "statements": 9,
+    "errors": 14,
+    "warnings": 77,
+    "errorTypes": {
+      "Condition must be boolean, got unknown": 2,
+      "Undefined variable 'plotLevels'": 7,
+      "Undefined variable 'clvl'": 1,
+      "Undefined variable 'broken'": 1,
+      "Undefined variable 'tf'. Did you mean 'ta'?": 1,
+      "Type mismatch": 2
+    }
+  },
+  {
+    "file": "examples/demo/mft-state-of-delivery.pine",
+    "lines": 221,
+    "statements": 44,
+    "errors": 29,
+    "warnings": 73,
+    "errorTypes": {
+      "Undefined variable 'isBear'": 2,
+      "Type mismatch": 9,
+      "Undefined variable 'isBull'": 2,
+      "Undefined variable 'showPending'": 2,
+      "Undefined variable 'showHTFPending'": 2,
+      "Undefined variable 'htfBullishPendingLine'": 1,
+      "Undefined variable 'htfBearishPendingLine'": 1,
+      "Undefined variable 'showTable'": 1,
+      "Condition must be boolean, got unknown": 1,
+      "Undefined variable 'bullishColor'": 1,
+      "Undefined variable 'bearishColor'": 1,
+      "Undefined variable 'showHTF'": 1,
+      "Undefined variable 'htf'. Did you mean 'hl2'?": 3,
+      "Undefined variable 'htfBullishColor'": 1,
+      "Undefined variable 'htfBearishColor'": 1
+    }
+  },
+  {
+    "file": "examples/demo/deltaflow-volume-profile.pine",
+    "lines": 129,
+    "statements": 23,
+    "errors": 26,
+    "warnings": 63,
+    "errorTypes": {
+      "Undefined variable 'vp_'": 1,
+      "Undefined variable 'float'. Did you mean 'plot'?": 3,
+      "Type mismatch": 17,
+      "Undefined variable 'volumeArry'": 1,
+      "Undefined variable 'bearVolume'": 1,
+      "Undefined variable 'bullVolume'": 1,
+      "Type mismatch for parameter 'bgcolor'": 1,
+      "Type mismatch for parameter 'text'": 1
+    }
+  },
+  {
+    "file": "test/fixtures/valid.pine",
+    "lines": 85,
+    "statements": 20,
+    "errors": 4,
+    "warnings": 78,
+    "errorTypes": {
+      "Undefined variable 'crossUp'": 3,
+      "Condition must be boolean, got unknown": 1
+    }
+  },
+  {
+    "file": "test/fixtures/invalid.pine",
+    "lines": 88,
+    "statements": 10,
+    "errors": 5,
+    "warnings": 76,
+    "errorTypes": {
+      "Missing required parameter 'defval' for function 'input.string'": 1,
+      "Missing required parameter 'defval' for function 'input.int'": 1,
+      "Too many arguments for 'alertcondition'. Expected 3, got 5": 1,
+      "Undefined variable 'ssss'": 1,
+      "Undefined variable 'undefinedVar'": 1
+    }
+  }
+]

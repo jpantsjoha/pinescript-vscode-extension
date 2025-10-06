@@ -1,0 +1,19 @@
+//@version=6
+indicator("Test Function Return Types")
+
+// Function that returns a calculated value
+f_calculate(x, y) =>
+    temp = x * 2
+    temp + y
+
+// Function that returns series
+f_series(src, len) =>
+    ta.sma(src, len)
+
+// Use the functions
+result1 = f_calculate(10, 5)  // Should infer: int
+result2 = f_series(close, 14)  // Should infer: series<float>
+
+// This should work without type errors
+if result1 > 20
+    plot(result2)
