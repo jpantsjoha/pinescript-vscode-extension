@@ -914,9 +914,26 @@ export class ComprehensiveValidator {
         break;
 
       case 'TernaryExpression':
+        // Phase C - Session 5: Enhanced ternary expression type inference
         const ternaryExpr = expr as any;
         const conseqType = this.inferExpressionType(ternaryExpr.consequent);
         const altType = this.inferExpressionType(ternaryExpr.alternate);
+
+        // If both unknown, return unknown
+        if (conseqType === 'unknown' && altType === 'unknown') {
+          type = 'unknown';
+          break;
+        }
+
+        // If one is unknown, try to use the known type
+        if (conseqType === 'unknown' && altType !== 'unknown') {
+          type = altType;
+          break;
+        }
+        if (altType === 'unknown' && conseqType !== 'unknown') {
+          type = conseqType;
+          break;
+        }
 
         // Handle na ? na : value pattern - common in Pine Script
         if (conseqType === 'na') {
