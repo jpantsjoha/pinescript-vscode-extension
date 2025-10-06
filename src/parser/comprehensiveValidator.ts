@@ -1,16 +1,25 @@
 // Comprehensive Pine Script Validator with Type Checking and Scope Analysis
-import * as vscode from 'vscode';
 import { Program, Statement, Expression, CallExpression, CallArgument, Identifier, Literal } from './ast';
 import { V6_FUNCTIONS, V6_NAMESPACES, PineItem } from '../../v6/v6-manual';
+import { PINE_FUNCTIONS_MERGED } from '../../v6/parameter-requirements-merged';
+import type { FunctionSignatureSpec, FunctionParameter } from '../../v6/parameter-requirements-generated';
 import { PineType, TypeChecker, TypeInfo } from './typeSystem';
 import { SymbolTable, Symbol as SymbolInfo } from './symbolTable';
+
+export enum DiagnosticSeverity {
+  Error = 0,
+  Warning = 1,
+  Information = 2,
+  Hint = 3
+}
+
 
 export interface ValidationError {
   line: number;
   column: number;
   length: number;
   message: string;
-  severity: vscode.DiagnosticSeverity;
+  severity: DiagnosticSeverity;
 }
 
 interface FunctionSignature {
@@ -59,11 +68,21 @@ export class ComprehensiveValidator {
   }
 
   private buildFunctionSignatures(): void {
-    // Build from V6_FUNCTIONS
-    for (const [name, item] of Object.entries(V6_FUNCTIONS)) {
-      const sig = this.parseSignature(name, item as PineItem);
+    // Build from PINE_FUNCTIONS_MERGED which has accurate parameter requirements
+    for (const [name, spec] of Object.entries(PINE_FUNCTIONS_MERGED)) {
+      const sig = this.buildSignatureFromSpec(name, spec as FunctionSignatureSpec);
       if (sig) {
         this.functionSignatures.set(name, sig);
+      }
+    }
+
+    // Also build from V6_FUNCTIONS for any missing functions
+    for (const [name, item] of Object.entries(V6_FUNCTIONS)) {
+      if (!this.functionSignatures.has(name)) {
+        const sig = this.parseSignature(name, item as PineItem);
+        if (sig) {
+          this.functionSignatures.set(name, sig);
+        }
       }
     }
 
@@ -72,12 +91,56 @@ export class ComprehensiveValidator {
       if (nsData.functions) {
         for (const [fnName, item] of Object.entries(nsData.functions)) {
           const fullName = `${nsName}.${fnName}`;
-          const sig = this.parseSignature(fullName, item as PineItem);
-          if (sig) {
-            this.functionSignatures.set(fullName, sig);
+          if (!this.functionSignatures.has(fullName)) {
+            const sig = this.parseSignature(fullName, item as PineItem);
+            if (sig) {
+              this.functionSignatures.set(fullName, sig);
+            }
           }
         }
       }
+    }
+  }
+
+  private buildSignatureFromSpec(name: string, spec: FunctionSignatureSpec): FunctionSignature | null {
+    try {
+      const parameters: ParameterInfo[] = [];
+
+      // Use the parameters array if available
+      if (spec.parameters && Array.isArray(spec.parameters)) {
+        for (const param of spec.parameters as FunctionParameter[]) {
+          parameters.push({
+            name: param.name,
+            type: this.mapToPineType(param.type),
+            optional: param.optional || false,
+            defaultValue: undefined,
+          });
+        }
+      } else {
+        // Fallback to requiredParams and optionalParams
+        const requiredParams = spec.requiredParams || [];
+        const optionalParams = spec.optionalParams || [];
+
+        for (const paramName of requiredParams) {
+          parameters.push({
+            name: paramName,
+            type: 'unknown',
+            optional: false,
+          });
+        }
+
+        for (const paramName of optionalParams) {
+          parameters.push({
+            name: paramName,
+            type: 'unknown',
+            optional: true,
+          });
+        }
+      }
+
+      return { name, parameters };
+    } catch (e) {
+      return null;
     }
   }
 
@@ -175,6 +238,21 @@ export class ComprehensiveValidator {
       }
 
       this.symbolTable.define(symbol);
+    } else if (statement.type === 'FunctionDeclaration') {
+      // Infer return type from function body
+      const returnType = this.inferFunctionReturnType(statement);
+
+      const symbol: SymbolInfo = {
+        name: statement.name,
+        type: returnType,
+        line: statement.line,
+        column: statement.column,
+        used: false,
+        kind: 'function',
+        declaredWith: null,
+      };
+
+      this.symbolTable.define(symbol);
     }
   }
 
@@ -192,6 +270,26 @@ export class ComprehensiveValidator {
 
       case 'FunctionDeclaration':
         this.symbolTable.enterScope();
+
+        // Add function parameters to scope
+        for (const param of statement.params) {
+          this.symbolTable.define({
+            name: param.name,
+            type: 'unknown', // Parameter types would need type annotations
+            line: statement.line,
+            column: statement.column,
+            used: false,
+            kind: 'variable',
+            declaredWith: null,
+          });
+        }
+
+        // Collect declarations within function body
+        for (const stmt of statement.body) {
+          this.collectDeclarations(stmt);
+        }
+
+        // Validate function body
         for (const stmt of statement.body) {
           this.validateStatement(stmt);
         }
@@ -207,22 +305,26 @@ export class ComprehensiveValidator {
             statement.column,
             10,
             `Condition must be boolean, got ${condType}`,
-            vscode.DiagnosticSeverity.Error
+            DiagnosticSeverity.Error
           );
         }
 
-        this.symbolTable.enterScope();
+        // Note: In Pine Script, if statements do NOT create new scopes
+        // Variables assigned inside if blocks persist in the outer scope
+        for (const stmt of statement.consequent) {
+          this.collectDeclarations(stmt);
+        }
         for (const stmt of statement.consequent) {
           this.validateStatement(stmt);
         }
-        this.symbolTable.exitScope();
 
         if (statement.alternate) {
-          this.symbolTable.enterScope();
+          for (const stmt of statement.alternate) {
+            this.collectDeclarations(stmt);
+          }
           for (const stmt of statement.alternate) {
             this.validateStatement(stmt);
           }
-          this.symbolTable.exitScope();
         }
         break;
 
@@ -309,7 +411,7 @@ export class ComprehensiveValidator {
         identifier.column,
         identifier.name.length,
         message,
-        vscode.DiagnosticSeverity.Error
+        DiagnosticSeverity.Error
       );
       return;
     }
@@ -328,7 +430,7 @@ export class ComprehensiveValidator {
         expr.column,
         1,
         `Type mismatch: cannot apply '${expr.operator}' to ${leftType} and ${rightType}`,
-        vscode.DiagnosticSeverity.Error
+        DiagnosticSeverity.Error
       );
     }
   }
@@ -393,7 +495,7 @@ export class ComprehensiveValidator {
         call.column,
         functionName.length,
         `Too many arguments for '${functionName}'. Expected ${totalCount}, got ${positionalArgs.length}`,
-        vscode.DiagnosticSeverity.Error
+        DiagnosticSeverity.Error
       );
     }
 
@@ -412,7 +514,7 @@ export class ComprehensiveValidator {
               call.column,
               param.name.length,
               `Type mismatch for parameter '${param.name}': expected ${param.type}, got ${namedArg.type}`,
-              vscode.DiagnosticSeverity.Error
+              DiagnosticSeverity.Error
             );
           }
         }
@@ -429,7 +531,7 @@ export class ComprehensiveValidator {
               call.column,
               functionName.length,
               `Type mismatch for argument ${i + 1}: expected ${param.type}, got ${posArg.type}`,
-              vscode.DiagnosticSeverity.Error
+              DiagnosticSeverity.Error
             );
           }
         }
@@ -443,7 +545,7 @@ export class ComprehensiveValidator {
           call.column,
           functionName.length,
           `Missing required parameter '${param.name}' for function '${functionName}'`,
-          vscode.DiagnosticSeverity.Error
+          DiagnosticSeverity.Error
         );
       }
     }
@@ -457,7 +559,7 @@ export class ComprehensiveValidator {
           call.column,
           name.length,
           `Invalid parameter '${name}'. Valid parameters: ${validNames}`,
-          vscode.DiagnosticSeverity.Error
+          DiagnosticSeverity.Error
         );
       }
     }
@@ -480,7 +582,7 @@ export class ComprehensiveValidator {
             call.column,
             5,
             'Invalid parameter "shape". Did you mean "style"?',
-            vscode.DiagnosticSeverity.Error
+            DiagnosticSeverity.Error
           );
         }
       }
@@ -497,10 +599,36 @@ export class ComprehensiveValidator {
           call.column,
           functionName.length,
           '"timeframe_gaps" has no effect without a "timeframe" argument',
-          vscode.DiagnosticSeverity.Warning
+          DiagnosticSeverity.Warning
         );
       }
     }
+  }
+
+  private inferFunctionReturnType(func: any): PineType {
+    // func is FunctionDeclaration from AST
+    if (!func.body || func.body.length === 0) {
+      return 'unknown';
+    }
+
+    // Get the last statement in the function body
+    const lastStmt = func.body[func.body.length - 1];
+
+    // If it's a return statement, infer from the return value
+    if (lastStmt.type === 'ReturnStatement') {
+      return this.inferExpressionType(lastStmt.value);
+    }
+
+    // If it's a variable declaration or expression statement, it's the return value
+    if (lastStmt.type === 'ExpressionStatement') {
+      return this.inferExpressionType(lastStmt.expression);
+    }
+
+    if (lastStmt.type === 'VariableDeclaration' && lastStmt.init) {
+      return this.inferExpressionType(lastStmt.init);
+    }
+
+    return 'unknown';
   }
 
   private inferExpressionType(expr: Expression): PineType {
@@ -574,7 +702,7 @@ export class ComprehensiveValidator {
         symbol.column,
         symbol.name.length,
         `Variable '${symbol.name}' is declared but never used`,
-        vscode.DiagnosticSeverity.Warning
+        DiagnosticSeverity.Warning
       );
     }
   }
@@ -584,7 +712,7 @@ export class ComprehensiveValidator {
     column: number,
     length: number,
     message: string,
-    severity: vscode.DiagnosticSeverity
+    severity: DiagnosticSeverity
   ): void {
     this.errors.push({ line, column, length, message, severity });
   }

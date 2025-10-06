@@ -113,9 +113,19 @@ export class SymbolTable {
     }
 
     // Namespaces (treated as symbols)
+    // Complete list of all 48 Pine Script v6 built-in namespaces
+    // Source: v6/raw/v6-language-constructs.json
     const namespaces = [
-      'ta', 'math', 'str', 'color', 'input', 'request',
-      'array', 'matrix', 'map',
+      // Function namespaces
+      'array', 'box', 'chart', 'color', 'input', 'label', 'line', 'linefill',
+      'log', 'map', 'math', 'matrix', 'polyline', 'request', 'runtime', 'str',
+      'strategy', 'syminfo', 'ta', 'table', 'ticker', 'timeframe',
+
+      // Constant namespaces
+      'adjustment', 'alert', 'backadjustment', 'barmerge', 'currency', 'dayofweek',
+      'display', 'dividends', 'earnings', 'extend', 'font', 'format', 'hline',
+      'location', 'order', 'plot', 'position', 'scale', 'session',
+      'settlement_as_close', 'shape', 'size', 'splits', 'text', 'xloc', 'yloc',
     ];
 
     for (const name of namespaces) {

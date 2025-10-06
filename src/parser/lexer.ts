@@ -50,13 +50,14 @@ export interface Token {
 const KEYWORDS = new Set([
   'if', 'else', 'for', 'while', 'break', 'continue', 'return',
   'var', 'varip', 'const',
-  'true', 'false', 'na',
+  'na',
   'export', 'import', 'as',
   'switch', 'case', 'default',
   'and', 'or', 'not',
   'int', 'float', 'bool', 'string', 'color', 'line', 'label',
   'box', 'table', 'array', 'matrix', 'map',
   'series', 'simple', 'input',
+  'to',
 ]);
 
 const BUILTIN_FUNCTIONS = new Set([
@@ -214,6 +215,9 @@ export class Lexer {
     const start = this.pos - 1;
     const startColumn = this.column - 1;
 
+    // Advance past the second '/'
+    this.advance();
+
     // Check for annotation (//@version=6)
     if (this.peek() === '@') {
       while (this.peek() !== '\n' && !this.isAtEnd()) {
@@ -316,12 +320,10 @@ export class Lexer {
 
     const value = this.source.substring(start, this.pos);
 
-    // Check for keywords
-    if (KEYWORDS.has(value)) {
-      this.addToken(TokenType.KEYWORD, value, value.length);
-    } else if (value === 'true' || value === 'false') {
+    // Check for boolean literals first (before keywords)
+    if (value === 'true' || value === 'false') {
       this.addToken(TokenType.BOOL, value, value.length);
-    } else if (value === 'na') {
+    } else if (KEYWORDS.has(value)) {
       this.addToken(TokenType.KEYWORD, value, value.length);
     } else {
       this.addToken(TokenType.IDENTIFIER, value, value.length);

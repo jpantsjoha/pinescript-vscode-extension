@@ -43,9 +43,56 @@ export class Parser {
       return null;
     }
 
+    // If statement
+    if (this.match([TokenType.KEYWORD, ['if']])) {
+      return this.ifStatement();
+    }
+
+    // For statement
+    if (this.match([TokenType.KEYWORD, ['for']])) {
+      return this.forStatement();
+    }
+
+    // While statement
+    if (this.match([TokenType.KEYWORD, ['while']])) {
+      return this.whileStatement();
+    }
+
+    // Return statement
+    if (this.match([TokenType.KEYWORD, ['return']])) {
+      return this.returnStatement();
+    }
+
     // Variable declaration: var/varip/const name = expr  or  name = expr
     if (this.match([TokenType.KEYWORD, ['var', 'varip', 'const']])) {
       return this.variableDeclaration(this.previous().value as any);
+    }
+
+    // Check for function definition: name(params) =>
+    if (this.check(TokenType.IDENTIFIER)) {
+      const checkpoint = this.current;
+      const nameToken = this.advance();
+
+      if (this.match(TokenType.LPAREN)) {
+        // Check if this looks like a function definition (params are identifiers)
+        // or a function call (params could be any expression)
+        try {
+          const params = this.parseFunctionParams();
+          this.consume(TokenType.RPAREN, 'Expected ")" after function parameters');
+
+          // Check for arrow =>
+          if (this.match(TokenType.ARROW)) {
+            // It's a function definition!
+            return this.functionDeclaration(nameToken.value, params, nameToken.line, nameToken.column);
+          }
+        } catch (e) {
+          // Not a function definition (parsing params failed), backtrack
+          this.current = checkpoint;
+        }
+      }
+
+      // Not a function definition, backtrack
+      this.current = checkpoint;
     }
 
     // Check if it's an identifier followed by = (variable declaration without var)
@@ -83,6 +130,163 @@ export class Parser {
       line: expr.line,
       column: expr.column,
     };
+  }
+
+  private ifStatement(): AST.IfStatement {
+    const startToken = this.previous();
+    const condition = this.expression();
+
+    const consequent: AST.Statement[] = [];
+
+    // Parse the consequent block (indented statements or single statement)
+    while (!this.isAtEnd() && !this.check([TokenType.KEYWORD, ['else']])) {
+      // Check if we're at the start of a new top-level statement
+      if (this.check(TokenType.IDENTIFIER) && this.peekNext()?.type === TokenType.ASSIGN) {
+        // This could be either part of the if body or a new statement
+        // In Pine Script, if blocks are determined by indentation (which we don't track)
+        // For now, we'll parse one statement and break
+        const stmt = this.statement();
+        if (stmt) consequent.push(stmt);
+        break;
+      }
+
+      const stmt = this.statement();
+      if (stmt) {
+        consequent.push(stmt);
+      } else {
+        break;
+      }
+    }
+
+    let alternate: AST.Statement[] | undefined;
+    if (this.match([TokenType.KEYWORD, ['else']])) {
+      alternate = [];
+      const stmt = this.statement();
+      if (stmt) alternate.push(stmt);
+    }
+
+    return {
+      type: 'IfStatement',
+      condition,
+      consequent,
+      alternate,
+      line: startToken.line,
+      column: startToken.column,
+    };
+  }
+
+  private forStatement(): AST.ForStatement {
+    const startToken = this.previous();
+    const iterator = this.consume(TokenType.IDENTIFIER, 'Expected iterator variable').value;
+    this.consume(TokenType.ASSIGN, 'Expected "=" in for loop');
+    const from = this.expression();
+    this.match([TokenType.KEYWORD, ['to']]); // optional 'to' keyword
+    const to = this.expression();
+
+    const body: AST.Statement[] = [];
+    const stmt = this.statement();
+    if (stmt) body.push(stmt);
+
+    return {
+      type: 'ForStatement',
+      iterator,
+      from,
+      to,
+      body,
+      line: startToken.line,
+      column: startToken.column,
+    };
+  }
+
+  private whileStatement(): AST.WhileStatement {
+    const startToken = this.previous();
+    const condition = this.expression();
+
+    const body: AST.Statement[] = [];
+    const stmt = this.statement();
+    if (stmt) body.push(stmt);
+
+    return {
+      type: 'WhileStatement',
+      condition,
+      body,
+      line: startToken.line,
+      column: startToken.column,
+    };
+  }
+
+  private returnStatement(): AST.ReturnStatement {
+    const startToken = this.previous();
+    const value = this.expression();
+
+    return {
+      type: 'ReturnStatement',
+      value,
+      line: startToken.line,
+      column: startToken.column,
+    };
+  }
+
+  private functionDeclaration(name: string, params: AST.FunctionParam[], line: number, column: number): AST.FunctionDeclaration {
+    // Parse function body - in Pine Script, the body is a single expression after =>
+    // For multi-line functions, we'd need to track indentation
+    // For now, parse single expression (handles most cases)
+    const body: AST.Statement[] = [];
+
+    // Try to parse as single expression first
+    try {
+      const expr = this.expression();
+      body.push({
+        type: 'ReturnStatement',
+        value: expr,
+        line: expr.line,
+        column: expr.column,
+      } as AST.ReturnStatement);
+    } catch (e) {
+      // If single expression fails, try parsing as statements
+      // This handles multi-line function bodies
+      while (!this.isAtEnd() && this.check(TokenType.IDENTIFIER)) {
+        const stmt = this.statement();
+        if (stmt) {
+          body.push(stmt);
+        } else {
+          break;
+        }
+      }
+    }
+
+    return {
+      type: 'FunctionDeclaration',
+      name,
+      params,
+      body,
+      line,
+      column,
+    };
+  }
+
+  private parseFunctionParams(): AST.FunctionParam[] {
+    const params: AST.FunctionParam[] = [];
+
+    if (this.check(TokenType.RPAREN)) {
+      return params; // No parameters
+    }
+
+    do {
+      const paramName = this.consume(TokenType.IDENTIFIER, 'Expected parameter name');
+
+      let defaultValue: AST.Expression | undefined;
+      if (this.match(TokenType.ASSIGN)) {
+        defaultValue = this.expression();
+      }
+
+      params.push({
+        name: paramName.value,
+        defaultValue,
+      });
+    } while (this.match(TokenType.COMMA));
+
+    return params;
   }
 
   private expression(): AST.Expression {
@@ -229,8 +433,15 @@ export class Parser {
         // Function call
         expr = this.finishCall(expr);
       } else if (this.match(TokenType.DOT)) {
-        // Member access
-        const property = this.consume(TokenType.IDENTIFIER, 'Expected property name');
+        // Member access - property can be identifier or keyword (e.g., input.float)
+        let property: Token;
+        if (this.check(TokenType.IDENTIFIER)) {
+          property = this.advance();
+        } else if (this.check(TokenType.KEYWORD)) {
+          property = this.advance();
+        } else {
+          throw new Error(`Expected property name at line ${this.peek().line}`);
+        }
         expr = {
           type: 'MemberExpression',
           object: expr,
@@ -390,8 +601,12 @@ export class Parser {
     return false;
   }
 
-  private check(type: TokenType): boolean {
+  private check(type: TokenType | [TokenType, string[]]): boolean {
     if (this.isAtEnd()) return false;
+    if (Array.isArray(type)) {
+      const [tokenType, values] = type;
+      return this.peek().type === tokenType && values.includes(this.peek().value);
+    }
     return this.peek().type === type;
   }
 
