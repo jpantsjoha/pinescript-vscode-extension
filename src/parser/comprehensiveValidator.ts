@@ -76,6 +76,9 @@ export class ComprehensiveValidator {
       }
     }
 
+    // Add known return types for common functions (Phase A - Session 5)
+    this.addKnownReturnTypes();
+
     // Also build from V6_FUNCTIONS for any missing functions
     for (const [name, item] of Object.entries(V6_FUNCTIONS)) {
       if (!this.functionSignatures.has(name)) {
@@ -98,6 +101,108 @@ export class ComprehensiveValidator {
             }
           }
         }
+      }
+    }
+  }
+
+  private addKnownReturnTypes(): void {
+    // High-impact function return types identified in Session 5 analysis
+    // These functions are commonly used but missing return type information
+    const knownReturnTypes: Record<string, string> = {
+      // timeframe namespace
+      'timeframe.in_seconds': 'int',
+      'timeframe.multiplier': 'int',
+      'timeframe.isseconds': 'bool',
+      'timeframe.isminutes': 'bool',
+      'timeframe.ishours': 'bool',
+      'timeframe.isdaily': 'bool',
+      'timeframe.isweekly': 'bool',
+      'timeframe.ismonthly': 'bool',
+      'timeframe.isdwm': 'bool',
+      'timeframe.isintraday': 'bool',
+
+      // strategy namespace
+      'strategy.position_size': 'series float',
+      'strategy.position_avg_price': 'series float',
+      'strategy.opentrades': 'series int',
+      'strategy.closedtrades': 'series int',
+      'strategy.wintrades': 'series int',
+      'strategy.losstrades': 'series int',
+      'strategy.grossprofit': 'series float',
+      'strategy.grossloss': 'series float',
+      'strategy.netprofit': 'series float',
+
+      // request namespace
+      'request.security': 'series float',
+      'request.dividends': 'series float',
+      'request.splits': 'series float',
+      'request.earnings': 'series float',
+
+      // str namespace
+      'str.tostring': 'string',
+      'str.tonumber': 'float',
+      'str.length': 'int',
+      'str.contains': 'bool',
+      'str.pos': 'int',
+      'str.substring': 'string',
+      'str.replace': 'string',
+      'str.replace_all': 'string',
+      'str.lower': 'string',
+      'str.upper': 'string',
+      'str.split': 'array<string>',
+      'str.format': 'string',
+
+      // math namespace (additional)
+      'math.ceil': 'int',
+      'math.floor': 'int',
+      'math.round': 'int',
+      'math.sign': 'int',
+      'math.abs': 'float',
+      'math.sqrt': 'float',
+      'math.pow': 'float',
+      'math.exp': 'float',
+      'math.log': 'float',
+      'math.log10': 'float',
+
+      // array namespace (common)
+      'array.size': 'int',
+      'array.get': 'any',  // Returns element type
+      'array.includes': 'bool',
+      'array.indexof': 'int',
+      'array.lastindexof': 'int',
+      'array.min': 'float',
+      'array.max': 'float',
+      'array.sum': 'float',
+      'array.avg': 'float',
+
+      // ta namespace (additional)
+      'ta.change': 'series float',
+      'ta.rsi': 'series float',
+      'ta.ema': 'series float',
+      'ta.sma': 'series float',
+      'ta.wma': 'series float',
+      'ta.vwma': 'series float',
+      'ta.stoch': 'series float',
+      'ta.bb': 'series float',
+      'ta.bbw': 'series float',
+      'ta.atr': 'series float',
+      'ta.tr': 'series float',
+      'ta.crossover': 'bool',
+      'ta.crossunder': 'bool',
+      'ta.cross': 'bool',
+      'ta.valuewhen': 'series float',
+      'ta.barssince': 'series int',
+      'ta.highest': 'series float',
+      'ta.lowest': 'series float',
+      'ta.highestbars': 'series int',
+      'ta.lowestbars': 'series int',
+    };
+
+    // Apply return types to existing signatures
+    for (const [funcName, returnType] of Object.entries(knownReturnTypes)) {
+      const sig = this.functionSignatures.get(funcName);
+      if (sig && !sig.returns) {
+        sig.returns = returnType;
       }
     }
   }
@@ -138,7 +243,11 @@ export class ComprehensiveValidator {
         }
       }
 
-      return { name, parameters };
+      return {
+        name,
+        parameters,
+        returns: spec.returns || undefined
+      };
     } catch (e) {
       return null;
     }
