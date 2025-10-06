@@ -1,0 +1,17 @@
+//@version=6
+indicator("Test User Functions")
+
+// Simple user-defined function
+f_double(x) => x * 2
+
+// Function that calls another function
+f_quadruple(x) => f_double(x) * 2
+
+// Use the functions
+result1 = f_double(5)
+result2 = f_quadruple(10)
+
+// Use in expression
+final = result1 + result2
+
+plot(final)
