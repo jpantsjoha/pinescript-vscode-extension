@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "pinescript-validator": {
+      "command": "node",
+      "args": ["mcp/pinescript-mcp-server.js"]
+    }
+  }
+}

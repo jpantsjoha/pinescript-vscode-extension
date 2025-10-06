@@ -1,0 +1,5 @@
+//@version=6
+indicator("Test Named Args")
+
+// Test named arguments with member expressions
+plot(close, color = color.gray, title = 'Test')

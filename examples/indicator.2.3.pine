@@ -1,5 +1,5 @@
 //@version=6
-indicator("Point-Clip Unified Indicator v2.3 (Pine v6)", overlay=true, timeframe_gaps=true, max_boxes_count=60, max_labels_count=300)
+indicator("Point-Clip Unified Indicator v2.3 (Pine v6) by JP", overlay=true, timeframe_gaps=true, max_boxes_count=60, max_labels_count=300)
 
 // ───────────────────────── Inputs ─────────────────────────
 grp1 = "Volume & Structure"

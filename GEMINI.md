@@ -923,6 +923,22 @@ float stopLoss = strategy.position_avg_price - (atrValue * 2)
 ```
 
 ### 7. Test Mental Model
+
+---
+
+### 8. Ad-hoc Pine Script Validation
+For ad-hoc validation of Pine Script files, use the `qa:pinescript` npm script.
+
+**Usage:**
+```bash
+# Validate all .pine files in the project
+npm run qa:pinescript
+
+# Validate a specific file
+node qa-validate-pinescript.js path/to/your/script.pine
+```
+
+This workflow is defined in `QA-VALIDATION-WORKFLOW.md`.
 - "Does this run once per bar or once per tick?"
 - "Will this repaint historically?"
 - "Are all variables declared before use?"
