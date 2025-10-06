@@ -45,6 +45,7 @@ export interface Token {
   line: number;
   column: number;
   length: number;
+  indent?: number;  // Indentation level (number of spaces at line start)
 }
 
 const KEYWORDS = new Set([
@@ -74,6 +75,8 @@ export class Lexer {
   private line: number = 1;
   private column: number = 1;
   private tokens: Token[] = [];
+  private currentIndent: number = 0;  // Track current line's indentation
+  private atLineStart: boolean = true;  // Track if we're at the start of a line
 
   constructor(source: string) {
     this.source = source;
@@ -95,14 +98,22 @@ export class Lexer {
     switch (char) {
       case ' ':
       case '\t':
+        // Count indentation at line start
+        if (this.atLineStart) {
+          this.currentIndent += (char === '\t' ? 4 : 1);
+        }
+        break;
+
       case '\r':
-        // Skip whitespace
+        // Skip carriage return
         break;
 
       case '\n':
         this.addToken(TokenType.NEWLINE, '\n', 1);
         this.line++;
         this.column = 1;
+        this.atLineStart = true;
+        this.currentIndent = 0;
         break;
 
       case '(':
@@ -366,12 +377,18 @@ export class Lexer {
   }
 
   private addToken(type: TokenType, value: string, length: number): void {
+    // Mark that we're no longer at the start of the line (except for NEWLINE tokens)
+    if (type !== TokenType.NEWLINE && type !== TokenType.WHITESPACE && this.atLineStart) {
+      this.atLineStart = false;
+    }
+
     this.tokens.push({
       type,
       value,
       line: this.line,
       column: this.column - length,
       length,
+      indent: this.atLineStart ? undefined : this.currentIndent,  // Only set indent for non-line-start tokens
     });
   }
 }

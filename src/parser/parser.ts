@@ -228,28 +228,63 @@ export class Parser {
   }
 
   private functionDeclaration(name: string, params: AST.FunctionParam[], line: number, column: number): AST.FunctionDeclaration {
-    // Parse function body - in Pine Script, the body is a single expression after =>
-    // For multi-line functions, we'd need to track indentation
-    // For now, parse single expression (handles most cases)
+    // Parse function body using indentation
+    // In Pine Script, function bodies after => can be:
+    // 1. Single expression: f(x) => x * 2
+    // 2. Multi-line block with increased indentation:
+    //    f(x) =>
+    //        y = x * 2
+    //        y + 1
     const body: AST.Statement[] = [];
 
-    // Try to parse as single expression first
-    try {
-      const expr = this.expression();
-      body.push({
-        type: 'ReturnStatement',
-        value: expr,
-        line: expr.line,
-        column: expr.column,
-      } as AST.ReturnStatement);
-    } catch (e) {
-      // If single expression fails, try parsing as statements
-      // This handles multi-line function bodies
-      while (!this.isAtEnd() && this.check(TokenType.IDENTIFIER)) {
-        const stmt = this.statement();
-        if (stmt) {
-          body.push(stmt);
-        } else {
+    // Get the base indentation (indentation of the function declaration line)
+    const baseIndent = this.peek().indent || 0;
+
+    // Check if next token is on a new line with deeper indentation
+    const nextToken = this.peek();
+    if (nextToken.line === line) {
+      // Single-line function: same line as =>
+      try {
+        const expr = this.expression();
+        body.push({
+          type: 'ReturnStatement',
+          value: expr,
+          line: expr.line,
+          column: expr.column,
+        } as AST.ReturnStatement);
+      } catch (e) {
+        // Error parsing expression - function may be incomplete
+      }
+    } else {
+      // Multi-line function: parse all statements at deeper indentation
+      // Determine the expected function body indentation from the first token
+      let functionBodyIndent: number | null = null;
+
+      while (!this.isAtEnd()) {
+        const currentToken = this.peek();
+        const currentIndent = currentToken.indent || 0;
+
+        // Set expected body indentation from first statement
+        if (functionBodyIndent === null && currentToken.line > line) {
+          functionBodyIndent = currentIndent;
+        }
+
+        // Stop if we've returned to base indentation level or less
+        // AND we're past the function declaration line
+        if (currentToken.line > line && functionBodyIndent !== null && currentIndent < functionBodyIndent) {
+          break;
+        }
+
+        // Parse statement at this indentation level
+        try {
+          const stmt = this.statement();
+          if (stmt) {
+            body.push(stmt);
+          } else {
+            break;
+          }
+        } catch (e) {
+          // Error parsing statement - try to recover
           break;
         }
       }
