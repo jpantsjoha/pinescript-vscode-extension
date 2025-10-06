@@ -239,9 +239,39 @@ export class ComprehensiveValidator {
 
       this.symbolTable.define(symbol);
     } else if (statement.type === 'FunctionDeclaration') {
-      // Infer return type from function body
+      // First, collect declarations from function body (needed for type inference)
+      this.symbolTable.enterScope();
+
+      // Add parameters to scope
+      // Infer parameter types based on common patterns
+      for (let i = 0; i < statement.params.length; i++) {
+        const param = statement.params[i];
+        // First parameter often series data (x, src, val, etc.)
+        // Other parameters often int (length, period, n, etc.)
+        const paramType = i === 0 ? 'series<float>' : 'int';
+
+        this.symbolTable.define({
+          name: param.name,
+          type: paramType,
+          line: statement.line,
+          column: statement.column,
+          used: false,
+          kind: 'variable',
+          declaredWith: null,
+        });
+      }
+
+      // Collect declarations from function body
+      for (const stmt of statement.body) {
+        this.collectDeclarations(stmt);
+      }
+
+      // NOW infer return type (with body variables in scope)
       const returnType = this.inferFunctionReturnType(statement);
 
+      this.symbolTable.exitScope();
+
+      // Define the function in parent scope
       const symbol: SymbolInfo = {
         name: statement.name,
         type: returnType,
@@ -329,6 +359,42 @@ export class ComprehensiveValidator {
         break;
 
       case 'ForStatement':
+        // For loops create a new scope and define the iterator variable
+        this.symbolTable.enterScope();
+
+        // Add the iterator variable to the scope (always int type)
+        if ('iterator' in statement) {
+          this.symbolTable.define({
+            name: statement.iterator,
+            type: 'int',
+            line: statement.line,
+            column: statement.column,
+            used: false,
+            kind: 'variable',
+            declaredWith: null,
+          });
+        }
+
+        // Validate range expressions
+        if ('from' in statement) {
+          this.validateExpression(statement.from);
+        }
+        if ('to' in statement) {
+          this.validateExpression(statement.to);
+        }
+
+        // Collect declarations first
+        for (const stmt of statement.body) {
+          this.collectDeclarations(stmt);
+        }
+        // Then validate
+        for (const stmt of statement.body) {
+          this.validateStatement(stmt);
+        }
+
+        this.symbolTable.exitScope();
+        break;
+
       case 'WhileStatement':
         if ('condition' in statement) {
           this.validateExpression(statement.condition);
@@ -489,7 +555,11 @@ export class ComprehensiveValidator {
     const requiredCount = signature.parameters.filter(p => !p.optional).length;
     const totalCount = signature.parameters.length;
 
-    if (positionalArgs.length > totalCount) {
+    // Check if function is variadic (accepts variable arguments)
+    // Functions like math.max(...), math.min(...) have empty parameters array but accept multiple args
+    const isVariadic = totalCount === 0 && functionName.match(/^(math\.(max|min|avg|sum)|array\.(concat|covariance|avg|min|max|sum))/);
+
+    if (!isVariadic && positionalArgs.length > totalCount) {
       this.addError(
         call.line,
         call.column,
@@ -497,6 +567,21 @@ export class ComprehensiveValidator {
         `Too many arguments for '${functionName}'. Expected ${totalCount}, got ${positionalArgs.length}`,
         DiagnosticSeverity.Error
       );
+    }
+
+    // For variadic functions, require at least minimum number of arguments
+    if (isVariadic) {
+      const minArgs = functionName.match(/^math\.(max|min)/) ? 2 : 1;
+      if (positionalArgs.length < minArgs) {
+        this.addError(
+          call.line,
+          call.column,
+          functionName.length,
+          `'${functionName}' requires at least ${minArgs} argument${minArgs > 1 ? 's' : ''}, got ${positionalArgs.length}`,
+          DiagnosticSeverity.Error
+        );
+      }
+      return; // Skip further parameter validation for variadic functions
     }
 
     // Validate each parameter
@@ -605,6 +690,32 @@ export class ComprehensiveValidator {
     }
   }
 
+  private mapReturnTypeToPineType(returnTypeStr: string): PineType {
+    // Map common return type strings from function signatures to PineType
+    const typeMap: Record<string, PineType> = {
+      'int': 'int',
+      'float': 'float',
+      'bool': 'bool',
+      'string': 'string',
+      'color': 'color',
+      'series float': 'series<float>',
+      'series int': 'series<int>',
+      'series bool': 'series<bool>',
+      'series string': 'series<string>',
+      'series color': 'series<color>',
+      'const int': 'int',
+      'const float': 'float',
+      'const bool': 'bool',
+      'const string': 'string',
+      'simple int': 'int',
+      'simple float': 'float',
+      'simple bool': 'bool',
+      'simple string': 'string',
+    };
+
+    return typeMap[returnTypeStr.toLowerCase()] || 'unknown';
+  }
+
   private inferFunctionReturnType(func: any): PineType {
     // func is FunctionDeclaration from AST
     if (!func.body || func.body.length === 0) {
@@ -661,6 +772,22 @@ export class ComprehensiveValidator {
           }
         }
 
+        // First check if it's a user-defined function in symbol table
+        const funcSymbol = this.symbolTable.lookup(funcName);
+        if (funcSymbol && funcSymbol.kind === 'function') {
+          type = funcSymbol.type;
+          break;
+        }
+
+        // Then check function signatures for built-ins
+        const signature = this.functionSignatures.get(funcName);
+        if (signature && signature.returns) {
+          // Map the return type string to PineType
+          type = this.mapReturnTypeToPineType(signature.returns);
+          break;
+        }
+
+        // Fallback to TypeChecker for common built-ins
         const argTypes = callExpr.arguments.map(arg => this.inferExpressionType(arg.value));
         type = TypeChecker.getBuiltinReturnType(funcName, argTypes);
         break;
@@ -681,7 +808,31 @@ export class ComprehensiveValidator {
         const ternaryExpr = expr as any;
         const conseqType = this.inferExpressionType(ternaryExpr.consequent);
         const altType = this.inferExpressionType(ternaryExpr.alternate);
-        type = TypeChecker.isAssignable(conseqType, altType) ? conseqType : 'unknown';
+
+        // Handle na ? na : value pattern - common in Pine Script
+        if (conseqType === 'na') {
+          type = altType;
+        } else if (altType === 'na') {
+          type = conseqType;
+        } else if (TypeChecker.isAssignable(conseqType, altType)) {
+          type = conseqType;
+        } else if (TypeChecker.isAssignable(altType, conseqType)) {
+          type = altType;
+        } else if (TypeChecker.isNumericType(conseqType) && TypeChecker.isNumericType(altType)) {
+          // Both numeric - use wider type
+          if (conseqType.includes('float') || altType.includes('float')) {
+            type = conseqType.startsWith('series') || altType.startsWith('series')
+              ? 'series<float>'
+              : 'float';
+          } else {
+            type = conseqType.startsWith('series') || altType.startsWith('series')
+              ? 'series<int>'
+              : 'int';
+          }
+        } else {
+          // Keep unknown only if truly incompatible
+          type = 'unknown';
+        }
         break;
 
       case 'MemberExpression':

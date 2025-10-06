@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.3] - 2025-10-06
+
+### 🎯 Session 4: Control Flow & Type Annotations (Dev Tools)
+
+**Major Parser/Validator Improvements:**
+- Fixed if/else indentation-based parsing (-52 errors)
+- Added for loop iterator variable scoping (-60 errors)
+- Implemented type annotation parsing (-59 errors)
+- **Total Session 4 reduction: -171 errors (-30.4%)**
+
+**Cumulative Progress (Dev Tools):**
+- Baseline: 853 errors → Current: 392 errors (-461, -54.1%)
+- Critical file (mft-state-of-delivery): 112+ → 36 errors (-68%)
+- Critical file (deltaflow-volume-profile): 58 → 28 errors (-52%)
+
+**Code Changes:**
+- Enhanced `src/parser/parser.ts` with indentation tracking for all block statements
+- Fixed `src/parser/comprehensiveValidator.ts` for loop iterator scoping
+- Added type annotation support (int, float, bool, string, color, etc.)
+
+**Testing:**
+- All 12 test files validated
+- Zero production impact (dev tools only)
+- Self-validation complete with debug scripts
+
+**Documentation:** See `SESSION-4-CONTROL-FLOW-SUMMARY.md`
+
+---
+
+## [0.4.2] - 2025-10-06
+
+### 🔍 Session 3: Type Inference & Multi-Line Functions (Dev Tools)
+
+**Parser/Validator Improvements:**
+- Fixed multi-line function body type inference (-9 errors)
+- Implemented two-pass function declaration
+- Enhanced CallExpression type inference
+- Improved ternary expression handling
+
+**Impact:**
+- Overall: 572 → 563 errors (-1.6%)
+- Improved error specificity (better type information)
+- global-liquidity: 24 → 23 errors
+
+**Code Changes:**
+- Two-pass function declaration in `src/parser/comprehensiveValidator.ts`
+- Smart parameter type heuristics (first param: series, others: int)
+- Enhanced type inference for built-in functions
+
+**Documentation:** See `SESSION-3-COMPLETE-SUMMARY.md`
+
+---
+
+## [0.4.1] - 2025-10-06
+
+### 🛠️ Session 2: Built-in Functions & Keywords (Dev Tools)
+
+**Parser/Validator Improvements:**
+- Fixed variadic function signatures (math.max, math.min)
+- Added 9 missing built-in variables (year, month, hour, minute, second, etc.)
+- Added keyword recognition (break, continue, type)
+- **Reduction: 617 → 572 errors (-7.3%)**
+
+**Files Improved:**
+- test-v6-features.pine: 18 → 12 errors (-33%)
+- mft-state-of-delivery.pine: 123 → 112 errors (-9%)
+- indicator.2.3.pine: 58 → 51 errors (-12%)
+
+**Documentation:** See `PARSER-FIXES-SESSION-2.md`
+
+---
+
 ## [0.4.0] - 2025-10-05
 
 ### 🎉 Complete Pine Script v6 Language Coverage

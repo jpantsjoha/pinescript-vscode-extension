@@ -63,9 +63,37 @@ export class Parser {
       return this.returnStatement();
     }
 
-    // Variable declaration: var/varip/const name = expr  or  name = expr
+    // Variable declaration with optional type annotation:
+    // var name = expr
+    // varip name = expr
+    // const name = expr
+    // var float name = expr
+    // int name = expr
+    // float name = expr
     if (this.match([TokenType.KEYWORD, ['var', 'varip', 'const']])) {
-      return this.variableDeclaration(this.previous().value as any);
+      const varKeyword = this.previous().value as any;
+
+      // Check if next token is also a type keyword (e.g., var float x = 1.0)
+      if (this.check([TokenType.KEYWORD, ['int', 'float', 'bool', 'string', 'color', 'line', 'label', 'box', 'table', 'array', 'matrix', 'map']])) {
+        this.advance(); // consume type keyword
+      }
+
+      return this.variableDeclaration(varKeyword);
+    }
+
+    // Type-annotated variable declaration without var: int x = 1, float y = 2.0
+    if (this.check([TokenType.KEYWORD, ['int', 'float', 'bool', 'string', 'color', 'line', 'label', 'box', 'table', 'array', 'matrix', 'map']])) {
+      const checkpoint = this.current;
+      const typeKeyword = this.advance(); // consume type keyword
+
+      // Check if next token is identifier followed by =
+      if (this.check(TokenType.IDENTIFIER) && this.peekNext()?.type === TokenType.ASSIGN) {
+        // This is a type-annotated variable declaration
+        return this.variableDeclaration(null);
+      }
+
+      // Not a variable declaration, backtrack
+      this.current = checkpoint;
     }
 
     // Check for function definition: name(params) =>
@@ -138,15 +166,27 @@ export class Parser {
 
     const consequent: AST.Statement[] = [];
 
-    // Parse the consequent block (indented statements or single statement)
+    // Skip newlines after condition
+    while (this.check(TokenType.NEWLINE)) {
+      this.advance();
+    }
+
+    // Parse the consequent block using indentation tracking
+    // Track the indentation of the if statement and its body
+    const baseIndent = this.peek().indent || 0;
+    let consequentIndent: number | null = null;
+
     while (!this.isAtEnd() && !this.check([TokenType.KEYWORD, ['else']])) {
-      // Check if we're at the start of a new top-level statement
-      if (this.check(TokenType.IDENTIFIER) && this.peekNext()?.type === TokenType.ASSIGN) {
-        // This could be either part of the if body or a new statement
-        // In Pine Script, if blocks are determined by indentation (which we don't track)
-        // For now, we'll parse one statement and break
-        const stmt = this.statement();
-        if (stmt) consequent.push(stmt);
+      const currentToken = this.peek();
+      const currentIndent = currentToken.indent || 0;
+
+      // Set expected consequent indentation from first statement
+      if (consequentIndent === null && currentToken.line > startToken.line) {
+        consequentIndent = currentIndent;
+      }
+
+      // Stop if we've returned to base indentation level or less
+      if (consequentIndent !== null && currentToken.line > startToken.line && currentIndent < consequentIndent) {
         break;
       }
 
@@ -160,9 +200,38 @@ export class Parser {
 
     let alternate: AST.Statement[] | undefined;
     if (this.match([TokenType.KEYWORD, ['else']])) {
+      const elseToken = this.previous();
       alternate = [];
-      const stmt = this.statement();
-      if (stmt) alternate.push(stmt);
+
+      // Skip newlines after 'else' keyword
+      while (this.check(TokenType.NEWLINE)) {
+        this.advance();
+      }
+
+      // Parse the alternate block using indentation tracking
+      let alternateIndent: number | null = null;
+
+      while (!this.isAtEnd()) {
+        const currentToken = this.peek();
+        const currentIndent = currentToken.indent || 0;
+
+        // Set expected alternate indentation from first statement
+        if (alternateIndent === null && currentToken.line > elseToken.line) {
+          alternateIndent = currentIndent;
+        }
+
+        // Stop if we've returned to base indentation level or less
+        if (alternateIndent !== null && currentToken.line > elseToken.line && currentIndent < alternateIndent) {
+          break;
+        }
+
+        const stmt = this.statement();
+        if (stmt) {
+          alternate.push(stmt);
+        } else {
+          break;
+        }
+      }
     }
 
     return {
@@ -184,8 +253,36 @@ export class Parser {
     const to = this.expression();
 
     const body: AST.Statement[] = [];
-    const stmt = this.statement();
-    if (stmt) body.push(stmt);
+
+    // Skip newlines after to expression
+    while (this.check(TokenType.NEWLINE)) {
+      this.advance();
+    }
+
+    // Parse the loop body using indentation tracking
+    let bodyIndent: number | null = null;
+
+    while (!this.isAtEnd()) {
+      const currentToken = this.peek();
+      const currentIndent = currentToken.indent || 0;
+
+      // Set expected body indentation from first statement
+      if (bodyIndent === null && currentToken.line > startToken.line) {
+        bodyIndent = currentIndent;
+      }
+
+      // Stop if we've returned to base indentation level or less
+      if (bodyIndent !== null && currentToken.line > startToken.line && currentIndent < bodyIndent) {
+        break;
+      }
+
+      const stmt = this.statement();
+      if (stmt) {
+        body.push(stmt);
+      } else {
+        break;
+      }
+    }
 
     return {
       type: 'ForStatement',

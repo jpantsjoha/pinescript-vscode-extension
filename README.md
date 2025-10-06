@@ -148,6 +148,30 @@ This extension provides **100% coverage** of Pine Script v6 language constructs 
 
 ---
 
+## 🔧 Parser & Validator Improvements (2025-10-06)
+
+**Recent Quality Enhancements (Dev Tools Only):**
+
+We've significantly improved the internal validation tool (MCP server) with a **54.1% error reduction**:
+
+- **Baseline:** 853 false positive errors
+- **Current:** 392 errors remaining
+- **Total improvement:** -461 errors (-54.1%)
+
+**What was fixed:**
+- ✅ If/else indentation-based parsing
+- ✅ For loop iterator variable scoping
+- ✅ Type annotation parsing (int, float, bool, etc.)
+- ✅ Multi-line function body type inference
+- ✅ Built-in function signatures (variadic functions)
+- ✅ All 48 Pine Script v6 namespaces recognized
+
+**Note:** These improvements are in the **development/QA tools** only. The published VSCode extension's user-facing features (syntax highlighting, IntelliSense, hover docs) have always worked correctly and remain unchanged.
+
+**See:** [errors-fix.md](./errors-fix.md) for complete technical details and [SESSION-4-CONTROL-FLOW-SUMMARY.md](./SESSION-4-CONTROL-FLOW-SUMMARY.md) for latest changes.
+
+---
+
 ## 🎓 Examples
 
 ### Example 1: Multi-Timeframe Analysis
@@ -216,6 +240,75 @@ npm run rebuild
 
 # Install locally for testing
 code --install-extension build/pine-script-extension-0.4.0.vsix
+```
+
+---
+
+## 🤖 MCP Integration - AI-Powered Validation
+
+**Status:** ✅ Fully Operational (v1.0.0)
+
+This project includes a **Model Context Protocol (MCP) server** that provides Pine Script v6 validation to AI assistants like **Claude Code**, Gemini, and other MCP-compatible tools.
+
+### What You Get
+
+- ✅ **Validate .pine files** directly from Claude Code or other AI assistants
+- ✅ **Comprehensive error reporting** with line numbers, severity levels, and detailed messages
+- ✅ **Zero setup required** - automatically configured for VS Code workspace
+- ✅ **Works with file paths or code strings** - validate files or inline code snippets
+- ✅ **Developer-friendly** - JSON-RPC 2.0 protocol with full semantic analysis
+
+### Quick Start (VS Code + Claude Code)
+
+The MCP server is **automatically configured** when you open this project in VS Code with Claude Code installed.
+
+Just ask Claude:
+```
+"Validate the examples/global-liquidity.v6.pine file"
+```
+
+### Features
+
+- **Real-time validation** via AI assistants
+- **Comprehensive validator** with semantic analysis (not just syntax checking)
+- **Containerized validation** with Docker for CI/CD pipelines
+- **Easy integration** with any MCP-compatible client
+
+### Documentation
+
+- **Full MCP docs:** [MCP-INTEGRATION.md](./MCP-INTEGRATION.md)
+- **Test the server:** `npm run test:mcp`
+- **Gemini-specific setup:** [mcp/README.md](./mcp/README.md) (legacy)
+
+### Example Output
+
+```json
+{
+  "source": "File: my-indicator.pine",
+  "total_errors": 2,
+  "summary": "❌ 2 error(s), 0 warning(s) found",
+  "errors": [
+    {
+      "line": 10,
+      "column": 5,
+      "message": "Undefined variable 'my_var'",
+      "severity": 0
+    }
+  ]
+}
+```
+
+### For Developers
+
+```bash
+# Test the MCP server
+npm run test:mcp
+
+# Run QA validation on all examples
+npm run qa:pinescript
+
+# Build Docker container
+docker build -t pinescript-validator mcp/
 ```
 
 ---

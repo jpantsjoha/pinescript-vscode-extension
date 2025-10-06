@@ -76,9 +76,13 @@ export class SymbolTable {
   private initializeBuiltins(): void {
     // Built-in variables
     const builtinVars = [
-      'close', 'open', 'high', 'low', 'volume', 'time', 'bar_index',
+      'close', 'open', 'high', 'low', 'volume', 'time', 'bar_index', 'last_bar_index',
       'hl2', 'hlc3', 'ohlc4', 'hlcc4',
       'na', 'syminfo', 'timeframe', 'barstate',
+      // Date/time built-ins
+      'year', 'month', 'weekofyear', 'dayofmonth', 'dayofweek', 'hour', 'minute', 'second',
+      // Chart built-ins
+      'timenow', 'timestamp',
     ];
 
     for (const name of builtinVars) {
@@ -109,6 +113,22 @@ export class SymbolTable {
         column: 0,
         used: false,
         kind: 'function',
+      });
+    }
+
+    // Keywords (treated as reserved symbols)
+    const keywords = [
+      'break', 'continue', 'type',
+    ];
+
+    for (const name of keywords) {
+      this.globalScope.define({
+        name,
+        type: 'unknown',  // Keywords don't have a value type
+        line: 0,
+        column: 0,
+        used: false,
+        kind: 'variable',
       });
     }
 
