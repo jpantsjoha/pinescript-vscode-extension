@@ -1,0 +1,11 @@
+{
+  "mcpServers": [
+    {
+      "name": "pinescript-validator",
+      "command": ["node", "./mcp/validator-server.js"],
+      "cwd": "/Users/jp/Library/Mobile Documents/com~apple~CloudDocs/Documents/workspaces/pinescript-vscode-extension",
+      "trust": 2,
+      "transport": "stdio"
+    }
+  ]
+}

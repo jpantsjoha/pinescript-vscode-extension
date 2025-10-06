@@ -1,0 +1,19 @@
+//@version=6
+indicator("Test Plot Parsing")
+
+// Variable declarations
+x = 5
+y = 10
+
+// Plot calls
+plot(close, title='Close')
+plot(open, title='Open')
+plot(high, title='High')
+
+// More variable declarations after plots
+z = 20
+w = 30
+
+// If statement
+if z > 0
+    plot(w)

@@ -138,5 +138,8 @@
     "cheerio": "^1.1.2",
     "playwright": "^1.48.0",
     "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "glob": "^11.0.3"
   }
 }

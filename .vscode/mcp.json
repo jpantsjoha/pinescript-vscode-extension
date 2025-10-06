@@ -1,12 +1,9 @@
 {
-  "mcp": {
-    "servers": [
-      {
-        "name": "pinescript-validator",
-        "command": ["node", "${workspaceFolder}/mcp/validator-server.js"],
-        "transport": "stdio",
-        "description": "Pine Script v6 validator - provides validate_pine_script tool for linting .pine files"
-      }
-    ]
+  "mcpServers": {
+    "pinescript-validator": {
+      "command": "node",
+      "args": ["./mcp/pinescript-mcp-server.js"],
+      "description": "Pine Script v6 validator - provides validate_pine_script tool for linting .pine files"
+    }
   }
 }

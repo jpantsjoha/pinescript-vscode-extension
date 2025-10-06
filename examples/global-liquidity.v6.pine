@@ -1,0 +1,111 @@
+
+//@version=6
+indicator("Global Liquidity Composite (v1.0) — Pine v6", overlay=false)
+
+// ========= INPUTS =========
+grpSym = "Symbols"
+usM2     = input.symbol("FRED:M2SL",     "US M2 (FRED)",     group=grpSym)
+euM2     = input.symbol("",              "Euro Area M2",     group=grpSym)
+cnM2     = input.symbol("",              "China M2",         group=grpSym)
+jpM2     = input.symbol("",              "Japan M2",         group=grpSym)
+fedBS    = input.symbol("FRED:WALCL",    "Fed Balance Sheet",group=grpSym)
+ecbBS    = input.symbol("",              "ECB Balance Sheet", group=grpSym)
+bojBS    = input.symbol("",              "BoJ Balance Sheet", group=grpSym)
+boeBS    = input.symbol("",              "BoE Balance Sheet", group=grpSym)
+dxySym   = input.symbol("TVC:DXY",       "USD Index (DXY)",   group=grpSym)
+
+grpWts = "Weights (0–1)"
+wUSM2  = input.float(0.35, "US M2",  step=0.01, minval=0, maxval=1, group=grpWts)
+wEUM2  = input.float(0.15, "EU M2",  step=0.01, minval=0, maxval=1, group=grpWts)
+wCNM2  = input.float(0.25, "China M2", step=0.01, minval=0, maxval=1, group=grpWts)
+wJPM2  = input.float(0.10, "Japan M2", step=0.01, minval=0, maxval=1, group=grpWts)
+wCB    = input.float(0.15, "CB Assets (sum)", step=0.01, minval=0, maxval=1, group=grpWts)
+
+grpModel = "Model & Display"
+useCBAssets   = input.bool(true,     "Include CB Balance Sheets", group=grpModel)
+adjByInverseDXY = input.bool(true,   "Adjust by Inverse DXY",     group=grpModel)
+normLen       = input.int(12,        "Normalization MA (months)", minval=3, group=grpModel)
+leadDays      = input.int(80,        "Lead (days)", minval=0,     group=grpModel)
+smoothLen     = input.int(3,         "Final EMA Smoothing (months)", minval=1, group=grpModel)
+
+refSymGrp = "Reference Price"
+refSym        = input.symbol("BTCUSD", "Reference Symbol (e.g., BTCUSD)", group=refSymGrp)
+refTf         = input.timeframe("",    "Ref Timeframe (blank = chart)", group=refSymGrp)
+
+// ========= HELPERS =========
+
+f_mSeries(sym) =>
+    sym == "" ? na : request.security(sym, "M", close, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+f_norm(x, n) =>
+    ma = ta.sma(x, n)
+    na(ma) ? na : (x / ma) * 100.0
+
+f_days_to_bars(days) =>
+    secPerBar = timeframe.in_seconds(timeframe.period)
+    secPerBar <= 0 ? 0 : math.max(0, math.round(days * 86400.0 / secPerBar))
+
+// ========= DATA =========
+
+sUSM2 = f_mSeries(usM2)
+sEUM2 = f_mSeries(euM2)
+sCNM2 = f_mSeries(cnM2)
+sJPM2 = f_mSeries(jpM2)
+
+sFed  = f_mSeries(fedBS)
+sECB  = f_mSeries(ecbBS)
+sBoJ  = f_mSeries(bojBS)
+sBoE  = f_mSeries(boeBS)
+
+sDXY  = f_mSeries(dxySym)
+
+nUSM2 = f_norm(sUSM2, normLen)
+nEUM2 = f_norm(sEUM2, normLen)
+nCNM2 = f_norm(sCNM2, normLen)
+nJPM2 = f_norm(sJPM2, normLen)
+
+nFed  = f_norm(sFed,  normLen)
+nECB  = f_norm(sECB,  normLen)
+nBoJ  = f_norm(sBoJ,  normLen)
+nBoE  = f_norm(sBoE,  normLen)
+
+nDXY  = f_norm(sDXY,  normLen)
+
+// ========= COMPOSITE =========
+
+m2Acc = 0.0
+wM2Acc = 0.0
+
+if wUSM2 > 0 and not na(nUSM2)
+    m2Acc  := m2Acc + nUSM2 * wUSM2
+    wM2Acc := wM2Acc + wUSM2
+if wEUM2 > 0 and not na(nEUM2)
+    m2Acc  := m2Acc + nEUM2 * wEUM2
+    wM2Acc := wM2Acc + wEUM2
+if wCNM2 > 0 and not na(nCNM2)
+    m2Acc  := m2Acc + nCNM2 * wCNM2
+    wM2Acc := wM2Acc + wCNM2
+if wJPM2 > 0 and not na(nJPM2)
+    m2Acc  := m2Acc + nJPM2 * wJPM2
+    wM2Acc := wM2Acc + wJPM2
+
+m2Comp = wM2Acc == 0 ? na : m2Acc / wM2Acc
+
+cbSum = nz(nFed) + nz(nECB) + nz(nBoJ) + nz(nBoE)
+isCbSumNa = na(nFed) and na(nECB) and na(nBoJ) and na(nBoE)
+cbComp = useCBAssets and not isCbSumNa ? cbSum : na
+
+baseComp = na(m2Comp) and na(cbComp) ? na : nz(m2Comp) * (1 - wCB) + nz(cbComp) * wCB
+
+finalComp = na(baseComp) ? na : adjByInverseDXY and not na(nDXY) and nDXY != 0 ? baseComp / (nDXY / 100) : baseComp
+
+leadBars = f_days_to_bars(leadDays)
+smoothComp = ta.ema(finalComp, smoothLen)
+plotComp = smoothComp[leadBars]
+
+// ========= PLOTTING =========
+
+plot(plotComp, "Global Liquidity", color=color.new(color.blue, 0), linewidth=2)
+
+refClose = request.security(refSym, refTf, close, gaps=barmerge.gaps_off)
+plot(refClose, "Reference", color=color.new(color.orange, 50))

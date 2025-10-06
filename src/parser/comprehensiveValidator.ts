@@ -944,7 +944,15 @@ export class ComprehensiveValidator {
 
       case 'UnaryExpression':
         const unaryExpr = expr as any;
-        type = this.inferExpressionType(unaryExpr.argument);
+        // 'not' operator always returns bool
+        if (unaryExpr.operator === 'not') {
+          type = 'bool';
+        } else if (unaryExpr.operator === '-') {
+          // Unary minus preserves numeric type
+          type = this.inferExpressionType(unaryExpr.argument);
+        } else {
+          type = this.inferExpressionType(unaryExpr.argument);
+        }
         break;
 
       case 'TernaryExpression':

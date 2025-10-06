@@ -23,6 +23,10 @@ export class Parser {
         const stmt = this.statement();
         if (stmt) body.push(stmt);
       } catch (e) {
+        // DEBUG: Log parsing errors to understand what's being skipped
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        console.error(`[PARSER ERROR] Line ${this.peek().line}: ${errorMsg}`);
+
         // Skip to next statement on error
         this.synchronize();
       }
@@ -606,7 +610,8 @@ export class Parser {
     if (!this.check(TokenType.RPAREN)) {
       do {
         // Check for named argument: name = value
-        if (this.check(TokenType.IDENTIFIER) && this.peekNext()?.type === TokenType.ASSIGN) {
+        // Allow both IDENTIFIER and KEYWORD as parameter names (Pine Script uses keywords like 'color', 'title', etc. as parameter names)
+        if ((this.check(TokenType.IDENTIFIER) || this.check(TokenType.KEYWORD)) && this.peekNext()?.type === TokenType.ASSIGN) {
           const name = this.advance().value;
           this.advance(); // consume =
           const value = this.expression();

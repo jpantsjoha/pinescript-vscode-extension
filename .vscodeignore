@@ -51,6 +51,17 @@ test-comprehensive-validator.js
 test-validation.pine
 PRE-RELEASE-CLEANUP-REPORT.md
 
+# Session debugging/testing files (exclude all)
+test-*.js
+test-*.pine
+debug-*.js
+analyze-*.js
+check-*.js
+find-*.js
+.mcp.json
+settings.json
+mcp/**
+
 # OS & IDE
 .DS_Store
 Thumbs.db
