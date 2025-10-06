@@ -944,6 +944,30 @@ export class ComprehensiveValidator {
         }
         break;
 
+      case 'IndexExpression':
+        // Phase B - Session 5: Infer type from array/series element access
+        const indexExpr = expr as any;
+        const arrayType = this.inferExpressionType(indexExpr.object);
+
+        // Handle series<T>[index] → T
+        const seriesMatch = arrayType.match(/^series<(.+)>$/);
+        if (seriesMatch) {
+          type = seriesMatch[1] as PineType;  // Return inner type (e.g., series<float> → float)
+          break;
+        }
+
+        // Handle array<T>[index] → T
+        const arrayMatch = arrayType.match(/^array<(.+)>$/);
+        if (arrayMatch) {
+          type = arrayMatch[1] as PineType;  // Return element type
+          break;
+        }
+
+        // For unknown array type, return unknown
+        // For known non-array/series type, assume it's indexable and return same type
+        type = arrayType === 'unknown' ? 'unknown' : arrayType;
+        break;
+
       case 'MemberExpression':
         // For namespace.function, return unknown (will be resolved in call expression)
         type = 'unknown';
