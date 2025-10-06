@@ -670,6 +670,17 @@ export class Parser {
       };
     }
 
+    if (this.match(TokenType.COLOR)) {
+      const token = this.previous();
+      return {
+        type: 'Literal',
+        value: token.value,  // Keep hex color as string (e.g., "#d8e3ac")
+        raw: token.value,
+        line: token.line,
+        column: token.column,
+      };
+    }
+
     if (this.match([TokenType.KEYWORD, ['na']])) {
       const token = this.previous();
       return {

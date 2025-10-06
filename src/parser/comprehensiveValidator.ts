@@ -106,7 +106,25 @@ export class ComprehensiveValidator {
   }
 
   // Phase D - Session 5: Namespace properties for property access type inference
+  // Session 9: Track deprecated v5 constants for migration warnings
+  private deprecatedV5Constants: Record<string, string> = {
+    'plot.style_dashed': 'plot.style_linebr',
+    'plot.style_circles': 'plot.style_circles',  // Actually valid, but often confused
+  };
+
   private namespaceProperties: Record<string, PineType> = {
+    // plot namespace constants (plot.style_*)
+    'plot.style_line': 'string',
+    'plot.style_linebr': 'string',
+    'plot.style_stepline': 'string',
+    'plot.style_steplinebr': 'string',
+    'plot.style_histogram': 'string',
+    'plot.style_cross': 'string',
+    'plot.style_area': 'string',
+    'plot.style_areabr': 'string',
+    'plot.style_columns': 'string',
+    'plot.style_circles': 'string',
+
     // timeframe namespace properties
     'timeframe.period': 'string',
     'timeframe.multiplier': 'int',
@@ -1029,16 +1047,48 @@ export class ComprehensiveValidator {
 
       case 'MemberExpression':
         // Phase D - Session 5: Check for namespace properties first
+        // Session 9: Add deprecation warnings and unknown property detection
         const memberExpr = expr as any;
 
         // Try to get namespace.property full name
         if (memberExpr.object?.type === 'Identifier' && memberExpr.property?.type === 'Identifier') {
           const propertyName = `${memberExpr.object.name}.${memberExpr.property.name}`;
+          const namespaceName = memberExpr.object.name;
+
+          // Session 9: Check for deprecated v5 constants
+          if (propertyName in this.deprecatedV5Constants) {
+            const replacement = this.deprecatedV5Constants[propertyName];
+            this.addError(
+              memberExpr.line || 0,
+              memberExpr.column || 0,
+              propertyName.length,
+              `Deprecated Pine Script v5 constant '${propertyName}'. Use '${replacement}' instead.`,
+              DiagnosticSeverity.Warning
+            );
+            // Still infer type as string (it might work, but warn user)
+            type = 'string';
+            break;
+          }
 
           // Check if it's a known namespace property
           if (propertyName in this.namespaceProperties) {
             type = this.namespaceProperties[propertyName];
             break;
+          }
+
+          // Session 9: Check if namespace exists but property doesn't
+          const knownNamespaces = ['plot', 'color', 'shape', 'size', 'location', 'barstate',
+                                   'timeframe', 'syminfo', 'chart', 'position', 'scale',
+                                   'display', 'format', 'xloc', 'yloc'];
+          if (knownNamespaces.includes(namespaceName)) {
+            // Known namespace but unknown property - likely an error
+            this.addError(
+              memberExpr.line || 0,
+              memberExpr.column || 0,
+              propertyName.length,
+              `Unknown property '${memberExpr.property.name}' on namespace '${namespaceName}'`,
+              DiagnosticSeverity.Error
+            );
           }
         }
 

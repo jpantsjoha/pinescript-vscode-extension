@@ -1,0 +1,258 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © jpantsjoha - Enhanced by AI for Macro Integration
+
+//@version=6
+indicator("Enhanced Macro-Liquidity Trend Dynamics Analyzer", shorttitle="JP Macro Trend Dynamics V6", overlay=false)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// MACRO LIQUIDITY INPUTS
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+bool enable_macro = input.bool(true, "🌍 Enable Macro Liquidity Filter", group="Macro Settings")
+float macro_sensitivity = input.float(1.0, "Macro Sensitivity", minval=0.1, maxval=3.0, step=0.1, group="Macro Settings")
+bool show_regime_bg = input.bool(true, "Show Regime Background", group="Macro Settings")
+bool show_event_warnings = input.bool(true, "Show Event Warnings", group="Macro Settings")
+
+// Economic Calendar Proximity
+int fomc_proximity = input.int(5, "FOMC Event Proximity (days)", minval=1, maxval=10, group="Economic Calendar")
+int cpi_proximity = input.int(3, "CPI Event Proximity (days)", minval=1, maxval=7, group="Economic Calendar")
+int earnings_proximity = input.int(2, "Earnings Event Proximity (days)", minval=1, maxval=5, group="Economic Calendar")
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// ORIGINAL DEMARKER & STOCHASTIC INPUTS
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+int per = input.int(13, "DeMarker Period", minval=1, group="DeMarker Settings")
+int hm = input.int(75, "High DeMarker Level", minval=50, maxval=100, group="DeMarker Settings")
+int lm = input.int(25, "Low DeMarker Level", minval=0, maxval=50, group="DeMarker Settings")
+int ml = input.int(50, "Mid DeMarker Level", minval=0, maxval=100, group="DeMarker Settings")
+
+bool showema = input.bool(true, 'Show EMA', group="Stochastic Settings")
+bool showsma = input.bool(true, 'Show SMA', group="Stochastic Settings")
+int periodK = input.int(14, '%K Length', minval=1, group="Stochastic Settings")
+int periodD = input.int(3, '%D Length', minval=2, group="Stochastic Settings")
+int smoothK = input.int(6, 'Smoothing', minval=1, group="Stochastic Settings")
+bool showshape = input.bool(true, 'Show Shapes', group="Stochastic Settings")
+int periodE = input.int(13, 'E Length (EMA of K)', minval=1, group="Stochastic Settings")
+int periodS = input.int(21, 'S Length (Slow SMA of K)', minval=1, group="Stochastic Settings")
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// MACRO LIQUIDITY CALCULATIONS
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+// Proxy for global liquidity using SPY/TLT ratio
+float spy_data = request.security("SPY", timeframe.period, close[1])
+float tlt_data = request.security("TLT", timeframe.period, close[1])
+float liquidity_proxy = spy_data / tlt_data
+
+// Dollar strength (DXY proxy using EURUSD inverse)
+float eurusd_data = request.security("EURUSD", timeframe.period, close[1])
+float dxy_proxy = 1 / eurusd_data * 100
+
+// Risk sentiment (VIX proxy using ATR-based volatility)
+float vix_proxy = ta.atr(14) / close * 100
+
+// Liquidity regime detection (Banana Zone inspired)
+float liquidity_sma = ta.sma(liquidity_proxy, 20)
+bool liquidity_trend = liquidity_proxy > liquidity_sma
+bool dxy_neutral_zone = dxy_proxy > 100 and dxy_proxy < 105
+bool low_vol_regime = vix_proxy < 20
+
+// Phase Classification
+bool phase1_green = liquidity_trend and dxy_neutral_zone and low_vol_regime // Accumulation
+bool phase2_orange = not liquidity_trend and dxy_neutral_zone // Rotation  
+bool phase3_red = dxy_proxy >= 105 or vix_proxy > 30 // Risk-off
+
+// Composite macro score
+float macro_bullish_score = (liquidity_trend ? 1 : 0) + (dxy_neutral_zone ? 1 : 0) + (low_vol_regime ? 1 : 0)
+int macro_regime = phase1_green ? 3 : phase2_orange ? 2 : phase3_red ? 1 : 0
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// ECONOMIC CALENDAR DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+// FOMC Meeting Approximation (3rd Wed of scheduled months)
+bool is_fomc_month = month == 1 or month == 3 or month == 5 or month == 7 or month == 9 or month == 11 or month == 12
+bool fomc_week = weekofyear >= 3 and weekofyear <= 50 // Avoid year-end issues
+bool fomc_proximity_check = is_fomc_month and (dayofweek >= 2 and dayofweek <= 4) // Tue-Thu around meeting
+bool fomc_event_window = fomc_proximity_check
+
+// CPI Release Approximation (typically 10th-15th of month)
+bool cpi_release_window = (dayofmonth >= 10 and dayofmonth <= 15)
+
+// Earnings Season Approximation (first month of each quarter)
+bool earnings_season = month == 1 or month == 4 or month == 7 or month == 10
+bool earnings_window = earnings_season and (dayofmonth >= 15 and dayofmonth <= 31)
+
+// Combined event risk
+bool event_risk = fomc_event_window or cpi_release_window or earnings_window
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// ORIGINAL DEMARKER & STOCHASTIC CALCULATIONS
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+// DeMarker Calculation
+float demax = high > high[1] ? high - high[1] : 0
+float demin = low < low[1] ? low[1] - low : 0
+float demax_av = ta.sma(demax, per)
+float demin_av = ta.sma(demin, per)
+float dmark = ta.ema(demax_av / (demax_av + demin_av) * 100, 3)
+
+// Stochastic Calculation
+float k0 = ta.stoch(close, high, low, periodK)
+float k = ta.sma(k0, smoothK)
+float d = ta.sma(k, periodD)
+float e = ta.ema(k, periodE)
+float s = ta.sma(k, periodS)
+
+// Original Signal Detection
+bool pl = ta.crossover(dmark, lm) 
+bool ph = ta.crossunder(dmark, hm)
+
+bool crossup = ta.crossover(k, d)
+bool crossdown = ta.crossunder(k, d)
+
+bool UP = showshape and crossup and d < 29 and e < 29
+bool DOWN = showshape and crossdown and d > 71 and e > 71
+
+bool UP2 = showshape and crossup and d < 9 and e <= 38.2
+bool DOWN2 = showshape and crossdown and d > 91 and e >= 61.8
+
+int sma_direction = s > s[1] ? 1 : -1
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// ENHANCED MACRO-FILTERED SIGNALS
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+// Original signals
+bool original_long = sma_direction == 1 and pl
+bool original_short = sma_direction == -1 and ph
+
+// Macro-enhanced signals with regime filtering
+bool macro_long_filter = enable_macro ? (phase1_green or (phase2_orange and macro_bullish_score >= 2)) : true
+bool macro_short_filter = enable_macro ? (phase3_red or (phase2_orange and macro_bullish_score <= 1)) : true
+
+// Event-filtered signals (reduce size during high-impact events)
+bool event_long_filter = show_event_warnings ? not (fomc_event_window and dmark > 70) : true
+bool event_short_filter = show_event_warnings ? not (fomc_event_window and dmark < 30) : true
+
+// Final enhanced signals
+bool enhanced_long = original_long and macro_long_filter and event_long_filter
+bool enhanced_short = original_short and macro_short_filter and event_short_filter
+
+// Signal strength adjustment based on macro regime
+float signal_strength_multiplier = phase1_green ? 1.5 : phase2_orange ? 1.0 : phase3_red ? 0.6 : 1.0
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+// Background coloring for macro regimes
+color regime_color = show_regime_bg ? 
+  (phase1_green ? color.new(color.green, 95) : 
+   phase2_orange ? color.new(color.orange, 95) : 
+   phase3_red ? color.new(color.red, 95) : color.new(color.gray, 98)) : na
+
+bgcolor(regime_color, title="Macro Regime Background")
+
+// Horizontal lines (unchanged from original)
+h1 = plot(60, "Upper Half", color.red)
+h2 = plot(40, "Lower Half", color.red)
+plot(ml, "Mid Line", color.red)
+fill(h1, h2, color.new(color.red, 70))
+
+h11 = plot(hm, "Upper Bound", color.blue)
+h22 = plot(lm, "Lower Bound", color.blue)
+color fill_color = #d8e3ac
+fill(h11, h22, color.new(fill_color, 94))
+
+// Additional macro-informed levels
+plot(80, "Bullish Level", color=color.rgb(212, 64, 0), style=plot.style_linebr)
+plot(61.8, "Fibo Bullish Level", color=color.rgb(163, 200, 138), style=plot.style_line)
+plot(50, "Mid Level", color=color.rgb(188, 190, 178), style=plot.style_line)
+plot(38.2, "Fibo Bearish Level", color=color.rgb(176, 198, 190), style=plot.style_line)
+plot(20, "Bearish Level", color=color.rgb(126, 176, 39), style=plot.style_linebr)
+
+// DeMarker plot with macro-adjusted color intensity
+color dmark_color = phase1_green ? color.rgb(27, 200, 45) : phase2_orange ? color.rgb(27, 146, 45) : color.rgb(27, 100, 45)
+plot(dmark, "DeMarker", color=dmark_color, linewidth=2)
+
+// Original DeMarker signals (smaller, dimmed)
+plot(pl ? dmark : na, "Original Long", color=color.new(color.green, 50), linewidth=3, style=plot.style_circles)
+plot(ph ? dmark : na, "Original Short", color=color.new(color.orange, 50), linewidth=3, style=plot.style_circles)
+
+// Enhanced macro signals (prominent)
+plot(enhanced_long ? dmark : na, "Enhanced Long", color=color.new(color.lime, 0), linewidth=6, style=plot.style_cross)
+plot(enhanced_short ? dmark : na, "Enhanced Short", color=color.new(color.red, 0), linewidth=6, style=plot.style_cross)
+
+// Stochastic plots
+color kcolor = k > d ? color.aqua : color.purple
+float hist = k - d
+plot(hist + 50, 'Histogram', style=plot.style_columns, color=kcolor, histbase=50)
+
+plot(k, '%K', color=color.orange)
+plot(d, '%D', color=color.purple)
+plot(showema ? e : na, '%E', color=color.red)
+plot(showsma ? s : na, '%S', color=color.white)
+
+// Original stochastic signals
+plotshape(UP ? 0 : na, 'Up 1', style=shape.triangleup, location=location.absolute, color=color.aqua, size=size.tiny)
+plotshape(DOWN ? 100 : na, 'Down 1', style=shape.triangledown, location=location.absolute, color=color.purple, size=size.tiny)
+plotshape(UP2 ? -7 : na, 'Up 2', style=shape.triangleup, location=location.absolute, color=color.aqua, size=size.tiny)
+plotshape(DOWN2 ? 107 : na, 'Down 2', style=shape.triangledown, location=location.absolute, color=color.purple, size=size.tiny)
+
+// Enhanced diamond signals (macro-filtered)
+plotshape(enhanced_long ? dmark : na, 'Macro Long', style=shape.diamond, location=location.absolute, color=color.new(color.lime, 0), size=size.small)
+plotshape(enhanced_short ? dmark : na, 'Macro Short', style=shape.diamond, location=location.absolute, color=color.new(color.red, 0), size=size.small)
+
+// Event warning indicators
+plotshape(show_event_warnings and fomc_event_window ? 90 : na, 'FOMC Window', style=shape.circle, location=location.absolute, color=color.yellow, size=size.tiny)
+plotshape(show_event_warnings and cpi_release_window ? 85 : na, 'CPI Window', style=shape.square, location=location.absolute, color=color.blue, size=size.tiny)
+plotshape(show_event_warnings and earnings_window ? 80 : na, 'Earnings Window', style=shape.triangleup, location=location.absolute, color=color.purple, size=size.tiny)
+
+// Macro regime indicator
+plotshape(enable_macro and phase1_green ? 95 : na, 'Green Regime', style=shape.circle, location=location.absolute, color=color.new(color.green, 30), size=size.small)
+plotshape(enable_macro and phase2_orange ? 95 : na, 'Orange Regime', style=shape.circle, location=location.absolute, color=color.new(color.orange, 30), size=size.small)
+plotshape(enable_macro and phase3_red ? 95 : na, 'Red Regime', style=shape.circle, location=location.absolute, color=color.new(color.red, 30), size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════
+// ENHANCED ALERTS
+// ═══════════════════════════════════════════════════════════════════
+
+// Original alerts
+alertcondition(original_long, "Original Long Alert", "Original Long Trade Entry Condition Met")
+alertcondition(original_short, "Original Short Alert", "Original Short Trade Entry Condition Met")
+
+// Enhanced macro alerts
+alertcondition(enhanced_long, "Enhanced Long Alert", message='Enhanced Macro Long Signal - Regime: {{plot("Macro Regime Background")}}')
+alertcondition(enhanced_short, "Enhanced Short Alert", message='Enhanced Macro Short Signal - Regime: {{plot("Macro Regime Background")}}')
+
+// Event-based alerts
+alertcondition(fomc_event_window, "FOMC Event Alert", "FOMC Event Window - Reduce Position Size")
+alertcondition(cpi_release_window, "CPI Event Alert", "CPI Release Window - High Volatility Expected")
+
+// Regime change alerts
+alertcondition(ta.change(macro_regime) != 0, "Regime Change Alert", "Macro Liquidity Regime Changed")
+
+// ═══════════════════════════════════════════════════════════════════
+// TABLE DISPLAY FOR MACRO STATUS
+// ═══════════════════════════════════════════════════════════════════
+
+var table macro_table = table.new(position.top_right, 2, 5, bgcolor=color.white, border_width=1)
+
+if enable_macro and barstate.islast
+    table.cell(macro_table, 0, 0, "Macro Status", text_color=color.black, bgcolor=color.gray)
+    table.cell(macro_table, 1, 0, "", text_color=color.black, bgcolor=color.gray)
+    
+    string regime_text = phase1_green ? "GREEN" : phase2_orange ? "ORANGE" : phase3_red ? "RED" : "NEUTRAL"
+    color regime_bg = phase1_green ? color.green : phase2_orange ? color.orange : phase3_red ? color.red : color.gray
+    
+    table.cell(macro_table, 0, 1, "Regime", text_color=color.black)
+    table.cell(macro_table, 1, 1, regime_text, text_color=color.white, bgcolor=regime_bg)
+    
+    table.cell(macro_table, 0, 2, "Liquidity", text_color=color.black)
+    table.cell(macro_table, 1, 2, liquidity_trend ? "BULLISH" : "BEARISH", text_color=liquidity_trend ? color.green : color.red)
+    
+    table.cell(macro_table, 0, 3, "Risk Level", text_color=color.black)
+    table.cell(macro_table, 1, 3, low_vol_regime ? "LOW" : "HIGH", text_color=low_vol_regime ? color.green : color.red)
+    
+    table.cell(macro_table, 0, 4, "Event Risk", text_color=color.black)
+    table.cell(macro_table, 1, 4, event_risk ? "HIGH" : "LOW", text_color=event_risk ? color.red : color.green)
