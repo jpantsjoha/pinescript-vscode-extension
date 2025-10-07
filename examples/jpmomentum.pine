@@ -230,7 +230,8 @@ alertcondition(fomc_event_window, "FOMC Event Alert", "FOMC Event Window - Reduc
 alertcondition(cpi_release_window, "CPI Event Alert", "CPI Release Window - High Volatility Expected")
 
 // Regime change alerts
-alertcondition(ta.change(macro_regime) != 0, "Regime Change Alert", "Macro Liquidity Regime Changed")
+bool regime_changed = ta.change(macro_regime) != 0
+alertcondition(regime_changed, "Regime Change Alert", "Macro Liquidity Regime Changed")
 
 // ═══════════════════════════════════════════════════════════════════
 // TABLE DISPLAY FOR MACRO STATUS

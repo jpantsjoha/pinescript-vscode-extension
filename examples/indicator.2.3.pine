@@ -1,5 +1,5 @@
 //@version=6
-indicator("Point-Clip Unified Indicator v2.3 (Pine v6) by JP", overlay=true, timeframe_gaps=true, max_boxes_count=60, max_labels_count=300)
+indicator("Point-Clip Unified Indicator v2.3 (Pine v6) by JP", overlay=true, max_boxes_count=60, max_labels_count=300)
 
 // ───────────────────────── Inputs ─────────────────────────
 grp1 = "Volume & Structure"
@@ -70,7 +70,9 @@ htfDn    = htfClose < htfEma
 
 // VWAP & AVWAP (anchored to session start)
 vwap = ta.vwap
-var float cumPV = na, cumV = na, avwap = na
+var float cumPV = na
+var float cumV = na
+var float avwap = na
 inS1 = not useSess or inSession(sess1)
 inS2 = not useSess or inSession(sess2)
 inSess = inS1 or inS2
@@ -90,8 +92,9 @@ rHigh = ta.highest(high, rangeLen)
 rLow  = ta.lowest(low, rangeLen)
 tfSec   = timeframe.in_seconds(timeframe.period)
 orbBars = math.max(1, math.round(orbMin * 60.0 / tfSec))
-var int  orbStartIndex = na
-var float orbH = na, orbL = na
+var int orbStartIndex = na
+var float orbH = na
+var float orbL = na
 if newSessStart
     orbStartIndex := bar_index, orbH := high, orbL := low
 orbActive = useORB and inSess and not na(orbStartIndex) and (bar_index - orbStartIndex < orbBars)
