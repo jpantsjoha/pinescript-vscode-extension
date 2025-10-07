@@ -7,22 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.4.4] - 2025-10-07
 
-### 🔧 Parser Database Fixes (2025-10-07)
+### 🔧 Parser Database Fixes
 
 **Critical Parser Database Corrections:**
 - Fixed `math.round()` parameter definition (now correctly accepts optional `precision` parameter)
 - Added 32 missing `strategy.*` variable properties (position_size, equity, netprofit, etc.)
 
 **Impact:**
-- Eliminates false positive: "Too many arguments for 'math.round'"
-- Eliminates false positive: "Unknown strategy constant or function 'position_size'"
-- Improved validation accuracy for strategy scripts
+- ✅ Eliminates false positive: "Too many arguments for 'math.round'"
+- ✅ Eliminates false positive: "Unknown strategy constant or function 'position_size'"
+- ✅ Improved validation accuracy for strategy scripts
+
+**Project Cleanup:**
+- Organized 26 dev tools into `dev-tools/` structure (debug, analysis, testing)
+- Moved test Pine files to `examples/`
+- Removed legacy session documentation (preserved in git history)
 
 **Files Modified:**
 - `v6/parameter-requirements-generated.ts`: Added precision parameter to math.round
 - `v6/pine-constants-complete.ts`: Added STRATEGY_VARIABLES set with all runtime state variables
+
+**Reference:** Parser improvements from Sessions 7-9 (see git history for SESSION-*.md files)
 
 ---
 
