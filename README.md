@@ -159,6 +159,7 @@ Contributions welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 - **Repository**: [GitHub](https://github.com/jpantsjoha/pinescript-vscode-extension)
 - **Issues**: [Bug Reports](https://github.com/jpantsjoha/pinescript-vscode-extension/issues)
 - **Releases**: [Changelog](https://github.com/jpantsjoha/pinescript-vscode-extension/releases)
+- **Story**: [How This Extension Was Built](https://jaroslav-pantsjoha.medium.com/couldnt-find-a-pinescript-language-support-on-ide-so-i-built-one-enjoy-1fe57df0560f) (Medium)
 - **TradingView Pine Script Reference**: [Official Docs](https://www.tradingview.com/pine-script-reference/v6/)
 
 ---
