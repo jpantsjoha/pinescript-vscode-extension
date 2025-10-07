@@ -74,21 +74,56 @@ export class SymbolTable {
   }
 
   private initializeBuiltins(): void {
-    // Built-in variables
-    const builtinVars = [
-      'close', 'open', 'high', 'low', 'volume', 'time', 'bar_index', 'last_bar_index',
+    // Built-in variables - series<float>
+    const seriesFloatVars = [
+      'close', 'open', 'high', 'low', 'volume',
       'hl2', 'hlc3', 'ohlc4', 'hlcc4',
-      'na', 'syminfo', 'timeframe', 'barstate',
+    ];
+
+    for (const name of seriesFloatVars) {
+      this.globalScope.define({
+        name,
+        type: 'series<float>',
+        line: 0,
+        column: 0,
+        used: false,
+        kind: 'variable',
+      });
+    }
+
+    // Built-in variables - series<int>
+    const seriesIntVars = [
+      'time', 'bar_index', 'last_bar_index',
       // Date/time built-ins
-      'year', 'month', 'weekofyear', 'dayofmonth', 'dayofweek', 'hour', 'minute', 'second',
+      'year', 'month', 'weekofyear', 'dayofmonth', 'dayofweek',
+      'hour', 'minute', 'second',
       // Chart built-ins
       'timenow', 'timestamp',
     ];
 
-    for (const name of builtinVars) {
+    for (const name of seriesIntVars) {
       this.globalScope.define({
         name,
-        type: 'series<float>',
+        type: 'series<int>',
+        line: 0,
+        column: 0,
+        used: false,
+        kind: 'variable',
+      });
+    }
+
+    // Special built-in variables (namespaces and special values)
+    const specialVars: Array<{ name: string; type: PineType }> = [
+      { name: 'na', type: 'na' },
+      { name: 'syminfo', type: 'unknown' },
+      { name: 'timeframe', type: 'unknown' },
+      { name: 'barstate', type: 'unknown' },
+    ];
+
+    for (const { name, type } of specialVars) {
+      this.globalScope.define({
+        name,
+        type,
         line: 0,
         column: 0,
         used: false,
@@ -142,7 +177,9 @@ export class SymbolTable {
       'strategy', 'syminfo', 'ta', 'table', 'ticker', 'timeframe',
 
       // Constant namespaces
-      'adjustment', 'alert', 'backadjustment', 'barmerge', 'currency', 'dayofweek',
+      // NOTE: 'dayofweek' namespace removed - conflicts with dayofweek variable
+      // Both exist in Pine Script but context determines which is used
+      'adjustment', 'alert', 'backadjustment', 'barmerge', 'currency',
       'display', 'dividends', 'earnings', 'extend', 'font', 'format', 'hline',
       'location', 'order', 'plot', 'position', 'scale', 'session',
       'settlement_as_close', 'shape', 'size', 'splits', 'text', 'xloc', 'yloc',

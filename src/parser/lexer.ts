@@ -208,6 +208,11 @@ export class Lexer {
         }
         break;
 
+      case '#':
+        // Check for hex color literal (#RRGGBB or #RRGGBBAA)
+        this.scanHexColor();
+        break;
+
       case '"':
       case "'":
         this.scanString(char);
@@ -323,6 +328,31 @@ export class Lexer {
     this.addToken(TokenType.NUMBER, value, value.length);
   }
 
+  private scanHexColor(): void {
+    const start = this.pos - 1;  // Include the '#'
+
+    // Count hex digits after #
+    let hexCount = 0;
+    while (this.isHexDigit(this.peek()) && hexCount < 8) {
+      this.advance();
+      hexCount++;
+    }
+
+    // Valid hex colors are #RRGGBB (6 digits) or #RRGGBBAA (8 digits)
+    if (hexCount === 6 || hexCount === 8) {
+      const value = this.source.substring(start, this.pos);
+      this.addToken(TokenType.COLOR, value, value.length);
+    } else {
+      // Invalid hex color - treat as error or identifier
+      // For now, just consume it as an identifier-like token
+      while (this.isAlphaNumeric(this.peek())) {
+        this.advance();
+      }
+      const value = this.source.substring(start, this.pos);
+      this.addToken(TokenType.IDENTIFIER, value, value.length);
+    }
+  }
+
   private scanIdentifier(): void {
     const start = this.pos - 1;
 
@@ -365,6 +395,12 @@ export class Lexer {
 
   private isDigit(char: string): boolean {
     return char >= '0' && char <= '9';
+  }
+
+  private isHexDigit(char: string): boolean {
+    return (char >= '0' && char <= '9') ||
+           (char >= 'a' && char <= 'f') ||
+           (char >= 'A' && char <= 'F');
   }
 
   private isAlpha(char: string): boolean {

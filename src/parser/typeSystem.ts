@@ -115,8 +115,16 @@ export class TypeChecker {
       return leftNumeric && rightNumeric;
     }
 
-    // Equality operators work on same types
+    // Equality operators work on same types OR series<T> with T
     if (['==', '!='].includes(operator)) {
+      // Allow exact type match
+      if (left === right) return true;
+
+      // Allow series<T> == T (Pine Script auto-promotes T to series<T>)
+      if (this.areCompatibleForComparison(left, right)) return true;
+      if (this.areCompatibleForComparison(right, left)) return true;
+
+      // Allow assignability in either direction
       return this.isAssignable(left, right) || this.isAssignable(right, left);
     }
 
@@ -125,6 +133,17 @@ export class TypeChecker {
       return this.isBoolType(left) && this.isBoolType(right);
     }
 
+    return false;
+  }
+
+  // Helper to check if series<T> and T are compatible for comparison
+  private static areCompatibleForComparison(seriesType: PineType, simpleType: PineType): boolean {
+    if (seriesType === 'series<int>' && simpleType === 'int') return true;
+    if (seriesType === 'series<float>' && simpleType === 'float') return true;
+    if (seriesType === 'series<float>' && simpleType === 'int') return true; // int coerces to float
+    if (seriesType === 'series<bool>' && simpleType === 'bool') return true;
+    if (seriesType === 'series<string>' && simpleType === 'string') return true;
+    if (seriesType === 'series<color>' && simpleType === 'color') return true;
     return false;
   }
 

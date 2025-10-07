@@ -84,7 +84,72 @@ sum := sum + 1  // This accumulates: 1, 2, 3, 4...
 
 ---
 
-### 2. Type System
+### 2. Pine Script v5 → v6 Migration Guide
+
+**When helping users migrate v5 code to v6, watch for these common breaking changes:**
+
+#### Deprecated Constants (Most Common Issue)
+
+| v5 Syntax (DEPRECATED) | v6 Replacement | Notes |
+|------------------------|----------------|-------|
+| `plot.style_dashed` | `plot.style_linebr` | Dashed style removed, use line with breaks |
+| `plot.style_circles` | `plot.style_circles` | Still valid, but verify usage |
+| `scale.right` | Use `display` parameter | Scale parameter deprecated for most functions |
+| `resolution` | `timeframe.period` | Resolution variable renamed |
+
+#### Plot Style Constants (v6 Only)
+
+Valid `plot.style_*` constants in v6:
+- `plot.style_line` - Solid line (default)
+- `plot.style_linebr` - Line with breaks (closest to v5 dashed)
+- `plot.style_stepline` - Step line
+- `plot.style_steplinebr` - Step line with breaks
+- `plot.style_histogram` - Histogram
+- `plot.style_cross` - Crosses
+- `plot.style_area` - Filled area
+- `plot.style_areabr` - Filled area with breaks
+- `plot.style_columns` - Columns
+- `plot.style_circles` - Circles
+
+#### Migration Pattern Example
+
+```pine
+//@version=5
+indicator("Old v5", overlay=true)
+plot(close, "Price", style=plot.style_dashed)  // ❌ BREAKS in v6
+
+//@version=6
+indicator("New v6", overlay=true)
+plot(close, "Price", style=plot.style_linebr)  // ✅ CORRECT v6
+```
+
+#### Validation Warnings
+
+The VSCode extension validator now detects deprecated v5 syntax:
+```
+⚠️ Warning: Deprecated Pine Script v5 constant 'plot.style_dashed'. Use 'plot.style_linebr' instead.
+```
+
+**When you see v5 code:**
+1. Check `//@version=` annotation
+2. If v5, ask user if they want to migrate to v6
+3. Use the table above to replace deprecated syntax
+4. Test the code in TradingView's web editor
+5. Recommend running the validator to catch other issues
+
+**Migration Checklist:**
+- [ ] Update `//@version=5` → `//@version=6`
+- [ ] Replace `plot.style_dashed` → `plot.style_linebr`
+- [ ] Replace `resolution` → `timeframe.period`
+- [ ] Remove `scale` parameter from `plot()`, use `display` instead
+- [ ] Check for deprecated `transp` parameter → use `color.new(col, transparency)`
+- [ ] Verify all namespace constants exist in v6
+
+**Reference:** https://www.tradingview.com/pine-script-docs/migration-guides/v5-to-v6/
+
+---
+
+### 3. Type System
 
 **Fundamental Types:**
 - `int` - Integer (42, -10)
