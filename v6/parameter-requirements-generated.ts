@@ -6701,11 +6701,11 @@ export const PINE_FUNCTIONS: Record<string, FunctionSignatureSpec> = {
   },
   'math.round': {
     name: 'math.round',
-    syntax: "math.round(number) → const int",
+    syntax: "math.round(number, precision) → const int",
     description: "Returns the value of number rounded to the nearest integer, with ties rounding up. If the precision parameter is used, returns a float value rounded to that amount of decimal places.",
     requiredParams: ["number"],
-    optionalParams: [],
-    signature: "math.round(number) → const int",
+    optionalParams: ["precision"],
+    signature: "math.round(number, precision) → const int",
     parameters: [
         {
           "name": "number",
@@ -6715,6 +6715,15 @@ export const PINE_FUNCTIONS: Record<string, FunctionSignatureSpec> = {
           "explicitlyRequired": false,
           "required": true,
           "optional": false
+        },
+        {
+          "name": "precision",
+          "type": "const int",
+          "description": "Optional. Decimal places to round to.",
+          "explicitlyOptional": true,
+          "explicitlyRequired": false,
+          "required": false,
+          "optional": true
         }
       ]
   },

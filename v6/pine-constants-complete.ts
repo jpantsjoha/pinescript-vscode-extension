@@ -348,6 +348,42 @@ export const STRATEGY_CONSTANTS = new Set([
   'short'
 ]);
 
+// strategy.* variable properties (runtime state variables)
+export const STRATEGY_VARIABLES = new Set([
+  'account_currency',
+  'avg_losing_trade',
+  'avg_losing_trade_percent',
+  'avg_trade',
+  'avg_trade_percent',
+  'avg_winning_trade',
+  'avg_winning_trade_percent',
+  'closedtrades',
+  'default_entry_qty',
+  'equity',
+  'eventrades',
+  'grossloss',
+  'grossloss_percent',
+  'grossprofit',
+  'grossprofit_percent',
+  'initial_capital',
+  'losing_trades',
+  'losstrades',
+  'max_contracts_held_all',
+  'max_contracts_held_long',
+  'max_contracts_held_short',
+  'max_drawdown',
+  'max_runup',
+  'netprofit',
+  'netprofit_percent',
+  'opentrades',
+  'openprofit',
+  'position_avg_price',
+  'position_entry_name',
+  'position_size',
+  'wintrades',
+  'winning_trades'
+]);
+
 //──────────────────────────────────────────────────────────
 // TABLE NAMESPACE (9 constants)
 //──────────────────────────────────────────────────────────
@@ -443,7 +479,7 @@ export const NAMESPACE_CONSTANTS: Record<string, Set<string>> = {
   shape: SHAPE_CONSTANTS,
   size: SIZE_CONSTANTS,
   splits: SPLITS_CONSTANTS,
-  strategy: STRATEGY_CONSTANTS,
+  strategy: new Set([...STRATEGY_CONSTANTS, ...STRATEGY_VARIABLES]),
   table: TABLE_POSITIONS,
   text: TEXT_CONSTANTS,
   xloc: XLOC_CONSTANTS,
