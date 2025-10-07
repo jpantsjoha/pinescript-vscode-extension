@@ -11,6 +11,9 @@
 ![Pine Script v6 Extension in Action](./images/screenshots/blog-image.png)
 *Real-time validation, IntelliSense, and hover documentation for Pine Script v6*
 
+![Function Signature Help](./images/screenshots/blog-image-function-tip.png)
+*Complete function signatures with parameter hints and documentation*
+
 ---
 
 ## 🚀 Quick Start
