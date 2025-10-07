@@ -1,433 +1,185 @@
-# Pine Script v6 Language Support - VS Code Extension
+# Pine Script v6 IDE Tools
 
-> **Complete Pine Script v6 language support** with 100% construct coverage, intelligent IntelliSense, real-time diagnostics, and zero false positives. Community-driven open source project.
+> **Professional Pine Script v6 development** in VS Code with IntelliSense, real-time validation, and 100% language coverage.
 
-[![CI/CD Pipeline](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://github.com/jpantsjoha/pinescript-vscode-extension/releases)
+[![CI/CD](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/visual-studio-marketplace/v/jpantsjoha.pinescript-v6-extension)](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/jpantsjoha.pinescript-v6-extension)](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)
+[![Rating](https://img.shields.io/visual-studio-marketplace/r/jpantsjoha.pinescript-v6-extension)](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
-[![Language Coverage](https://img.shields.io/badge/v6_coverage-100%25-success.svg)](./docs/V0.4.0-COVERAGE-ANALYSIS.md)
-[![Tests](https://img.shields.io/badge/tests-67%2F67_passing-success.svg)](./test)
-
----
-
-## 🎯 What is This?
-
-A community-driven Visual Studio Code extension for **Pine Script v6** developers. Write TradingView indicators and strategies with modern IDE features: intelligent code completion, real-time error detection, and comprehensive language support.
-
-**Key Achievement:** 100% coverage of Pine Script v6 language constructs (all official language features from TradingView documentation).
-
-**Created by:** [Jaroslav Pantsjoha](https://github.com/jpantsjoha) and the community.
-
----
-
-## ✨ Key Features
-
-### 🔍 **Complete v6 Language Support**
-- ✅ **All 31 constant namespaces** recognized (`xloc.*`, `yloc.*`, `extend.*`, `scale.*`, `display.*`, `hline.*`, `barmerge.*`, `font.*`, `text.*`, `order.*`, `currency.*`, `dayofweek.*`, and more)
-- ✅ **All 27 standalone built-ins** (`ask`, `bid`, `time_close`, `time_tradingday`, `timenow`, etc.)
-- ✅ **All 15 keywords** (`and`, `or`, `not`, `enum`, `export`, `import`, `method`, `type`, `var`, `varip`, etc.)
-- ✅ **All 21 operators** (`+`, `-`, `*`, `/`, `==`, `!=`, `?:`, `=>`, etc.)
-- ✅ **All 21 variable namespaces** (`barstate.*`, `syminfo.*`, `timeframe.*`, `strategy.*`, etc.)
-- ✅ **All 22 function namespaces** (`ta.*`, `math.*`, `input.*`, `str.*`, `array.*`, etc.)
-
-### 🚫 **Zero False Positives**
-```pinescript
-// These are ALL valid v6 code - no errors!
-x = xloc.bar_index
-y = yloc.price
-e = extend.both
-s = scale.left
-d = display.all
-c = currency.USD
-p = position.top_center
-```
-
-### 🎯 **Real-Time Diagnostics**
-- Detects undefined functions and variables
-- Catches missing required parameters
-- Identifies invalid Pine Script v6 syntax
-- Warns about too many arguments
-- Fast validation (< 100ms for typical scripts)
-
-### 💡 **Intelligent IntelliSense**
-- **457+ built-in functions** with autocomplete
-- Parameter hints for all major functions
-- Hover documentation
-- Namespace-aware completions
-
-### 📝 **Syntax Highlighting**
-- Complete Pine Script v6 syntax support
-- Built-in variables and constants highlighted
-- Function calls, keywords, and operators distinguished
-- Comment and string literal recognition
-
----
-
-## 📦 Installation
-
-### From VSIX (Recommended for v0.4.0)
-
-1. Download the latest release: [`pine-script-extension-0.4.0.vsix`](./build/pine-script-extension-0.4.0.vsix)
-
-2. Install in VS Code:
-   ```bash
-   code --install-extension pine-script-extension-0.4.0.vsix
-   ```
-
-3. Reload VS Code:
-   - Press `Cmd+Shift+P` (Mac) or `Ctrl+Shift+P` (Windows/Linux)
-   - Type: `Developer: Reload Window`
-
-### From VS Code Marketplace (Coming Soon)
-
-1. Open VS Code
-2. Press `Cmd+Shift+X` (Mac) or `Ctrl+Shift+X` (Windows/Linux)
-3. Search for "Pine Script v6 Professional"
-4. Click Install
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Create a New Pine Script File
+### Install from Marketplace
+Search for **"Pine Script v6 IDE Tools"** in VS Code Extensions or [install directly from marketplace](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)
+
+### Or Install from VSIX
+Download the latest `.vsix` from [Releases](https://github.com/jpantsjoha/pinescript-vscode-extension/releases) and install:
+```bash
+code --install-extension pinescript-v6-extension-0.4.4.vsix
+```
+
+---
+
+## ✨ Features
+
+### 🎯 **100% Pine Script v6 Coverage**
+- **6,665 language constructs** from official TradingView reference
+- **457+ functions** with autocomplete (ta.*, math.*, str.*, array.*, etc.)
+- **31 constant namespaces** (xloc, yloc, extend, scale, display, etc.)
+- **22 function namespaces** with full parameter validation
+- **32 strategy.* variables** (position_size, equity, netprofit, etc.)
+
+### 🔍 **Real-Time Validation**
+- Catches undefined functions and variables
+- Detects missing/extra parameters
+- Validates namespace properties
+- **Zero false positives** on valid v6 code
+
+### 💡 **Intelligent IntelliSense**
+- Smart autocomplete for all built-in functions
+- Parameter hints with type information
+- Hover documentation
+- Namespace-aware suggestions
+
+### 📝 **Syntax Highlighting**
+- Complete Pine Script v6 syntax support
+- Built-in variables and constants
+- Keywords, operators, and functions
+- Comments and strings
+
+---
+
+## 📖 Usage Examples
+
+### Valid Pine Script v6 Code
+
+```pinescript
+//@version=6
+indicator("My Indicator", overlay=true)
+
+// All valid v6 syntax - no false positives! ✅
+length = input.int(14, "Length")
+source = input.source(close, "Source")
+
+// Technical analysis with autocomplete
+sma_value = ta.sma(source, length)
+ema_value = ta.ema(source, length)
+rsi_value = ta.rsi(source, 14)
+
+// Math functions with precision parameter
+rounded = math.round(close, 2)  // ✅ v0.4.4+ supports precision
+max_val = math.max(open, close)
+
+// Strategy variables fully supported
+if strategy.position_size > 0
+    plot(strategy.equity, "Equity")
+    plot(strategy.netprofit, "Net Profit")
+
+// Plot with all v6 constants
+plot(sma_value, "SMA", color=color.new(color.blue, 50), style=plot.style_line)
+plot(ema_value, "EMA", color=color.new(color.red, 50), style=plot.style_linebr)
+
+// All namespace constants work
+x = xloc.bar_index
+y = yloc.price
+e = extend.both
+s = scale.left
+```
+
+---
+
+## 🔧 Configuration
+
+The extension works out of the box with zero configuration. All Pine Script v6 features are automatically recognized.
+
+---
+
+## 📊 What's New in v0.4.4
+
+### Fixed Parser Issues
+- ✅ `math.round()` now correctly accepts optional `precision` parameter
+- ✅ Added 32 missing `strategy.*` runtime variables
+- ✅ Eliminates false positives for valid strategy scripts
+
+### Before v0.4.4
+```pinescript
+rounded = math.round(close, 2)  // ❌ ERROR: Too many arguments
+if strategy.position_size > 0   // ⚠️  WARNING: Unknown constant
+```
+
+### After v0.4.4
+```pinescript
+rounded = math.round(close, 2)  // ✅ Valid
+if strategy.position_size > 0   // ✅ Valid
+```
+
+See [CHANGELOG](./CHANGELOG.md) for complete version history.
+
+---
+
+## 🧪 Testing
+
+This extension is thoroughly tested:
+- **67/67 unit tests passing** (100%)
+- **7/8 example files validated**
+- Parameter validation verified
+- Namespace property detection tested
 
 ```bash
-# Create a file with .pine extension
-touch my-indicator.pine
+npm test  # Run test suite
 ```
-
-### 2. Start Coding
-
-```pinescript
-//@version=6
-indicator("My First Indicator", overlay=true)
-
-// Use all v6 features with full IntelliSense
-length = input.int(20, "Length")
-src = input.source(close, "Source")
-
-// All namespaces recognized
-sma = ta.sma(src, length)
-ema = ta.ema(src, length)
-
-// Plot with all style constants
-plot(sma, "SMA", color.blue, style=plot.style_line)
-plot(ema, "EMA", color.red, style=plot.style_linebr)
-
-// Use all position constants
-if ta.crossover(ema, sma)
-    label.new(bar_index, high, "Buy",
-             xloc=xloc.bar_index,
-             yloc=yloc.abovebar,
-             color=color.green,
-             style=label.style_label_up)
-```
-
-### 3. See Real-Time Validation
-
-- Errors appear in the Problems panel
-- Squiggly underlines show issues inline
-- Hover for error details
-
----
-
-## 📊 Pine Script v6 Documentation Parity
-
-This extension provides **100% coverage** of Pine Script v6 language constructs as documented in the [official TradingView Pine Script v6 Reference](https://www.tradingview.com/pine-script-reference/v6/).
-
-| Category | Coverage | Details |
-|----------|----------|---------|
-| **Constant Namespaces** | 31/31 (100%) | All `namespace.constant` patterns recognized |
-| **Built-in Variables** | 27/27 (100%) | All standalone variables (`close`, `ask`, `bid`, etc.) |
-| **Variable Namespaces** | 21/21 (100%) | All `namespace.*` variable patterns |
-| **Function Namespaces** | 22/22 (100%) | All `namespace.function()` patterns |
-| **Keywords** | 15/15 (100%) | All v6 keywords (`and`, `enum`, `export`, etc.) |
-| **Operators** | 21/21 (100%) | All v6 operators (`+`, `-`, `?:`, etc.) |
-
-**See:** [V0.4.0 Coverage Analysis](./docs/V0.4.0-COVERAGE-ANALYSIS.md) for detailed breakdown.
-
----
-
-## 🔧 Parser & Validator Improvements (2025-10-06)
-
-**Recent Quality Enhancements (Dev Tools Only):**
-
-We've significantly improved the internal validation tool (MCP server) with a **54.1% error reduction**:
-
-- **Baseline:** 853 false positive errors
-- **Current:** 392 errors remaining
-- **Total improvement:** -461 errors (-54.1%)
-
-**What was fixed:**
-- ✅ If/else indentation-based parsing
-- ✅ For loop iterator variable scoping
-- ✅ Type annotation parsing (int, float, bool, etc.)
-- ✅ Multi-line function body type inference
-- ✅ Built-in function signatures (variadic functions)
-- ✅ All 48 Pine Script v6 namespaces recognized
-
-**Note:** These improvements are in the **development/QA tools** only. The published VSCode extension's user-facing features (syntax highlighting, IntelliSense, hover docs) have always worked correctly and remain unchanged.
-
-**See:** [errors-fix.md](./errors-fix.md) for complete technical details and [SESSION-4-CONTROL-FLOW-SUMMARY.md](./SESSION-4-CONTROL-FLOW-SUMMARY.md) for latest changes.
-
----
-
-## 🎓 Examples
-
-### Example 1: Multi-Timeframe Analysis
-```pinescript
-//@version=6
-indicator("MTF Analysis", overlay=true)
-
-// Request data from higher timeframe
-htf_close = request.security(syminfo.tickerid, "D", close,
-                             barmerge.gaps_on,
-                             barmerge.lookahead_off)
-
-// Plot with display options
-plot(htf_close, "Daily Close",
-     color=color.blue,
-     display=display.all)
-```
-
-### Example 2: Strategy with All Features
-```pinescript
-//@version=6
-strategy("Complete Strategy", overlay=true)
-
-// Use all input types
-length = input.int(20, "Length")
-src = input.source(close, "Source")
-trade_type = input.string("Long", "Trade Type",
-                          options=["Long", "Short", "Both"])
-
-// Strategy execution
-if ta.crossover(close, ta.sma(src, length))
-    strategy.entry("Long", strategy.long)
-
-if ta.crossunder(close, ta.sma(src, length))
-    strategy.close("Long")
-```
-
-**More examples:** [`examples/`](./examples/) directory
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! This is a community-driven project.
+Contributions welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
-### How to Contribute
+### Found a Bug?
+- Check [existing issues](https://github.com/jpantsjoha/pinescript-vscode-extension/issues)
+- Create a new issue with:
+  - Pine Script code that triggers the problem
+  - Expected vs actual behavior
+  - Extension version
 
-1. **Report Issues:** Found a bug or false positive? [Open an issue](./CONTRIBUTING.md)
-2. **Suggest Features:** Have an idea? Share it in [discussions](#)
-3. **Submit PRs:** Fix bugs, improve docs, add features
-
-**See:** [Contributing Guide](./docs/CONTRIBUTING.md) for detailed instructions.
-
-### Development Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/YourGitHub/pine-script-vscode-extension.git
-cd pine-script-vscode-extension
-
-# Install dependencies
-npm install
-
-# Build and test
-npm run rebuild
-
-# Install locally for testing
-code --install-extension build/pine-script-extension-0.4.0.vsix
-```
+### Want to Help?
+- Report false positives/negatives
+- Suggest feature improvements
+- Submit pull requests
+- Share feedback
 
 ---
 
-## 🤖 MCP Integration - AI-Powered Validation
+## 📚 Resources
 
-**Status:** ✅ Fully Operational (v1.0.0)
-
-This project includes a **Model Context Protocol (MCP) server** that provides Pine Script v6 validation to AI assistants like **Claude Code**, Gemini, and other MCP-compatible tools.
-
-### What You Get
-
-- ✅ **Validate .pine files** directly from Claude Code or other AI assistants
-- ✅ **Comprehensive error reporting** with line numbers, severity levels, and detailed messages
-- ✅ **Zero setup required** - automatically configured for VS Code workspace
-- ✅ **Works with file paths or code strings** - validate files or inline code snippets
-- ✅ **Developer-friendly** - JSON-RPC 2.0 protocol with full semantic analysis
-
-### Quick Start (VS Code + Claude Code)
-
-The MCP server is **automatically configured** when you open this project in VS Code with Claude Code installed.
-
-Just ask Claude:
-```
-"Validate the examples/global-liquidity.v6.pine file"
-```
-
-### Features
-
-- **Real-time validation** via AI assistants
-- **Comprehensive validator** with semantic analysis (not just syntax checking)
-- **Containerized validation** with Docker for CI/CD pipelines
-- **Easy integration** with any MCP-compatible client
-
-### Documentation
-
-- **Full MCP docs:** [MCP-INTEGRATION.md](./MCP-INTEGRATION.md)
-- **Test the server:** `npm run test:mcp`
-- **Gemini-specific setup:** [mcp/README.md](./mcp/README.md) (legacy)
-
-### Example Output
-
-```json
-{
-  "source": "File: my-indicator.pine",
-  "total_errors": 2,
-  "summary": "❌ 2 error(s), 0 warning(s) found",
-  "errors": [
-    {
-      "line": 10,
-      "column": 5,
-      "message": "Undefined variable 'my_var'",
-      "severity": 0
-    }
-  ]
-}
-```
-
-### For Developers
-
-```bash
-# Test the MCP server
-npm run test:mcp
-
-# Run QA validation on all examples
-npm run qa:pinescript
-
-# Build Docker container
-docker build -t pinescript-validator mcp/
-```
+- **Marketplace**: [Pine Script v6 IDE Tools](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)
+- **Repository**: [GitHub](https://github.com/jpantsjoha/pinescript-vscode-extension)
+- **Issues**: [Bug Reports](https://github.com/jpantsjoha/pinescript-vscode-extension/issues)
+- **Releases**: [Changelog](https://github.com/jpantsjoha/pinescript-vscode-extension/releases)
+- **TradingView Pine Script Reference**: [Official Docs](https://www.tradingview.com/pine-script-reference/v6/)
 
 ---
 
-## 🤖 AI Code Assistant - Gemini Pine Script v6 Expert
+## 📄 License
 
-Want an AI assistant that's an **expert in Pine Script v6**? We've created a comprehensive context file for Google Gemini!
-
-### Features
-- **6,665 official language constructs** knowledge
-- **100% v6 syntax mastery** with zero false positives
-- **Code generation** following TradingView best practices
-- **Anti-repainting patterns** and performance optimization
-- **Self-referencing documentation** (auto-lookup from TradingView docs)
-
-### Quick Setup
-
-1. **Install Gemini CLI:**
-   ```bash
-   npm install -g @google-gemini/gemini-cli
-   ```
-
-2. **Use the expert context:**
-   ```bash
-   gemini chat --context GEMINI.md
-   ```
-
-3. **Ask Pine Script v6 questions:**
-   ```
-   > How do I prevent repainting with request.security()?
-   > Generate a strategy with trailing stop loss
-   > Optimize this indicator for performance
-   ```
-
-**See:** [GEMINI.md](./GEMINI.md) - Complete Pine Script v6 expert system context
-
-**Gemini CLI:** https://github.com/google-gemini/gemini-cli
-
----
-
-## 📖 Documentation
-
-### For Users
-- **[Quick Start Guide](./docs/QUICK-START.md)** - Get started in 5 minutes
-- **[Testing Guide](./docs/V0.4.0-TESTING-GUIDE.md)** - Verify everything works
-- **[Syntax Highlighting](./docs/SYNTAX-HIGHLIGHTING-GUIDE.md)** - Customize colors
-
-### For AI/LLM Development
-- **[GEMINI.md](./GEMINI.md)** - Complete Pine Script v6 expert context for Gemini
-- **[AI Assistant Guide](./docs/AI-ASSISTANT-GUIDE.md)** - Pine Script v6 agent workflows
-
-### For Contributors
-- **[Contributing Guide](./docs/CONTRIBUTING.md)** - How to contribute
-- **[Architecture](./docs/ADR-001-VALIDATION-STRATEGY.md)** - Technical decisions
-- **[Test Strategy](./docs/ADR-002-TEST-STRATEGY.md)** - Testing approach
-
-### Project Info
-- **[Changelog](./CHANGELOG.md)** - Version history
-- **[Coverage Analysis](./docs/V0.4.0-COVERAGE-ANALYSIS.md)** - What we validate
-
----
-
-## 🐛 Known Limitations
-
-This extension focuses on **syntax validation**, not **runtime behavior**:
-
-### ✅ What We Validate
-- Syntax correctness (valid Pine Script v6 code)
-- Undefined functions/variables/namespaces
-- Missing required parameters
-- Too many parameters
-- Invalid constant references
-
-### ❌ What We Don't Validate
-- Type mismatches (`int` vs `float`)
-- Runtime errors (division by zero, etc.)
-- Logic errors (impossible conditions)
-- Pine Script runtime limits (max variables, max plots, etc.)
-
-These are **intentional limitations** - a syntax validator shouldn't predict runtime behavior.
-
----
-
-## 📝 License
-
-This project is licensed under the **MIT License** - see [LICENSE](./LICENSE) for details.
-
-### No Warranty
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. See license for full details.
-
----
-
-## ⚠️ Disclaimer
-
-**This is an independent community project** and is **not affiliated with, endorsed by, or sponsored by TradingView**.
-
-- **Pine Script™** is a trademark of TradingView, Inc.
-- All TradingView documentation references are for compatibility purposes only
-- Use at your own risk
+MIT License - see [LICENSE](./LICENSE) for details.
 
 ---
 
 ## 🙏 Acknowledgments
 
-- **TradingView** - For creating Pine Script and providing comprehensive documentation
-- **VS Code Team** - For the excellent extension API
-- **Contributors** - Thank you to everyone who has contributed!
+Created by [Jaroslav Pantsjoha](https://github.com/jpantsjoha)
+
+Special thanks to:
+- TradingView for Pine Script
+- VS Code extension development community
+- All contributors and testers
 
 ---
 
-## 📬 Support
-
-- **Issues:** Report bugs via [GitHub Issues](https://github.com/jpantsjoha/pinescript-vscode-extension/issues)
-- **Questions:** Ask in [GitHub Discussions](https://github.com/jpantsjoha/pinescript-vscode-extension/discussions)
-- **Updates:** Watch this repo for new releases
-
----
-
-**Made with ❤️ by the community, for the community.**
-
-**Happy Trading! 📈**
+**Full Language Coverage**: 6,665 Pine Script v6 constructs
+**Test Coverage**: 67 comprehensive tests
+**Current Version**: 0.4.4
