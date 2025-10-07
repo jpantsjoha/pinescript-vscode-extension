@@ -8,6 +8,9 @@
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/jpantsjoha.pinescript-v6-extension)](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
+![Pine Script v6 Extension in Action](./images/screenshots/blog-image.png)
+*Real-time validation, IntelliSense, and hover documentation for Pine Script v6*
+
 ---
 
 ## 🚀 Quick Start
