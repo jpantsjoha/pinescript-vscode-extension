@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### 🔧 Parser Database Fixes (2025-10-07)
+
+**Critical Parser Database Corrections:**
+- Fixed `math.round()` parameter definition (now correctly accepts optional `precision` parameter)
+- Added 32 missing `strategy.*` variable properties (position_size, equity, netprofit, etc.)
+
+**Impact:**
+- Eliminates false positive: "Too many arguments for 'math.round'"
+- Eliminates false positive: "Unknown strategy constant or function 'position_size'"
+- Improved validation accuracy for strategy scripts
+
+**Files Modified:**
+- `v6/parameter-requirements-generated.ts`: Added precision parameter to math.round
+- `v6/pine-constants-complete.ts`: Added STRATEGY_VARIABLES set with all runtime state variables
+
+---
+
 ## [0.4.3] - 2025-10-06
 
 ### 🎯 Session 4: Control Flow & Type Annotations (Dev Tools)
