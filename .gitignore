@@ -54,3 +54,22 @@ coverage/
 # Personal notes (not for public repo)
 NOTES.md
 TODO-personal.md
+examples/FlashCrashDetection/FIXED-STATUS.md
+examples/FlashCrashDetection/FlashCrashStrategy.pine
+examples/FlashCrashDetection/SESSION-SUMMARY.md
+examples/FlashCrashDetection/STRATEGY-TESTING-REPORT.md
+examples/FlashCrashDetection/TESTING-REPORT.md
+examples/FlashCrashDetection/VALIDATION-GAP-AUDIT.md
+examples/PSStrategyXLite/PSStrategyXLite.pine
+examples/PSStrategyXLite/README.md
+.gitignore
+examples/FlashCrashDetection/flashcrashdetection.pine
+examples/FlashCrashDetection/flashcrashdetection.promt
+examples/FlashCrashDetection/FlashCrashWarningScore.pine
+examples/FlashCrashDetection/README.md
+test-flashcrash-comprehensive.js
+test-flashcrash-strategy.js
+test-multiline-validation.js
+test-ternary-validation.js
+validate-flashcrash-strategy.js
+validate-psstrategyxlite.js
