@@ -81,6 +81,15 @@ export class AccurateValidator {
       // Check invalid comma-separated var declarations (e.g., var float a = na, b = na)
       this.checkInvalidVarDeclarations(line, lineNum);  // Keep original for this check
 
+      // Check ternary operator syntax (semicolon vs colon)
+      this.checkTernaryOperatorSyntax(lineWithoutStrings, lineNum);
+
+      // Check multi-line expression continuation
+      this.checkExpressionContinuation(lineWithoutStrings, lineNum, i, lines);
+
+      // Check multi-line function calls and statement continuation
+      this.checkMultiLineStatements(lineWithoutStrings, lineNum, i, lines);
+
       // Check each registered function (use original line for parameter extraction)
       for (const [funcName, spec] of Object.entries(ALL_FUNCTION_SIGNATURES)) {
         this.validateFunctionCall(line, lineNum, funcName, spec);
@@ -222,6 +231,250 @@ export class AccurateValidator {
         `Invalid comma-separated variable declaration. Pine Script v6 requires separate declarations:\n${declarationMode} ${type} ${firstVar} = ...\n${declarationMode} ${type} ${secondVar} = ...`,
         vscode.DiagnosticSeverity.Error
       );
+    }
+  }
+
+  private checkTernaryOperatorSyntax(line: string, lineNum: number): void {
+    // Check for semicolons after ternary operator conditions (should be colons)
+    // Pattern: condition ? value ; (WRONG)
+    // Should be: condition ? value : (CORRECT)
+
+    // Match ternary operators with semicolons instead of colons
+    // This catches: ? expression ; or ? expression ;\s
+    const ternaryWithSemicolon = /\?\s*([^:;?\n]+?)\s*;(?!\s*\/\/)/g;
+    let match;
+
+    while ((match = ternaryWithSemicolon.exec(line)) !== null) {
+      const column = match.index;
+      const semicolonPos = column + match[0].lastIndexOf(';');
+
+      // Check if this is actually part of a ternary by looking for ? before it
+      const beforeMatch = line.substring(0, column);
+      const hasQuestionMark = beforeMatch.includes('?') || match[0].includes('?');
+
+      if (hasQuestionMark) {
+        this.addError(
+          lineNum,
+          semicolonPos,
+          1,
+          `Invalid semicolon in ternary operator. Use colon (:) instead of semicolon (;) for ternary operator continuation`,
+          vscode.DiagnosticSeverity.Error
+        );
+      }
+    }
+
+    // Also check for pattern: ? value1 : value2 ; value3 (semicolon where colon expected)
+    // This is the specific error in line 163: ? color.new(...) ; smoothedScore
+    const ternaryIncomplete = /\?\s*[^:;?\n]+\s*:\s*[^:;?\n]+\s*;(?=\s*\w)/g;
+    match = null;
+
+    while ((match = ternaryIncomplete.exec(line)) !== null) {
+      const column = match.index;
+      const semicolonPos = column + match[0].lastIndexOf(';');
+
+      this.addError(
+        lineNum,
+        semicolonPos,
+        1,
+        `Invalid semicolon in nested ternary operator. Use colon (:) for ternary continuation, not semicolon (;)`,
+        vscode.DiagnosticSeverity.Error
+      );
+    }
+  }
+
+  private checkExpressionContinuation(line: string, lineNum: number, lineIndex: number, allLines: string[]): void {
+    // Check for multi-line expressions that might be incorrectly terminated
+    // Common pattern: function call with ternary operator spanning multiple lines
+
+    const trimmed = line.trim();
+
+    // If line ends with ? without a corresponding value, next line should start with value
+    if (trimmed.endsWith('?') && lineIndex + 1 < allLines.length) {
+      const nextLine = allLines[lineIndex + 1].trim();
+      // Next line should provide the true value (not start with : or ;)
+      if (nextLine.startsWith(';')) {
+        const column = line.length - 1;
+        this.addError(
+          lineNum,
+          column,
+          1,
+          `Incomplete ternary operator. Expected value after '?', found semicolon on next line`,
+          vscode.DiagnosticSeverity.Error
+        );
+      }
+    }
+
+    // If line ends with : (ternary continuation), next line must continue the expression
+    // BUT: Only flag if it's truly incomplete (not if entire expression is on one line)
+    if (trimmed.endsWith(':') && lineIndex + 1 < allLines.length) {
+      const nextLine = allLines[lineIndex + 1].trim();
+
+      // Check if the colon is part of a complete single-line ternary
+      // Pattern: condition ? value : condition ? value : value (all on one line)
+      const hasSingleLineTernary = /\?\s*[^:]+:\s*[^:]+:\s*[^:]+/.test(line);
+
+      // Only flag as error if:
+      // 1. Next line starts with semicolon (wrong) OR
+      // 2. Line doesn't have complete single-line ternary
+      if (nextLine.startsWith(';') && !hasSingleLineTernary) {
+        const column = line.length - 1;
+        this.addError(
+          lineNum + 1,
+          0,
+          1,
+          `Invalid expression continuation. Semicolon found after ternary colon (:). Did you mean to use another colon for nested ternary?`,
+          vscode.DiagnosticSeverity.Error
+        );
+      }
+    }
+
+    // Check for function calls ending with semicolon on same line as ternary
+    // Pattern: bgcolor(...) ; or plot(...) ;
+    const funcWithSemicolon = /\b(bgcolor|plot|plotshape|plotchar|hline|fill|label\.new|line\.new|box\.new|table\.new)\s*\([^)]*\)\s*;/g;
+    let match;
+
+    while ((match = funcWithSemicolon.exec(line)) !== null) {
+      const funcName = match[1];
+      const column = match.index + match[0].lastIndexOf(';');
+
+      // Check if there's a ternary operator in the function arguments
+      const funcCall = match[0];
+      if (funcCall.includes('?')) {
+        this.addError(
+          lineNum,
+          column,
+          1,
+          `Invalid semicolon in function call with ternary operator. Ternary operators require colons (:), not semicolons (;)`,
+          vscode.DiagnosticSeverity.Error
+        );
+      }
+    }
+  }
+
+  private checkMultiLineStatements(line: string, lineNum: number, lineIndex: number, allLines: string[]): void {
+    // Check for proper multi-line statement continuation (Pine Script v6 rules)
+    // Based on TradingView style guide and common patterns
+
+    const trimmed = line.trim();
+
+    // Skip comments and empty lines
+    if (!trimmed || trimmed.startsWith('//')) {
+      return;
+    }
+
+    // Count parentheses to track open function calls
+    const openParens = (line.match(/\(/g) || []).length;
+    const closeParens = (line.match(/\)/g) || []).length;
+    const unclosedParens = openParens - closeParens;
+
+    // If line has unclosed parentheses, next line should be indented continuation
+    if (unclosedParens > 0 && lineIndex + 1 < allLines.length) {
+      const nextLine = allLines[lineIndex + 1];
+      const currentIndent = line.search(/\S/); // First non-whitespace
+      const nextIndent = nextLine.search(/\S/);
+
+      // Next line should be indented more than current line (continuation)
+      // Exception: if next line closes the parentheses immediately
+      if (nextLine.trim() && !nextLine.trim().startsWith(')')) {
+        if (nextIndent <= currentIndent) {
+          // Check if this is a function call with parameters
+          const funcMatch = line.match(/([a-zA-Z_][a-zA-Z0-9_.]*)\s*\(/);
+          if (funcMatch) {
+            this.addError(
+              lineNum + 1,
+              0,
+              nextLine.trim().length,
+              `Improper indentation for multi-line function call continuation. Continuation lines should be indented beyond the opening line.`,
+              vscode.DiagnosticSeverity.Warning
+            );
+          }
+        }
+      }
+    }
+
+    // Check for lines ending with comma (parameter continuation)
+    if (trimmed.endsWith(',') && lineIndex + 1 < allLines.length) {
+      const nextLine = allLines[lineIndex + 1];
+      const nextTrimmed = nextLine.trim();
+
+      // If line ends with comma, there should be a continuation
+      if (nextTrimmed === '' || nextTrimmed.startsWith('//')) {
+        this.addError(
+          lineNum,
+          line.lastIndexOf(','),
+          1,
+          `Trailing comma without continuation. Expected parameter or closing parenthesis on next line.`,
+          vscode.DiagnosticSeverity.Error
+        );
+      }
+
+      // Check if next line is properly indented for parameter continuation
+      const currentIndent = line.search(/\S/);
+      const nextIndent = nextLine.search(/\S/);
+
+      // For input functions with options parameter, next line should be indented
+      if (line.includes('input.') && line.includes('(') && nextIndent <= currentIndent) {
+        this.addError(
+          lineNum + 1,
+          0,
+          Math.min(10, nextLine.trim().length),
+          `Multi-line input function: continuation line should be indented. Consider proper indentation for readability.`,
+          vscode.DiagnosticSeverity.Warning
+        );
+      }
+    }
+
+    // Check for specific input.string() pattern with options parameter
+    // Pattern: input.string(default, title, options=[...])
+    if (line.includes('input.string(') && trimmed.endsWith(',')) {
+      const nextLine = lineIndex + 1 < allLines.length ? allLines[lineIndex + 1] : '';
+      const nextTrimmed = nextLine.trim();
+
+      // If next line starts with "options=" but is not indented properly
+      if (nextTrimmed.startsWith('options=')) {
+        const currentIndent = line.search(/\S/);
+        const nextIndent = nextLine.search(/\S/);
+
+        if (nextIndent <= currentIndent + 4) {
+          this.addError(
+            lineNum + 1,
+            0,
+            7, // Length of "options"
+            `Multi-line input.string() with options parameter: ensure proper indentation (use spaces not a multiple of 4 for continuation as per style guide).`,
+            vscode.DiagnosticSeverity.Warning
+          );
+        }
+      }
+    }
+
+    // Check for incomplete statements - line ends without clear continuation marker
+    // But has function call patterns suggesting multi-line
+    const hasOpenFunc = /([a-zA-Z_][a-zA-Z0-9_.]*)\s*\([^)]*$/.test(line);
+    if (hasOpenFunc && unclosedParens > 0) {
+      // Check if next line exists and continues properly
+      if (lineIndex + 1 < allLines.length) {
+        const nextLine = allLines[lineIndex + 1].trim();
+
+        // If next line is empty or comment, warn about incomplete statement
+        if (!nextLine || nextLine.startsWith('//')) {
+          this.addError(
+            lineNum,
+            line.lastIndexOf('('),
+            1,
+            `Incomplete function call. Opening parenthesis without corresponding parameters or closing parenthesis.`,
+            vscode.DiagnosticSeverity.Error
+          );
+        }
+      } else {
+        // This is the last line with unclosed parentheses
+        this.addError(
+          lineNum,
+          line.lastIndexOf('('),
+          1,
+          `Unclosed parenthesis. Function call is incomplete.`,
+          vscode.DiagnosticSeverity.Error
+        );
+      }
     }
   }
 

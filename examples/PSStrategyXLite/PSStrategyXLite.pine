@@ -1,0 +1,197 @@
+//@version=6
+strategy("PSStrategyX Lite — Signal Executor (v6)", overlay=true, initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.05, slippage=2, calc_on_order_fills=true)
+
+// ============================================================================
+// PURPOSE
+// - Turn any indicator that outputs buy/sell/exit signals into executable trades
+// - Provide broker-connector alert payloads (Autoview-style template)
+// - Include circuit breakers, SL/TP, trade-by-trade annotations, and summary
+// - This is NOT a signal generator. You supply a single series plot with:
+//     buy = 1, sell = -1, exit = 0, other = na
+// ============================================================================
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+
+groupSignals = "Signal Source"
+srcTicker    = input.symbol("", "Signal Symbol (blank = chart symbol)", group=groupSignals)
+srcTimeframe = input.timeframe("", "Signal Timeframe (blank = chart)", group=groupSignals)
+signalPlotId = input.string("", "Indicator Plot ID (optional, for docs only)", group=groupSignals)
+
+// Select the source series carrying 1 / -1 / 0
+signalSource = input.source(close, "Fallback Source (ignored if using security)", group=groupSignals)
+useSecurity  = input.bool(true, "Fetch signals via request.security", group=groupSignals)
+
+groupExec = "Execution"
+reverseOnOpposite = input.bool(true, "Opposite signal reverses position", group=groupExec)
+allowShorts       = input.bool(true, "Allow Shorts", group=groupExec)
+
+groupRisk = "Risk Management"
+useSLTP     = input.bool(true, "Use SL/TP", group=groupRisk)
+slPct       = input.float(2.0, "Stop Loss %", step=0.1, minval=0.1, group=groupRisk)
+tpPct       = input.float(4.0, "Take Profit %", step=0.1, minval=0.2, group=groupRisk)
+trailPts    = input.int(0, "Trailing Stop (ticks, 0=off)", group=groupRisk)
+trailOffset = input.int(0, "Trailing Offset (ticks, 0=off)", group=groupRisk)
+
+groupCB = "Circuit Breakers"
+maxDrawdownPct = input.float(25.0, "Max Strategy Drawdown % (disable after hit)", step=0.5, group=groupCB)
+maxConsecLoss  = input.int(5, "Max Consecutive Losing Trades", minval=1, group=groupCB)
+tradeWindow    = input.session("0000-2359", "Trading Session (local)", group=groupCB)
+
+groupConn = "Broker Connector (Alerts)"
+enableAutoView = input.bool(true, "Generate Autoview-style alerts", group=groupConn)
+exchange       = input.string("BINANCE", "Exchange Name (connector)", group=groupConn)
+pair           = input.string("BTCUSDT", "Market / Pair", group=groupConn)
+orderSideReversal = input.bool(true, "Reverse on opposite within alert payload", group=groupConn)
+
+// ============================================================================
+// SIGNAL ACQUISITION
+// Expect an indicator on the same chart that plots 1/-1/0 in a single plot
+// We retrieve that series via request.security if enabled. Users can copy/paste
+// their plot into a dedicated indicator; here we only consume the resulting series.
+// ============================================================================
+
+getSignalSeries(src) =>
+    // Map the provided source to 1/-1/0 domain as a safety net
+    val = src
+    val >= 0.5 ? 1 : val <= -0.5 ? -1 : val == 0 ? 0 : na
+
+float rawSignal = na
+if useSecurity
+    rawSignal := request.security(srcTicker, srcTimeframe == "" ? timeframe.period : srcTimeframe, getSignalSeries(close))
+else
+    rawSignal := getSignalSeries(signalSource)
+
+// Decode to booleans
+bool buySignal  = rawSignal == 1
+bool sellSignal = rawSignal == -1
+bool exitSignal = rawSignal == 0
+
+// ============================================================================
+// CIRCUIT BREAKERS
+// ============================================================================
+
+inSession = not na(time(timeframe.period, tradeWindow))
+
+var float peakEquity = strategy.equity
+peakEquity := math.max(peakEquity, strategy.equity)
+ddPct = peakEquity > 0 ? (peakEquity - strategy.equity) / peakEquity * 100 : 0.0
+cbDrawdownHit = ddPct >= maxDrawdownPct
+
+// Count consecutive losing closed trades
+var int consecLoss = 0
+if strategy.closedtrades > strategy.closedtrades[1]
+    lastProfit = strategy.netprofit - strategy.netprofit[1]
+    consecLoss := lastProfit < 0 ? consecLoss + 1 : 0
+
+cbConsecHit = consecLoss >= maxConsecLoss
+
+tradingEnabled = inSession and not cbDrawdownHit and not cbConsecHit
+
+// ============================================================================
+// ORDER LOGIC
+// ============================================================================
+
+enterLong  = tradingEnabled and buySignal and (reverseOnOpposite or strategy.position_size <= 0)
+enterShort = tradingEnabled and allowShorts and sellSignal and (reverseOnOpposite or strategy.position_size >= 0)
+
+exitLong   = tradingEnabled and exitSignal and strategy.position_size > 0
+exitShort  = tradingEnabled and exitSignal and strategy.position_size < 0
+
+// Execute entries
+if enterLong
+    strategy.entry("LONG", strategy.long)
+if enterShort
+    strategy.entry("SHORT", strategy.short)
+
+// Optional reversal behavior (close opposite when opposite signal fires)
+if reverseOnOpposite and buySignal and strategy.position_size < 0
+    strategy.close("SHORT", comment="Reverse to LONG")
+if reverseOnOpposite and sellSignal and strategy.position_size > 0
+    strategy.close("LONG", comment="Reverse to SHORT")
+
+// Exits on explicit 0 signal
+if exitLong
+    strategy.close("LONG", comment="EXIT 0-signal")
+if exitShort
+    strategy.close("SHORT", comment="EXIT 0-signal")
+
+// SL/TP management
+if useSLTP
+    if strategy.position_size > 0
+        longStop  = strategy.position_avg_price * (1 - slPct/100)
+        longLimit = strategy.position_avg_price * (1 + tpPct/100)
+        strategy.exit("L-SLTP", "LONG", stop=longStop, limit=longLimit, trail_points=trailPts > 0 ? trailPts : na, trail_offset=trailOffset > 0 ? trailOffset : na)
+    if strategy.position_size < 0
+        shortStop  = strategy.position_avg_price * (1 + slPct/100)
+        shortLimit = strategy.position_avg_price * (1 - tpPct/100)
+        strategy.exit("S-SLTP", "SHORT", stop=shortStop, limit=shortLimit, trail_points=trailPts > 0 ? trailPts : na, trail_offset=trailOffset > 0 ? trailOffset : na)
+
+// Emergency disable behavior (visual)
+cbColor = cbDrawdownHit or cbConsecHit ? color.new(color.red, 85) : na
+bgcolor(cbColor, title="Circuit Breaker")
+
+// ============================================================================
+// TRADE-BY-TRADE STATS (labels) — light-weight
+// ============================================================================
+
+showLabels = input.bool(true, "Show Entry/Exit Labels", group="Display")
+plotshape(showLabels and enterLong,  title="Enter Long",  style=shape.triangleup,   location=location.belowbar, color=color.new(color.lime, 0), size=size.tiny)
+plotshape(showLabels and enterShort, title="Enter Short", style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0),  size=size.tiny)
+plotshape(showLabels and exitLong,   title="Exit Long",   style=shape.xcross,       location=location.abovebar, color=color.new(color.gray,0), size=size.tiny)
+plotshape(showLabels and exitShort,  title="Exit Short",  style=shape.xcross,       location=location.belowbar, color=color.new(color.gray,0), size=size.tiny)
+
+// ============================================================================
+// SUMMARY TABLE — compact KPI panel
+// ============================================================================
+
+var table sumTable = table.new(position.top_right, 2, 8, bgcolor=color.new(color.black, 85), border_width=1, border_color=color.new(color.gray, 60))
+if barstate.islast
+    table.cell(sumTable, 0, 0, "Metric", text_color=color.white, bgcolor=color.new(color.gray, 70))
+    table.cell(sumTable, 1, 0, "Value",  text_color=color.white, bgcolor=color.new(color.gray, 70))
+
+    eq = strategy.equity
+    np = strategy.netprofit
+    ot = strategy.opentrades
+    ct = strategy.closedtrades
+    wt = strategy.wintrades
+    lt = strategy.losstrades
+    pf = lt == 0 ? na : (wt/lt)
+
+    table.cell(sumTable, 0, 1, "Equity", text_color=color.silver)
+    table.cell(sumTable, 1, 1, str.tostring(eq, format.price))
+    table.cell(sumTable, 0, 2, "Net Profit", text_color=color.silver)
+    table.cell(sumTable, 1, 2, str.tostring(np, format.price))
+    table.cell(sumTable, 0, 3, "Closed Trades", text_color=color.silver)
+    table.cell(sumTable, 1, 3, str.tostring(ct))
+    table.cell(sumTable, 0, 4, "Win/Loss", text_color=color.silver)
+    table.cell(sumTable, 1, 4, str.tostring(wt) + "/" + str.tostring(lt))
+    table.cell(sumTable, 0, 5, "PF (W/L)", text_color=color.silver)
+    table.cell(sumTable, 1, 5, na(pf) ? "n/a" : str.tostring(pf, "#.00"))
+    table.cell(sumTable, 0, 6, "DD%", text_color=color.silver)
+    table.cell(sumTable, 1, 6, str.tostring(ddPct, "#.00"))
+    table.cell(sumTable, 0, 7, "Circuit", text_color=color.silver)
+    table.cell(sumTable, 1, 7, cbDrawdownHit ? "DD HIT" : cbConsecHit ? "LOSS RUN" : inSession ? "ON" : "OFF", text_color = cbDrawdownHit or cbConsecHit ? color.red : color.white)
+
+// ============================================================================
+// ALERTS — Broker connector (Autoview-style template strings)
+// NOTE: alertcondition() requires const strings. Edit the message when creating
+//       alerts in TradingView UI to include your exchange and pair.
+// ============================================================================
+
+// Entry alerts
+alertcondition(enterLong,  "Connector: LONG",  "LONG: Edit this message with your exchange/pair (e.g., BINANCE BTCUSDT buy)")
+alertcondition(enterShort, "Connector: SHORT", "SHORT: Edit this message with your exchange/pair (e.g., BINANCE BTCUSDT sell)")
+
+// Exit alert
+alertcondition(exitLong or exitShort, "Connector: EXIT", "EXIT: Edit this message with your exchange/pair (e.g., BINANCE BTCUSDT close)")
+
+// Optional reversal alerts
+alertcondition(reverseOnOpposite and buySignal and strategy.position_size < 0, "Connector: REV→LONG", "REVERSE TO LONG: Edit this message with your exchange/pair (e.g., BINANCE BTCUSDT buy)")
+alertcondition(reverseOnOpposite and sellSignal and strategy.position_size > 0, "Connector: REV→SHORT", "REVERSE TO SHORT: Edit this message with your exchange/pair (e.g., BINANCE BTCUSDT sell)")
+
+// Visual background for trades enabled
+bgcolor(tradingEnabled ? color.new(color.teal, 92) : na)
+
+
