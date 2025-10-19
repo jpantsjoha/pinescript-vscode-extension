@@ -25,7 +25,7 @@ export class Parser {
       } catch (e) {
         // DEBUG: Log parsing errors to understand what's being skipped
         const errorMsg = e instanceof Error ? e.message : String(e);
-        console.error(`[PARSER ERROR] Line ${this.peek().line}: ${errorMsg}`);
+        // NOTE: Avoid console.* in extension; validators should surface errors via diagnostics.
 
         // Skip to next statement on error
         this.synchronize();

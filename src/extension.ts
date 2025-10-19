@@ -13,26 +13,63 @@ import { PineScriptValidator } from './parser/validator';
 import { ComprehensiveValidator } from './parser/comprehensiveValidator';
 import { AccurateValidator } from './parser/accurateValidator';
 
+// Shared output channel for user-visible logs
+let outputChannel: vscode.OutputChannel | undefined;
+
+function stringifyError(err: unknown): string {
+  if (err instanceof Error) {
+    return `${err.name}: ${err.message}`;
+  }
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
+function logInfo(message: string): void {
+  if (outputChannel) {
+    outputChannel.appendLine(message);
+  }
+}
+
+function logError(message: string): void {
+  if (outputChannel) {
+    outputChannel.appendLine(message);
+    try { outputChannel.show(true); } catch { /* no-op */ }
+  }
+}
+
+/**
+ * Activates the Pine Script v6 VS Code extension.
+ * Sets up language features, diagnostics, and commands.
+ * Any initialization errors are surfaced to the user and re-thrown to fail activation.
+ */
 export function activate(context: vscode.ExtensionContext) {
-  // Optional: ensure files.associations maps *.pine -> pine
-  {
-    const cfg = vscode.workspace.getConfiguration();
-    const shouldApply = cfg.get<boolean>('pine.applyFileAssociation', true);
-    if (shouldApply) {
-      const assoc = cfg.get<Record<string, string>>('files.associations', {});
-      if (assoc['*.pine'] !== 'pine') {
-        const newAssoc = { ...assoc, '*.pine': 'pine' };
-        try {
-          // VS Code returns a Thenable; wrap ignoring rejection for safety on readonly workspaces
-          const t = cfg.update('files.associations', newAssoc, vscode.ConfigurationTarget.Workspace);
-          // Avoid unhandled rejections without relying on .catch (not typed on Thenable)
-          Promise.resolve(t as unknown as Promise<void>).then(() => undefined, () => undefined);
-        } catch {
-          // ignore
+  try {
+    // Create Output Channel for user-visible logs
+    outputChannel = vscode.window.createOutputChannel('Pine Script v6');
+    context.subscriptions.push(outputChannel);
+
+    // Optional: ensure files.associations maps *.pine -> pine
+    {
+      const cfg = vscode.workspace.getConfiguration();
+      const shouldApply = cfg.get<boolean>('pine.applyFileAssociation', true);
+      if (shouldApply) {
+        const assoc = cfg.get<Record<string, string>>('files.associations', {});
+        if (assoc['*.pine'] !== 'pine') {
+          const newAssoc = { ...assoc, '*.pine': 'pine' };
+          try {
+            // VS Code returns a Thenable; wrap ignoring rejection for safety on readonly workspaces
+            const t = cfg.update('files.associations', newAssoc, vscode.ConfigurationTarget.Workspace);
+            // Avoid unhandled rejections without relying on .catch (not typed on Thenable)
+            Promise.resolve(t as unknown as Promise<void>).then(() => undefined, () => undefined);
+          } catch {
+            // ignore
+          }
         }
       }
     }
-  }
   // Formatter: trims trailing spaces, normalizes consecutive blank lines (max 1), and ensures final newline
   context.subscriptions.push(
     vscode.languages.registerDocumentFormattingEditProvider('pine', {
@@ -170,7 +207,7 @@ export function activate(context: vscode.ExtensionContext) {
     try {
       const errors = accurateValidator.validate(text);
 
-      console.log(`[Pine Validator] Found ${errors.length} validation errors`);
+      logInfo(`[Pine Validator] Found ${errors.length} validation errors`);
 
       for (const error of errors) {
         const pos = new vscode.Position(error.line - 1, error.column);
@@ -180,10 +217,10 @@ export function activate(context: vscode.ExtensionContext) {
           error.message,
           error.severity
         ));
-        console.log(`  - Line ${error.line}: ${error.message}`);
+        logInfo(`  - Line ${error.line}: ${error.message}`);
       }
     } catch (e) {
-      console.error('[Pine Validator] Validation error:', e);
+      logError(`[Pine Validator] Validation error: ${stringifyError(e)}`);
     }
 
     // 1) Version header
@@ -333,8 +370,19 @@ export function activate(context: vscode.ExtensionContext) {
       panel.webview.html = `<html><body><h2>${esc(word)}</h2><div style="white-space:pre-wrap;font-family:var(--vscode-editor-font-family)">${esc(docText)}</div></body></html>`;
     })
   );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    try { vscode.window.showErrorMessage(`Pine Script v6 extension failed to activate: ${message}`); } catch { /* no-op */ }
+    logError(`[Activation Error] ${stringifyError(error)}`);
+    throw error;
+  }
 }
 
-export function deactivate() {}
+/**
+ * Disposes extension resources.
+ */
+export function deactivate() {
+  try { outputChannel?.dispose(); } catch { /* no-op */ }
+}
 
 
