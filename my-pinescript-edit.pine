@@ -1,0 +1,811 @@
+//@version=6
+indicator(title="JP MomDirGold Macro", shorttitle="JP-MomDirGold", overlay=true)
+
+// ────────── Core Parameters ──────────
+per            = input.int(title="Period", defval=13)
+hm             = input.int(title="High DeMarker Level", defval=75)
+lm             = input.int(title="Low DeMarker Level", defval=25)
+ml             = input.int(title="Mid DeMarker Level", defval=50)
+htf            = input.string("D", "Higher Timeframe (Default: Day)", options=["D", "W", "M"])
+rightOffset    = input.int(40, title="Right Offset", minval=0)
+boxSpacing     = input.int(40, title="Box Spacing", minval=0)
+
+// ────────── Emoji Parameters ──────────
+show_emojis        = input.bool(true, "Show Emoji Signals")
+extreme_threshold  = input.int(90, "Extreme Level Threshold", minval=80, maxval=95)
+emoji_offset       = input.float(0.5, "Emoji Vertical Offset (ATR multiplier)", step=0.1)
+bear_emoji         = input.string("💀", "Bearish Emoji")
+bull_emoji         = input.string("😎", "Bullish Emoji")
+
+// ────────── Stochastic Parameters ──────────
+showema    = input.bool(true, title="Show EMA")
+showsma    = input.bool(true, title="Show SMA")
+periodK    = input.int(14, title="%K Length", minval=1)
+periodD    = input.int(3,  title="%D Length", minval=2)
+smoothK    = input.int(6,  title="Smoothing", minval=1)
+showshape  = input.bool(true, title="Show Shapes")
+periodE    = input.int(13, title="E Length (EMA of K)", minval=1)
+periodS    = input.int(21, title="S Length (Slow SMA of K)", minval=1)
+
+// ────────── RSI Parameters ──────────
+rsi_length      = input.int(14, title="RSI Length")
+rsi_oversold    = input.int(30, title="RSI Oversold Level")
+rsi_overbought  = input.int(70, title="RSI Overbought Level")
+use_rsi_filter  = input.bool(true, title="Use RSI Filter")
+
+// ────────── Volume Parameters ──────────
+vol_length       = input.int(20, title="Volume SMA Length")
+volume_multiplier= input.float(1.0, title="Volume Multiplier")
+use_volume_filter= input.bool(true, title="Use Volume Filter")
+
+// ────────── ADX Parameters ──────────
+adx_length    = input.int(14, title="ADX Length")
+adx_threshold = input.int(25, title="ADX Threshold")
+
+// ────────── Risk Components ──────────
+[diplus, diminus, adx] = ta.dmi(adx_length, adx_threshold)
+adx_strength           = math.min(adx / 50 * 100, 100)
+atr            = ta.atr(14)
+vol_intensity  = volume / ta.sma(volume, 20)
+price_momentum = math.abs(close - ta.sma(close, 20)) / atr
+trend_strength = math.abs((close - ta.sma(close, 50)) / ta.sma(close, 50)) * 100
+risk_score = (math.min(vol_intensity * 100, 100) * 0.2) +
+             (math.min(atr / close * 500, 100) * 0.2) +
+             (math.min(price_momentum * 100, 100) * 0.2) +
+             (math.min(trend_strength, 100) * 0.2) +
+             (adx_strength * 0.2)
+
+// ────────── HTF Risk & Bias Components ──────────
+htf_close      = request.security(syminfo.tickerid, htf, close)
+htf_atr        = request.security(syminfo.tickerid, htf, ta.atr(14))
+htf_vol        = request.security(syminfo.tickerid, htf, volume)
+htf_sma_vol    = request.security(syminfo.tickerid, htf, ta.sma(volume, 20))
+htf_vol_intensity = htf_vol / htf_sma_vol
+htf_trend      = math.abs((htf_close - request.security(syminfo.tickerid, htf, ta.sma(close, 50))) / 
+                 request.security(syminfo.tickerid, htf, ta.sma(close, 50))) * 100
+htf_score      = (math.min(htf_vol_intensity * 100, 100) * 0.3) +
+                 (math.min(htf_atr / htf_close * 500, 100) * 0.3) +
+                 (math.min(htf_trend, 100) * 0.4)
+[htf_diplus, htf_diminus, htf_adx] = request.security(syminfo.tickerid, htf, ta.dmi(adx_length, adx_threshold))
+htf_bias       = htf_diplus > htf_diminus ? "Bullish" : "Bearish"
+
+// ────────── DeMarker Calculations ──────────
+demax       = high > high[1] ? high - high[1] : 0
+demin       = low < low[1]   ? low[1] - low   : 0
+demax_av    = ta.sma(demax, per)
+demin_av    = ta.sma(demin, per)
+dmark       = ta.ema(demax_av / (demax_av + demin_av) * 100, 3)
+
+// ────────── Stoch Calculations ──────────
+k0          = ta.stoch(close, high, low, periodK)
+k           = ta.sma(k0, smoothK)
+d           = ta.sma(k, periodD)
+e           = ta.ema(k, periodE)
+s           = ta.sma(k, periodS)
+rsi_value   = ta.rsi(close, rsi_length)
+vol_sma     = ta.sma(volume, vol_length)
+
+// ────────── DeMarker Lines & Plots ──────────
+hline(ml, "Mid Line", color=color.red, linestyle=hline.style_solid)
+h11         = hline(hm, "Upper Bound", color=color.blue, linestyle=hline.style_solid)
+h22         = hline(lm, "Lower Bound", color=color.blue, linestyle=hline.style_solid)
+fill(h11, h22, color=color.new(#d8e3ac, 94))
+plot(dmark, "DeMarker", color=color.rgb(27,146,45), display=display.all)
+
+// ────────── Signal Generation ──────────
+pl = ta.crossover(dmark, lm)
+ph = ta.crossunder(dmark, hm)
+plot(pl ? dmark : na, title="Cross", color=color.green, linewidth=5, style=plot.style_circles, display=display.all)
+plot(ph ? dmark : na, title="Cross", color=color.orange, linewidth=5, style=plot.style_circles, display=display.all)
+
+// ────────── Stochastic Visualization ──────────
+kcolor = k > d ? color.aqua : color.purple
+hist   = k - d
+plot(hist + 50, title="Histogram", style=plot.style_columns, color=kcolor, histbase=50, display=display.all)
+plot(k,  title="%K", color=color.orange, display=display.all)
+plot(d,  title="%D", color=color.purple, display=display.all)
+plot(showema ? e : na, title="%E", color=color.red, display=display.all)
+plot(showsma ? s : na, title="%S", color=color.white, display=display.all)
+
+// ────────── Stochastic Conditions & Shapes ──────────
+crossup   = ta.crossover(k, d)
+crossdown = ta.crossunder(k, d)
+UP        = showshape and crossup   and d < 29  and e < 29
+DOWN      = showshape and crossdown and d > 71  and e > 71
+UP2       = showshape and crossup   and d < 9   and e <= 38.2
+DOWN2     = showshape and crossdown and d > 91  and e >= 61.8
+plotshape(UP    ? 0   : na, color=color.aqua,   location=location.absolute, size=size.tiny, style=shape.triangleup,   title="Up 1")
+plotshape(DOWN  ? 100 : na, color=color.purple, location=location.absolute, size=size.tiny, style=shape.triangledown, title="Down 1")
+plotshape(UP2   ? -7  : na, color=color.aqua,   location=location.absolute, size=size.tiny, style=shape.triangleup,   title="Up 2")
+plotshape(DOWN2 ? 107 : na, color=color.purple, location=location.absolute, size=size.tiny, style=shape.triangledown, title="Down 2")
+
+// ────────── Momentum Confluence (Rocket after 3rd cyan triangle) ──────────
+// Count cyan triangles (UP or UP2) within lookback period to confirm momentum bottom
+confluence_lookback = input.int(20, title="Confluence Lookback (bars)", minval=5, maxval=50, group="Confluence Settings", tooltip="Number of bars to look back for counting cyan triangle signals. 3 signals within this period = momentum confirmed.")
+confluence_required = input.int(3, title="Signals Required for Rocket", minval=2, maxval=5, group="Confluence Settings", tooltip="Number of cyan triangle signals required to trigger the rocket (momentum confirmed).")
+
+// Track cyan triangle signals (either UP or UP2)
+cyan_signal = (UP or UP2) ? 1.0 : 0.0
+
+// Count signals in lookback period using math.sum (returns float)
+signal_count = math.sum(cyan_signal, confluence_lookback)
+
+// Rocket fires on the bar where we reach exactly the required count (3rd signal)
+rocket_trigger = cyan_signal == 1.0 and signal_count >= confluence_required and signal_count[1] < confluence_required
+
+// Plot rocket emoji when momentum is confirmed
+plotshape(rocket_trigger ? -12 : na, title="Momentum Confirmed (Rocket)", location=location.absolute, style=shape.labelup, size=size.small, color=color.new(color.green, 20), text="🚀", textcolor=color.white)
+
+// Alert for momentum confirmation
+alertcondition(rocket_trigger, title="Momentum Confirmed Alert", message="🚀 MOMENTUM CONFIRMED: 3rd cyan triangle fired - bottom likely confirmed!")
+
+// ────────── Horizontal Lines (Additional Levels) ──────────
+hline(80,   "Bullish Level",      color=color.rgb(212,64,0), linestyle=hline.style_dashed)
+hline(20,   "Bearish Level",      color=color.rgb(126,176,39), linestyle=hline.style_dashed)
+
+// ────────── Trend Direction & Conditions ──────────
+sma_direction  = s > s[1] ? 1 : -1
+adx_filter     = adx > adx_threshold
+long_condition  = sma_direction == 1 and pl and (not use_rsi_filter or rsi_value < rsi_oversold)    and (not use_volume_filter or volume > volume_multiplier * vol_sma) and adx_filter and diplus > diminus
+short_condition = sma_direction == -1 and ph and (not use_rsi_filter or rsi_value > rsi_overbought) and (not use_volume_filter or volume > volume_multiplier * vol_sma) and adx_filter and diminus > diplus
+
+// ────────── Entry Signals ──────────
+plotshape(long_condition  ? dmark : na, color=color.rgb(211, 230, 0), size=size.tiny, style=shape.labelup, location=location.absolute, title="Cyan Diamond Long")
+plotshape(short_condition ? dmark : na, color=color.rgb(211, 230, 0), size=size.tiny, style=shape.labeldown, location=location.absolute, title="Cyan Diamond Short")
+
+// ────────── Optional MACD and BB Overlays ──────────
+show_macd_bb = input.bool(false, title="Show MACD and BB Plots")
+macd_fast   = input.int(12, title="MACD Fast Length", inline="MACD_BB")
+macd_slow   = input.int(26, title="MACD Slow Length", inline="MACD_BB")
+macd_signal = input.int(9,  title="MACD Signal Length", inline="MACD_BB")
+bb_length   = input.int(20, title="BB Length", inline="MACD_BB")
+bb_mult     = input.float(2.0, title="BB Multiplier", step=0.1, inline="MACD_BB")
+
+// Calculate MACD and Bollinger Bands if flag enabled (calculations always run but plots are conditional)
+fastMA      = ta.ema(close, macd_fast)
+slowMA      = ta.ema(close, macd_slow)
+macd_line   = fastMA - slowMA
+signal_line = ta.ema(macd_line, macd_signal)
+macd_hist   = macd_line - signal_line
+
+bb_middle   = ta.sma(close, bb_length)
+bb_upper    = bb_middle + ta.stdev(close, bb_length) * bb_mult
+bb_lower    = bb_middle - ta.stdev(close, bb_length) * bb_mult
+bb_width    = (bb_upper - bb_lower) / bb_middle * 100
+
+// Optional Plots for MACD and BB
+plot(show_macd_bb ? macd_line : na, title="MACD Line", color=color.blue, display=display.all)
+plot(show_macd_bb ? signal_line : na, title="Signal Line", color=color.orange, display=display.all)
+plot(show_macd_bb ? macd_hist : na, title="MACD Histogram", color=color.purple, style=plot.style_columns, display=display.all)
+plot(show_macd_bb ? bb_upper : na, title="BB Upper", color=color.green, style=plot.style_line, display=display.all)
+plot(show_macd_bb ? bb_middle : na, title="BB Middle", color=color.gray, style=plot.style_line, display=display.all)
+plot(show_macd_bb ? bb_lower : na, title="BB Lower", color=color.green, style=plot.style_line, display=display.all)
+
+// Optional High Probability Signals based on MACD and BB (only if flag is on)
+macd_bullish = macd_line > signal_line
+macd_bearish = macd_line < signal_line
+bb_expansion = bb_width > ta.sma(bb_width, 10)
+hp_long   = sma_direction == 1 and pl and macd_bullish and bb_expansion
+hp_short  = sma_direction == -1 and ph and macd_bearish and bb_expansion
+plotshape(show_macd_bb and hp_long ? dmark : na, title="High Probability Long", location=location.absolute, color=color.lime, style=shape.circle, size=size.tiny)
+plotshape(show_macd_bb and hp_short ? dmark : na, title="High Probability Short", location=location.absolute, color=color.red, style=shape.circle, size=size.tiny)
+alertcondition(show_macd_bb and hp_long, title="High Probability Long Alert", message="High Probability Long Trade Condition Met")
+alertcondition(show_macd_bb and hp_short, title="High Probability Short Alert", message="High Probability Short Trade Condition Met")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ═══ Copper/Gold Macro Overlay (Leading ISM / Business Cycle Proxy) ═══════════
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// The Copper/Gold ratio is a leading indicator for economic expansion/contraction.
+// - Rising ratio → economic expansion (copper demand up, risk-on)
+// - Falling ratio → economic contraction (gold demand up, risk-off)
+// - Typically leads ISM Manufacturing PMI by 3-6 months
+//
+// This overlay normalizes the ratio and plots it in a bottom band (-15 to 5)
+// separate from the main oscillator (0-100) to avoid visual interference.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// FUTURE MACRO MODULES (to be added as separate feature flags):
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. DXY ROC Regime     - TVC:DXY, 20D ROC; > +1% = risk-off
+// 2. MOVE Index Regime  - ICEUS:MOVE; >100 = risk-off, >110 = crash mode
+// 3. Stablecoin ROC     - CRYPTOCAP:USDT/USDC; 7D ROC < -1% = contraction
+// → These will feed a 0-10 Macro Risk Score + traffic-light table
+// ─────────────────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ────────── Copper/Gold Parameters ──────────
+show_cg_overlay    = input.bool(false, title="Show Copper/Gold Macro Overlay", group="Copper/Gold Macro",
+                     tooltip="Enable the Copper/Gold ratio overlay - a leading indicator for economic cycles.\n\n" +
+                             "• Rising Cu/Au = Economic EXPANSION (risk-on, bullish BTC)\n" +
+                             "• Falling Cu/Au = Economic CONTRACTION (risk-off, bearish BTC)\n\n" +
+                             "Historically leads ISM Manufacturing PMI by 3-6 months.")
+cg_copper_symbol   = input.string("COMEX:HG1!", title="Copper Symbol", group="Copper/Gold Macro",
+                     tooltip="Copper futures symbol.\n\n" +
+                             "Common options:\n" +
+                             "• COMEX:HG1! (CME Copper futures - recommended)\n" +
+                             "• CAPITALCOM:COPPER (CFD)\n" +
+                             "• TVC:COPPER (spot price)")
+cg_gold_symbol     = input.string("COMEX:GC1!", title="Gold Symbol", group="Copper/Gold Macro",
+                     tooltip="Gold futures symbol.\n\n" +
+                             "Common options:\n" +
+                             "• COMEX:GC1! (CME Gold futures - recommended)\n" +
+                             "• CAPITALCOM:GOLD (CFD)\n" +
+                             "• TVC:GOLD (spot price)")
+cg_timeframe       = input.string("M", title="Timeframe", options=["D", "W", "M"], group="Copper/Gold Macro",
+                     tooltip="Timeframe for fetching Cu/Au data.\n\n" +
+                             "• D = Daily bars (short-term noise, 120 bars = ~6 months)\n" +
+                             "• W = Weekly bars (medium-term, 120 bars = ~2.3 years)\n" +
+                             "• M = Monthly bars (RECOMMENDED for macro, 120 bars = 10 years)\n\n" +
+                             "Monthly captures full business cycles and filters noise.")
+cg_norm_length     = input.int(120, title="Normalization Length", minval=20, maxval=500, group="Copper/Gold Macro",
+                     tooltip="Number of bars for min-max normalization.\n\n" +
+                             "This determines the historical range used to calculate where Cu/Au currently sits (0-100%).\n\n" +
+                             "Examples (with Monthly timeframe):\n" +
+                             "• 60 bars = 5 years of history\n" +
+                             "• 120 bars = 10 years (recommended - captures 1-2 full cycles)\n" +
+                             "• 240 bars = 20 years (more context, slower to adapt)\n\n" +
+                             "Higher = more stable levels, Lower = more responsive to recent data.")
+cg_lead_bars       = input.int(16, title="Lead Offset (bars forward)", minval=0, maxval=100, group="Copper/Gold Macro",
+                     tooltip="Shifts the Cu/Au plot FORWARD in time to visualize its leading relationship.\n\n" +
+                             "Cu/Au leads ISM/BTC by ~3-6 months. Set based on YOUR chart timeframe:\n" +
+                             "• 1W chart → 16 bars (16 weeks ≈ 4 months) - DEFAULT\n" +
+                             "• 1M chart → 4 bars (4 months)\n" +
+                             "• 1D chart → 90 bars (90 days ≈ 3 months)\n\n" +
+                             "This aligns the Cu/Au signal with where BTC 'should be' when it catches up.\n" +
+                             "A Cu/Au trough today suggests BTC bottom in 3-6 months.")
+cg_trough_level    = input.int(15, title="Trough Threshold (%)", minval=5, maxval=30, group="Copper/Gold Macro",
+                     tooltip="Mark signals when Cu/Au is in the BOTTOM X% of its normalized range.\n\n" +
+                             "• 15% = Only mark extreme troughs (conservative, fewer signals)\n" +
+                             "• 20% = Moderate threshold\n" +
+                             "• 25% = More liberal (more signals, less extreme)\n\n" +
+                             "Trough = Cu/Au oversold = Potential macro BOTTOM forming.\n" +
+                             "Historically aligns with BTC cycle lows (2018, 2020, 2022).")
+cg_show_band       = input.bool(true, title="Show Band Background", group="Copper/Gold Macro",
+                     tooltip="Show a subtle yellow background band to visually separate the Cu/Au zone from the main oscillator.")
+cg_show_label      = input.bool(true, title="Show Info Label", group="Copper/Gold Macro",
+                     tooltip="Display an info box showing current Cu/Au ratio value, normalized percentage, trend direction, and zone status.")
+
+// ────────── Copper/Gold Data Fetch ──────────
+// Fetch copper and gold prices from specified timeframe
+// Using barmerge.gaps_off to ensure continuous data
+cg_copper_price = request.security(cg_copper_symbol, cg_timeframe, close, barmerge.gaps_off, barmerge.lookahead_off)
+cg_gold_price   = request.security(cg_gold_symbol, cg_timeframe, close, barmerge.gaps_off, barmerge.lookahead_off)
+
+// Calculate ratio (handle division by zero)
+cg_ratio = cg_gold_price > 0 ? cg_copper_price / cg_gold_price : na
+
+// ────────── Copper/Gold Normalization ──────────
+// Min-max normalization over the lookback period
+cg_min  = ta.lowest(cg_ratio, cg_norm_length)
+cg_max  = ta.highest(cg_ratio, cg_norm_length)
+cg_norm = (cg_max != cg_min and not na(cg_ratio)) ? 100.0 * (cg_ratio - cg_min) / (cg_max - cg_min) : 50.0
+
+// ────────── Copper/Gold Band Mapping ──────────
+// Map normalized value (0-100) to bottom band (-15 to 5)
+// This keeps it visually separate from main oscillator (0-100)
+cg_band_bottom = -15.0
+cg_band_top    = 5.0
+cg_scaled      = cg_band_bottom + (cg_norm / 100.0) * (cg_band_top - cg_band_bottom)
+
+// ────────── Copper/Gold Conditions ──────────
+// Trough detection: ratio in bottom X% of its normalized range
+cg_at_trough = cg_norm <= cg_trough_level
+// Peak detection (optional): ratio in top X%
+cg_at_peak   = cg_norm >= (100 - cg_trough_level)
+
+// ────────── Copper/Gold Plotting ──────────
+// Band background using plot() for dynamic visibility (hline requires constants)
+cg_p_top    = plot(show_cg_overlay ? cg_band_top : na, "CG Band Top", color=color.new(color.gray, 80), style=plot.style_line, linewidth=1)
+cg_p_bottom = plot(show_cg_overlay ? cg_band_bottom : na, "CG Band Bottom", color=color.new(color.gray, 80), style=plot.style_line, linewidth=1)
+cg_p_mid    = plot(show_cg_overlay ? (cg_band_top + cg_band_bottom) / 2 : na, "CG Midline", color=color.new(color.gray, 90), style=plot.style_line, linewidth=1)
+fill(cg_p_top, cg_p_bottom, color=show_cg_overlay and cg_show_band ? color.new(color.yellow, 95) : na, title="CG Band Fill")
+
+// Dynamic color based on macro zone (gradient from red->yellow->green)
+// Trough zone = bright green, Peak zone = red, Lower = green tint, Upper = orange tint, Neutral = yellow
+cg_line_color = cg_norm <= cg_trough_level ? color.new(color.lime, 0) : cg_norm >= (100 - cg_trough_level) ? color.new(color.red, 0) : cg_norm < 35 ? color.new(color.green, 30) : cg_norm > 65 ? color.new(color.orange, 30) : color.new(color.yellow, 20)
+
+// Main Copper/Gold line with lead offset and dynamic coloring
+plot(show_cg_overlay ? cg_scaled : na, title="Copper/Gold (normalized, lead)",
+     color=cg_line_color, linewidth=2,
+     offset=cg_lead_bars, style=plot.style_line)
+
+// Trough zone highlight using bgcolor instead of fill (simpler, no hline needed)
+bgcolor(show_cg_overlay and cg_at_trough ? color.new(color.lime, 90) : na, title="CG Trough Zone BG")
+
+// Trough markers (macro buying opportunity signal) - more prominent diamond
+plotshape(show_cg_overlay and cg_at_trough and not cg_at_trough[1] ? cg_band_bottom + 2 : na,
+          title="CG Macro Trough Signal", location=location.absolute,
+          style=shape.diamond, size=size.small, color=color.new(color.lime, 0),
+          offset=cg_lead_bars, text="🟢", textcolor=color.new(color.white, 50))
+
+// Peak markers (macro caution signal) - more prominent
+plotshape(show_cg_overlay and cg_at_peak and not cg_at_peak[1] ? cg_band_top - 2 : na,
+          title="CG Macro Peak Signal", location=location.absolute,
+          style=shape.diamond, size=size.small, color=color.new(color.red, 0),
+          offset=cg_lead_bars, text="🔴", textcolor=color.new(color.white, 50))
+
+// ────────── Copper/Gold Info Label ──────────
+var label cgLabel = na
+if barstate.islast and show_cg_overlay and cg_show_label
+    label.delete(cgLabel)
+
+    // Calculate trend direction and momentum
+    cg_trend_str = cg_ratio > cg_ratio[1] ? "▲ RISING" : "▼ FALLING"
+    cg_momentum  = cg_ratio > cg_ratio[3] ? "(Strong)" : cg_ratio < cg_ratio[3] ? "(Weak)" : "(Flat)"
+
+    // Zone interpretation with actionable context
+    cg_zone_str  = cg_at_trough ? "🟢 TROUGH - Accumulate" : cg_at_peak ? "🔴 PEAK - Reduce Risk" : cg_norm < 35 ? "🟡 Lower Zone - Watch for Entry" : cg_norm > 65 ? "🟠 Upper Zone - Watch for Exit" : "⚪ Neutral Zone"
+
+    // Timeframe context for the label
+    tf_context = cg_timeframe == "M" ? "Monthly" : cg_timeframe == "W" ? "Weekly" : "Daily"
+    norm_context = cg_timeframe == "M" ? str.tostring(cg_norm_length) + " months (" + str.tostring(math.round(cg_norm_length/12)) + " yrs)" : cg_timeframe == "W" ? str.tostring(cg_norm_length) + " weeks (" + str.tostring(math.round(cg_norm_length/52, 1)) + " yrs)" : str.tostring(cg_norm_length) + " days"
+
+    // Label background color based on zone
+    cg_label_color = cg_at_trough ? color.new(color.green, 30) : cg_at_peak ? color.new(color.red, 30) : cg_norm < 35 ? color.new(color.teal, 40) : cg_norm > 65 ? color.new(color.orange, 40) : color.new(color.gray, 40)
+
+    cgLabel := label.new(bar_index + rightOffset, cg_band_bottom - 3,
+               "═══ Cu/Au MACRO ═══\n" +
+               "Ratio: " + str.tostring(cg_ratio, "#.####") + "\n" +
+               "Position: " + str.tostring(cg_norm, "#.0") + "% " + cg_momentum + "\n" +
+               "Trend: " + cg_trend_str + "\n" +
+               "Zone: " + cg_zone_str + "\n" +
+               "─────────────────\n" +
+               "TF: " + tf_context + " | Range: " + norm_context + "\n" +
+               "Lead: +" + str.tostring(cg_lead_bars) + " bars forward\n" +
+               "• Leads ISM/BTC by 3-6mo",
+               xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_left,
+               size=size.small, textcolor=color.white, color=cg_label_color)
+
+// ────────── Copper/Gold Alerts ──────────
+alertcondition(show_cg_overlay and cg_at_trough and not cg_at_trough[1],
+               title="Cu/Au Macro Trough Alert",
+               message="Copper/Gold ratio entering macro trough zone - potential expansion ahead")
+alertcondition(show_cg_overlay and cg_at_peak and not cg_at_peak[1],
+               title="Cu/Au Macro Peak Alert",
+               message="Copper/Gold ratio at macro peak - potential contraction ahead")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ═══ MACRO FLASH-CRASH CONDITIONS (11-POINT SYSTEM) ═══════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// 11 fast liquidity / crash-risk signals for institutional-grade risk monitoring.
+// Shows each condition as GREEN/AMBER/RED traffic-light in a bottom table.
+// Computes a MACRO RISK SCORE (0-10) for regime classification.
+//
+// Score Interpretation:
+// 0-3  → GREEN  (liquidity supportive, safe to rotate risk-on)
+// 4-6  → AMBER  (choppy regime, reduce size and tighten stops)
+// 7-8  → RED    (liquidity tightening, prepare to derisk)
+// 9-10 → PURPLE (crash window; halt dip-buys, protect capital)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ────────── Macro Dashboard Parameters ──────────
+show_macro_dashboard = input.bool(true, title="Show Macro Flash-Crash Dashboard", group="Macro Dashboard", tooltip="Enable the 11-point macro liquidity/crash monitoring system with traffic-light table.")
+macro_tf = input.string("D", title="Macro Data Timeframe", options=["D", "W"], group="Macro Dashboard", tooltip="Timeframe for fetching macro indicator data. Daily recommended.")
+
+// ────────── Profile Switch: Legacy vs JP-Method ──────────
+// JP-Method aligns with JP's written 11-factor macro liquidity check
+// Legacy preserves original ad-hoc thresholds and weights
+macro_profile = input.string("JP-Method", "Macro Regime Profile", options=["Legacy", "JP-Method"], group="Macro Dashboard", tooltip="Legacy = Original thresholds\nJP-Method = Aligned with JP's 11-factor spec with proper GREEN/AMBER/RED bands")
+
+// ────────── Debug Mode ──────────
+show_macro_debug = input.bool(false, "Show Macro Debug Labels", group="Macro Dashboard", tooltip="Display raw values, ROC values, states, and points for each factor")
+
+// ────────── Manual Input Flags (ETF data not on TradingView) ──────────
+// FACTOR 6 – BTC ETF Flows (Manual)
+// Metric: 3-day average net ETF flows from Farside/SoSoValue
+// JP-Method Bands:
+//   GREEN (Neutral)  < $150M outflows
+//   AMBER            $150M-$400M outflows
+//   RED              > $400M outflows (3-day avg)
+etf_flow_state_input = input.string("Neutral", title="6. BTC ETF Flow (Manual)", options=["Neutral", "Amber", "Red"], group="Macro Dashboard - Manual Flags", tooltip="Check https://farside.co.uk/btc/\n• Neutral: Net outflows < $150M\n• Amber: $150M-$400M outflows\n• Red: > $400M (3-day avg)")
+
+// ────────── Threshold Inputs (Legacy Mode) ──────────
+// These thresholds are used in Legacy mode; JP-Method uses hardcoded spec-aligned values
+tga_roc_thresh = input.float(10.0, title="1. TGA 4-Week ROC % Threshold", group="Macro Dashboard - Thresholds", tooltip="TGA rising this % in 4 weeks = liquidity drain.\n+10% is significant stress (approx $80B on ~$800B base).")
+globalm2_roc_thresh = input.float(-0.5, title="2. Global M2 8-Week ROC % Threshold", group="Macro Dashboard - Thresholds", tooltip="Global M2 falling this % over 8 weeks = monetary contraction.")
+move_amber_thresh = input.float(100.0, title="3. MOVE Amber Threshold", group="Macro Dashboard - Thresholds", tooltip="MOVE Index amber warning level")
+move_red_thresh = input.float(105.0, title="3. MOVE Red Threshold", group="Macro Dashboard - Thresholds", tooltip="MOVE Index crash-risk level (>110 = extreme)")
+dxy_roc_thresh = input.float(1.0, title="4. DXY ROC % Threshold", group="Macro Dashboard - Thresholds", tooltip="DXY 20-day ROC threshold for USD strength stress")
+us10y_thresh = input.float(4.10, title="5. US 10Y Yield Threshold", group="Macro Dashboard - Thresholds", tooltip="10Y Treasury yield stress level")
+stable_roc_thresh = input.float(-1.0, title="7. Stablecoin ROC % Threshold", group="Macro Dashboard - Thresholds", tooltip="7-day ROC below this = crypto liquidity contraction")
+funding_thresh = input.float(-0.02, title="8. BTC Funding Rate % Threshold", group="Macro Dashboard - Thresholds", tooltip="Negative funding below this = stressed longs, liquidation risk.")
+vix9d_thresh = input.float(15.0, title="10a. VIX9D Threshold", group="Macro Dashboard - Thresholds", tooltip="Short-term VIX stress level")
+vvix_thresh = input.float(105.0, title="10b. VVIX Threshold", group="Macro Dashboard - Thresholds", tooltip="VIX-of-VIX stress level")
+
+// ────────── JP-Method Specific Thresholds (Hardcoded per spec) ──────────
+// These are the JP-Method 11-factor spec aligned thresholds
+// FACTOR 1 – TGA: ~6% ROC approximates $20-80bn absolute change bands
+float JP_TGA_RED = 6.0
+float JP_TGA_AMBER = 2.4  // 40% of RED threshold
+// FACTOR 3 – MOVE: GREEN <85, AMBER 85-105, RED >105
+float JP_MOVE_GREEN_MAX = 85.0
+float JP_MOVE_RED = 105.0
+// FACTOR 4 – DXY: GREEN < -1%, AMBER -1% to +1%, RED > +1%
+float JP_DXY_GREEN_MAX = -1.0
+float JP_DXY_RED = 1.0
+// FACTOR 5 – US 10Y: GREEN < 3.75%, AMBER 3.75-4.10%, RED > 4.10%
+float JP_US10Y_GREEN_MAX = 3.75
+float JP_US10Y_RED = 4.10
+// FACTOR 7 – Stablecoin: GREEN > +1%, AMBER -1% to +1%, RED < -1%
+float JP_STABLE_GREEN_MIN = 1.0
+float JP_STABLE_RED = -1.0
+// FACTOR 8 – Funding: Symmetric ±0.4/0.8% (detect both stressed longs AND crowded longs)
+float JP_FUNDING_AMBER = 0.4
+float JP_FUNDING_RED = 0.8
+// FACTOR 10 – VIX: GREEN VIX9D<13 AND VVIX<95, AMBER 13-15/95-105, RED ≥15/≥105
+float JP_VIX9D_GREEN_MAX = 13.0
+float JP_VIX9D_RED = 15.0
+float JP_VVIX_GREEN_MAX = 95.0
+float JP_VVIX_RED = 105.0
+// FACTOR 11 – Cu/Au Slope: 26-week for JP-Method (6-month cycle view)
+float JP_CG_SLOPE_RED = -0.03
+float JP_CG_SLOPE_AMBER = 0.0
+
+// ────────── Macro Data Fetch (FIXED TIMEFRAMES - Independent of Chart) ──────────
+// ALL macro data uses FIXED timeframes so score is consistent across any ticker/chart
+// WEEKLY for slow-moving macro (TGA, M2, DXY, 10Y, Cu/Au)
+// DAILY for fast-moving indicators (MOVE, VIX, crypto metrics)
+
+// Helper: Calculate ROC within security context to ensure correct bar alignment
+macro_roc_1bar() =>
+    raw = close
+    raw1 = raw[1]
+    raw1 != 0 ? (raw - raw1) / raw1 * 100 : 0.0
+
+macro_roc_4bar() =>
+    raw = close
+    raw4 = raw[4]
+    raw4 != 0 ? (raw - raw4) / raw4 * 100 : 0.0
+
+macro_roc_8bar() =>
+    raw = close
+    raw8 = raw[8]
+    raw8 != 0 ? (raw - raw8) / raw8 * 100 : 0.0
+
+macro_roc_7bar() =>
+    raw = close
+    raw7 = raw[7]
+    raw7 != 0 ? (raw - raw7) / raw7 * 100 : 0.0
+
+macro_roc_5bar() =>
+    raw = close
+    raw5 = raw[5]
+    raw5 != 0 ? (raw - raw5) / raw5 * 100 : 0.0
+
+// Helper: State points for JP-Method scoring
+// GREEN = 0 points, AMBER = 0.5 points, RED = 1.0 (or 1.5 for major factors)
+state_points(int state, bool is_major) =>
+    state == 2 ? (is_major ? 1.5 : 1.0) : state == 1 ? 0.5 : 0.0
+
+// ═══════════════════════════════════════════════════════════════════
+// WEEKLY MACRO INDICATORS (slow-moving, less noise)
+// ═══════════════════════════════════════════════════════════════════
+
+// 1. TGA - Treasury General Account (Weekly, 4-week ROC)
+tga_raw = request.security("FRED:WTREGEN", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+tga_roc_4w = request.security("FRED:WTREGEN", "W", macro_roc_4bar(), barmerge.gaps_off, barmerge.lookahead_off)
+
+// 2. Global M2 - Composite (Weekly, 8-week ROC)
+us_m2_roc = request.security("ECONOMICS:USM2", "W", macro_roc_8bar(), barmerge.gaps_off, barmerge.lookahead_off)
+cn_m2_roc = request.security("ECONOMICS:CNM2", "W", macro_roc_8bar(), barmerge.gaps_off, barmerge.lookahead_off)
+eu_m2_roc = request.security("ECONOMICS:EUM2", "W", macro_roc_8bar(), barmerge.gaps_off, barmerge.lookahead_off)
+jp_m2_roc = request.security("ECONOMICS:JPM2", "W", macro_roc_8bar(), barmerge.gaps_off, barmerge.lookahead_off)
+gb_m2_roc = request.security("ECONOMICS:GBM2", "W", macro_roc_8bar(), barmerge.gaps_off, barmerge.lookahead_off)
+// Average ROC across economies
+global_m2_roc_8w = (nz(us_m2_roc, 0) + nz(cn_m2_roc, 0) + nz(eu_m2_roc, 0) + nz(jp_m2_roc, 0) + nz(gb_m2_roc, 0)) / 5
+
+// 4. DXY - US Dollar Index (Weekly, 4-week ROC for macro trend)
+dxy_raw = request.security("TVC:DXY", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+dxy_roc = request.security("TVC:DXY", "W", macro_roc_4bar(), barmerge.gaps_off, barmerge.lookahead_off)
+
+// 5. US 10Y Treasury Yield (Weekly for macro trend)
+us10y_raw = request.security("TVC:US10Y", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+
+// FACTOR 11 – Copper/Gold Slope
+// Metric: Weekly Cu/Au ratio slope (12-week for Legacy, 26-week for JP-Method)
+// JP-Method uses 26-week (~6 month) cycle view for better macro alignment
+// JP-Method Bands:
+//   GREEN  slope > 0 (rising ratio = expansion)
+//   AMBER  slope 0 to -0.03 (weakening)
+//   RED    slope < -0.03 (strong downtrend = contraction)
+macro_cg_copper_now = request.security("COMEX:HG1!", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+macro_cg_gold_now = request.security("COMEX:GC1!", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+macro_cg_copper_12 = request.security("COMEX:HG1!", "W", close[12], barmerge.gaps_off, barmerge.lookahead_off)
+macro_cg_gold_12 = request.security("COMEX:GC1!", "W", close[12], barmerge.gaps_off, barmerge.lookahead_off)
+macro_cg_copper_26 = request.security("COMEX:HG1!", "W", close[26], barmerge.gaps_off, barmerge.lookahead_off)
+macro_cg_gold_26 = request.security("COMEX:GC1!", "W", close[26], barmerge.gaps_off, barmerge.lookahead_off)
+macro_cg_ratio_now = nz(macro_cg_gold_now, 1) > 0 ? nz(macro_cg_copper_now, 0) / nz(macro_cg_gold_now, 1) : 0
+macro_cg_ratio_12 = nz(macro_cg_gold_12, 1) > 0 ? nz(macro_cg_copper_12, 0) / nz(macro_cg_gold_12, 1) : 0
+macro_cg_ratio_26 = nz(macro_cg_gold_26, 1) > 0 ? nz(macro_cg_copper_26, 0) / nz(macro_cg_gold_26, 1) : 0
+cg_slope_12w = macro_cg_ratio_now - macro_cg_ratio_12
+cg_slope_26w = macro_cg_ratio_now - macro_cg_ratio_26
+
+// ═══════════════════════════════════════════════════════════════════
+// ALL WEEKLY - TRUE MACRO TIMEFRAME (consistent across all tickers)
+// ═══════════════════════════════════════════════════════════════════
+
+// 3. MOVE Index - Bond volatility (Weekly for macro consistency)
+move_raw = request.security("TVC:MOVE", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+
+// FACTOR 7 – USDT Liquidity
+// Metric: 1-week ROC on weekly CRYPTOCAP:USDT market cap (%) for JP-Method
+//         4-week ROC for Legacy mode
+// JP-Method Bands:
+//   GREEN  > +1.0%
+//   AMBER  -1.0% .. +1.0%
+//   RED    < -1.0%
+usdt_raw = request.security("CRYPTOCAP:USDT", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+usdt_roc_4w = request.security("CRYPTOCAP:USDT", "W", macro_roc_4bar(), barmerge.gaps_off, barmerge.lookahead_off)
+usdt_roc_1w = request.security("CRYPTOCAP:USDT", "W", macro_roc_1bar(), barmerge.gaps_off, barmerge.lookahead_off)
+
+// 8. BTC Funding Rate Proxy - Weekly (macro leverage trend)
+btc_perp = request.security("BINANCE:BTCUSDT.P", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+btc_spot = request.security("BINANCE:BTCUSDT", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+funding_proxy = nz(btc_spot, 0) > 0 ? (nz(btc_perp, 0) - nz(btc_spot, 0)) / nz(btc_spot, 1) * 100 : 0
+
+// 9. Open Interest - Weekly, 4-week change (macro position trend)
+btc_oi = request.security("BINANCE:BTCUSDTPERP_OI", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+btc_oi_change_5d = request.security("BINANCE:BTCUSDTPERP_OI", "W", macro_roc_4bar(), barmerge.gaps_off, barmerge.lookahead_off)
+btc_price_change_5d = request.security("BINANCE:BTCUSDT", "W", macro_roc_4bar(), barmerge.gaps_off, barmerge.lookahead_off)
+// Divergence: OI rising while price falling = bearish distribution
+oi_divergence = nz(btc_oi_change_5d, 0) > 5 and nz(btc_price_change_5d, 0) < 0
+
+// 10. VIX9D and VVIX - Weekly (macro vol trend)
+vix9d_raw = request.security("CBOE:VIX9D", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+vvix_raw = request.security("CBOE:VVIX", "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+
+// ────────── Condition States: 0=GREEN, 1=AMBER, 2=RED ──────────
+// Profile-aware state calculation: Legacy uses input thresholds, JP-Method uses spec-aligned bands
+
+// FACTOR 1 – TGA Stress
+// Metric: 4-week ROC on FRED:WTREGEN (rising TGA = Treasury draining liquidity)
+// JP-Method: RED ≥6%, AMBER ≥2.4%, GREEN <2.4%
+// Legacy: RED ≥10%, AMBER ≥5%, GREEN <5%
+tga_state = macro_profile == "JP-Method" ? (tga_roc_4w >= JP_TGA_RED ? 2 : tga_roc_4w >= JP_TGA_AMBER ? 1 : 0) : (tga_roc_4w >= tga_roc_thresh ? 2 : tga_roc_4w >= (tga_roc_thresh * 0.5) ? 1 : 0)
+
+// FACTOR 2 – Global M2 Stress
+// Metric: 8-week ROC composite (negative = monetary contraction)
+// JP-Method: RED ≤-0.5%, AMBER ≤-0.25%, GREEN >-0.25%
+// Legacy: Same thresholds
+globalm2_state = macro_profile == "JP-Method" ? (global_m2_roc_8w <= -0.5 ? 2 : global_m2_roc_8w <= -0.25 ? 1 : 0) : (global_m2_roc_8w <= globalm2_roc_thresh ? 2 : global_m2_roc_8w <= (globalm2_roc_thresh * 0.5) ? 1 : 0)
+
+// FACTOR 3 – MOVE Index
+// Metric: Bond volatility absolute level
+// JP-Method: GREEN <85, AMBER 85-105, RED >105
+// Legacy: GREEN <100, AMBER 100-105, RED >105
+move_state = macro_profile == "JP-Method" ? (move_raw >= JP_MOVE_RED ? 2 : move_raw >= JP_MOVE_GREEN_MAX ? 1 : 0) : (move_raw >= move_red_thresh ? 2 : move_raw >= move_amber_thresh ? 1 : 0)
+
+// FACTOR 4 – DXY ROC
+// Metric: 4-week ROC on USD Index
+// JP-Method: GREEN < -1%, AMBER -1% to +1%, RED > +1% (SYMMETRIC)
+// Legacy: Only penalizes positive ROC
+dxy_state = macro_profile == "JP-Method" ? (dxy_roc > JP_DXY_RED ? 2 : dxy_roc >= JP_DXY_GREEN_MAX ? 1 : 0) : (dxy_roc >= dxy_roc_thresh ? 2 : dxy_roc >= (dxy_roc_thresh * 0.7) ? 1 : 0)
+
+// FACTOR 5 – US 10Y Yield
+// Metric: Absolute yield level
+// JP-Method: GREEN <3.75%, AMBER 3.75-4.10%, RED >4.10%
+// Legacy: Narrow amber band near threshold
+us10y_state = macro_profile == "JP-Method" ? (us10y_raw > JP_US10Y_RED ? 2 : us10y_raw >= JP_US10Y_GREEN_MAX ? 1 : 0) : (us10y_raw >= us10y_thresh ? 2 : us10y_raw >= (us10y_thresh * 0.95) ? 1 : 0)
+
+// FACTOR 6 – ETF Outflow Stress (Manual 3-position input)
+// JP-Method: Uses 3-position input (Neutral/Amber/Red)
+// Legacy: Boolean toggle
+etf_state = macro_profile == "JP-Method" ? (etf_flow_state_input == "Red" ? 2 : etf_flow_state_input == "Amber" ? 1 : 0) : (etf_flow_state_input != "Neutral" ? 2 : 0)
+
+// FACTOR 7 – Stablecoin ROC
+// Metric: 1-week ROC for JP-Method (true 7d proxy), 4-week ROC for Legacy
+// JP-Method: GREEN >+1%, AMBER -1% to +1%, RED <-1%
+// Legacy: Only penalizes negative ROC
+usdt_roc_active = macro_profile == "JP-Method" ? usdt_roc_1w : usdt_roc_4w
+stable_state = macro_profile == "JP-Method" ? (usdt_roc_1w <= JP_STABLE_RED ? 2 : usdt_roc_1w < JP_STABLE_GREEN_MIN ? 1 : 0) : (usdt_roc_4w <= stable_roc_thresh ? 2 : usdt_roc_4w <= (stable_roc_thresh * 0.5) ? 1 : 0)
+
+// FACTOR 8 – BTC Funding Proxy
+// Metric: Perpetual premium over spot (%)
+// JP-Method: SYMMETRIC - detects both stressed longs (negative) AND crowded longs (high positive)
+//   GREEN abs <0.4%, AMBER abs 0.4-0.8%, RED abs >0.8%
+// Legacy: Only penalizes negative funding
+funding_state = macro_profile == "JP-Method" ? (math.abs(funding_proxy) >= JP_FUNDING_RED ? 2 : math.abs(funding_proxy) >= JP_FUNDING_AMBER ? 1 : 0) : (funding_proxy <= funding_thresh ? 2 : funding_proxy <= (funding_thresh * 0.5) ? 1 : 0)
+
+// FACTOR 9 – Open Interest Divergence
+// Metric: OI rising while price falling = bearish distribution
+// Same logic for both profiles
+oi_state = oi_divergence ? 2 : nz(btc_oi_change_5d, 0) > 3 and nz(btc_price_change_5d, 0) < 1 ? 1 : 0
+
+// FACTOR 10 – VIX9D + VVIX Combo
+// Metric: Short-term equity volatility
+// JP-Method: GREEN VIX9D<13 AND VVIX<95, AMBER 13-15/95-105, RED ≥15 OR ≥105
+// Legacy: Only RED thresholds, AND logic for RED
+vix_state = macro_profile == "JP-Method" ? ((vix9d_raw >= JP_VIX9D_RED or vvix_raw >= JP_VVIX_RED) ? 2 : (vix9d_raw >= JP_VIX9D_GREEN_MAX or vvix_raw >= JP_VVIX_GREEN_MAX) ? 1 : 0) : ((vix9d_raw >= vix9d_thresh and vvix_raw >= vvix_thresh) ? 2 : (vix9d_raw >= vix9d_thresh or vvix_raw >= vvix_thresh) ? 1 : 0)
+
+// FACTOR 11 – Copper/Gold Slope
+// Metric: 26-week slope for JP-Method (6-month cycle), 12-week for Legacy
+// JP-Method: GREEN slope>0, AMBER 0 to -0.03, RED < -0.03
+// Legacy: Binary negative/positive
+cg_slope_state = macro_profile == "JP-Method" ? (cg_slope_26w < JP_CG_SLOPE_RED ? 2 : cg_slope_26w < JP_CG_SLOPE_AMBER ? 1 : 0) : (cg_slope_12w < 0 ? 2 : cg_slope_12w < (macro_cg_ratio_now * 0.01) ? 1 : 0)
+
+// ────────── Macro Risk Score Calculation (0-10) ──────────
+// JP-Method: Uses state_points() helper with major/minor factor weighting
+//   Major factors (1.5 for RED): Global M2, MOVE, DXY, ETF, Stablecoin, Funding, OI
+//   Minor factors (1.0 for RED): TGA, US 10Y, VIX, Cu/Au
+// Legacy: Uses bespoke weighting expression
+
+// JP-Method scoring using state_points helper
+macro_score_jp = state_points(tga_state, false) + state_points(globalm2_state, true) + state_points(move_state, true) + state_points(dxy_state, true) + state_points(us10y_state, false) + state_points(etf_state, true) + state_points(stable_state, true) + state_points(funding_state, true) + state_points(oi_state, true) + state_points(vix_state, false) + state_points(cg_slope_state, false)
+
+// Legacy scoring (original bespoke weights)
+macro_score_legacy = (tga_state == 2 ? 2.0 : tga_state == 1 ? 0.5 : 0.0) + (globalm2_state == 2 ? 1.5 : globalm2_state == 1 ? 0.5 : 0.0) + (move_state == 2 ? 2.0 : move_state == 1 ? 0.5 : 0.0) + (dxy_state == 2 ? 1.5 : dxy_state == 1 ? 0.5 : 0.0) + (us10y_state == 2 ? 1.0 : us10y_state == 1 ? 0.3 : 0.0) + (etf_state == 2 ? 1.5 : 0.0) + (stable_state == 2 ? 1.5 : stable_state == 1 ? 0.5 : 0.0) + (funding_state == 2 ? 1.0 : funding_state == 1 ? 0.3 : 0.0) + (oi_state == 2 ? 1.0 : oi_state == 1 ? 0.3 : 0.0) + (vix_state == 2 ? 1.0 : vix_state == 1 ? 0.3 : 0.0) + (cg_slope_state == 2 ? 1.0 : cg_slope_state == 1 ? 0.3 : 0.0)
+
+// Select score based on profile
+macro_score_raw = macro_profile == "JP-Method" ? macro_score_jp : macro_score_legacy
+macro_score = math.min(math.round(macro_score_raw), 10)
+
+// ────────── Macro Regime Classification ──────────
+macro_regime = macro_score <= 3 ? "GREEN" : macro_score <= 6 ? "AMBER" : macro_score <= 8 ? "RED" : "PURPLE"
+macro_regime_text = macro_score <= 3 ? "Liquidity Supportive" : macro_score <= 6 ? "Choppy - Reduce Size" : macro_score <= 8 ? "Tightening - Derisk" : "CRASH WINDOW"
+macro_regime_color = macro_score <= 3 ? color.green : macro_score <= 6 ? color.orange : macro_score <= 8 ? color.red : color.purple
+
+// ────────── Helper Function for State Colors ──────────
+state_to_color(int state) =>
+    state == 2 ? color.new(color.red, 40) : state == 1 ? color.new(color.orange, 40) : color.new(color.green, 40)
+
+state_to_text(int state) =>
+    state == 2 ? "RED" : state == 1 ? "AMBER" : "GREEN"
+
+state_to_dot(int state) =>
+    state == 2 ? "🔴" : state == 1 ? "🟡" : "🟢"
+
+// ────────── Macro Dashboard Table (Fixed Right Position) ──────────
+// Table stays fixed on right side - doesn't move with zoom/drag
+var table macroTable = table.new(position.middle_right, 3, 14, bgcolor=color.new(color.black, 80), border_width=1, border_color=color.new(color.gray, 60))
+
+if barstate.islast and show_macro_dashboard
+    // Header row
+    table.cell(macroTable, 0, 0, "MACRO CRASH FLAGS", bgcolor=color.new(color.blue, 70), text_color=color.white, text_size=size.small)
+    table.cell(macroTable, 1, 0, "Value", bgcolor=color.new(color.blue, 70), text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 0, "", bgcolor=color.new(color.blue, 70), text_size=size.tiny)
+
+    // 1. TGA
+    table.cell(macroTable, 0, 1, "1. TGA Liquidity", text_color=color.white, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(macroTable, 1, 1, str.tostring(tga_roc_4w, "#.1") + "%", text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 1, state_to_dot(tga_state), bgcolor=state_to_color(tga_state), text_size=size.tiny)
+
+    // 2. Global M2
+    table.cell(macroTable, 0, 2, "2. Global M2", text_color=color.white, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(macroTable, 1, 2, str.tostring(global_m2_roc_8w, "#.1") + "%", text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 2, state_to_dot(globalm2_state), bgcolor=state_to_color(globalm2_state), text_size=size.tiny)
+
+    // 3. MOVE Index
+    table.cell(macroTable, 0, 3, "3. MOVE Index", text_color=color.white, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(macroTable, 1, 3, str.tostring(move_raw, "#.0"), text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 3, state_to_dot(move_state), bgcolor=state_to_color(move_state), text_size=size.tiny)
+
+    // 4. DXY ROC
+    table.cell(macroTable, 0, 4, "4. DXY 20d ROC", text_color=color.white, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(macroTable, 1, 4, str.tostring(dxy_roc, "#.1") + "%", text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 4, state_to_dot(dxy_state), bgcolor=state_to_color(dxy_state), text_size=size.tiny)
+
+    // 5. US 10Y Yield
+    table.cell(macroTable, 0, 5, "5. US 10Y Yield", text_color=color.white, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(macroTable, 1, 5, str.tostring(us10y_raw, "#.2") + "%", text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 5, state_to_dot(us10y_state), bgcolor=state_to_color(us10y_state), text_size=size.tiny)
+
+    // 6. ETF Outflow (Manual 3-position input)
+    table.cell(macroTable, 0, 6, "6. BTC ETF Flow", text_color=color.white, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(macroTable, 1, 6, etf_flow_state_input, text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 6, state_to_dot(etf_state), bgcolor=state_to_color(etf_state), text_size=size.tiny)
+
+    // 7. Stablecoin ROC (1w for JP-Method, 4w for Legacy)
+    table.cell(macroTable, 0, 7, macro_profile == "JP-Method" ? "7. USDT 1w ROC" : "7. USDT 4w ROC", text_color=color.white, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(macroTable, 1, 7, str.tostring(usdt_roc_active, "#.1") + "%", text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 7, state_to_dot(stable_state), bgcolor=state_to_color(stable_state), text_size=size.tiny)
+
+    // 8. BTC Funding Proxy
+    table.cell(macroTable, 0, 8, "8. BTC Funding", text_color=color.white, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(macroTable, 1, 8, str.tostring(funding_proxy, "#.2") + "%", text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 8, state_to_dot(funding_state), bgcolor=state_to_color(funding_state), text_size=size.tiny)
+
+    // 9. OI/CVD Proxy
+    table.cell(macroTable, 0, 9, "9. OI/CVD Proxy", text_color=color.white, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(macroTable, 1, 9, str.tostring(btc_oi_change_5d, "#.1") + "%", text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 9, state_to_dot(oi_state), bgcolor=state_to_color(oi_state), text_size=size.tiny)
+
+    // 10. VIX Combo
+    table.cell(macroTable, 0, 10, "10. VIX9D/VVIX", text_color=color.white, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(macroTable, 1, 10, str.tostring(vix9d_raw, "#.0") + "/" + str.tostring(vvix_raw, "#.0"), text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 10, state_to_dot(vix_state), bgcolor=state_to_color(vix_state), text_size=size.tiny)
+
+    // 11. Cu/Au Slope (26w for JP-Method, 12w for Legacy)
+    cg_slope_display = macro_profile == "JP-Method" ? cg_slope_26w : cg_slope_12w
+    table.cell(macroTable, 0, 11, macro_profile == "JP-Method" ? "11. Cu/Au 26w" : "11. Cu/Au 12w", text_color=color.white, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(macroTable, 1, 11, cg_slope_display >= 0 ? "Rising" : "Falling", text_color=color.white, text_size=size.tiny)
+    table.cell(macroTable, 2, 11, state_to_dot(cg_slope_state), bgcolor=state_to_color(cg_slope_state), text_size=size.tiny)
+
+    // Spacer row
+    table.cell(macroTable, 0, 12, "", bgcolor=color.new(color.gray, 85), text_size=size.tiny)
+    table.cell(macroTable, 1, 12, "", bgcolor=color.new(color.gray, 85), text_size=size.tiny)
+    table.cell(macroTable, 2, 12, "", bgcolor=color.new(color.gray, 85), text_size=size.tiny)
+
+    // Score row
+    table.cell(macroTable, 0, 13, "MACRO SCORE", bgcolor=color.new(macro_regime_color, 50), text_color=color.white, text_size=size.small)
+    table.cell(macroTable, 1, 13, str.tostring(macro_score) + "/10", bgcolor=color.new(macro_regime_color, 50), text_color=color.white, text_size=size.small)
+    table.cell(macroTable, 2, 13, macro_score <= 3 ? "🟢" : macro_score <= 6 ? "🟡" : macro_score <= 8 ? "🔴" : "🟣", bgcolor=color.new(macro_regime_color, 50), text_size=size.small)
+
+// ────────── Macro Score Background (subtle) ──────────
+bgcolor(show_macro_dashboard and macro_score >= 7 ? color.new(color.red, 95) : show_macro_dashboard and macro_score >= 4 ? color.new(color.orange, 97) : na, title="Macro Risk Background")
+
+// ────────── Macro Alerts ──────────
+// Note: alertcondition message must be constant string - cannot include dynamic values
+alertcondition(show_macro_dashboard and macro_score >= 7 and macro_score[1] < 7, title="Macro RED Alert", message="🔴 MACRO RED: Score 7+/10 - Liquidity tightening, prepare to derisk!")
+alertcondition(show_macro_dashboard and macro_score >= 9 and macro_score[1] < 9, title="Macro PURPLE Alert", message="🟣 MACRO CRASH WINDOW: Score 9+/10 - Halt dip-buys, protect capital!")
+
+// ────────── Debug Label (Optional) ──────────
+// Shows raw values, ROC, states, and points for each factor to validate against manual checks
+// Calculate display slope outside of if block for proper scoping
+cg_slope_debug = macro_profile == "JP-Method" ? cg_slope_26w : cg_slope_12w
+
+var label debugLabel = na
+if barstate.islast and show_macro_debug and show_macro_dashboard
+    label.delete(debugLabel)
+
+    // Build debug string with all factor details
+    debug_str = "═══ MACRO DEBUG (" + macro_profile + ") ═══\n" +
+                "1. TGA: ROC=" + str.tostring(tga_roc_4w, "#.2") + "% | State=" + str.tostring(tga_state) + " | Pts=" + str.tostring(state_points(tga_state, false), "#.1") + "\n" +
+                "2. M2: ROC=" + str.tostring(global_m2_roc_8w, "#.2") + "% | State=" + str.tostring(globalm2_state) + " | Pts=" + str.tostring(state_points(globalm2_state, true), "#.1") + "\n" +
+                "3. MOVE: Raw=" + str.tostring(move_raw, "#.1") + " | State=" + str.tostring(move_state) + " | Pts=" + str.tostring(state_points(move_state, true), "#.1") + "\n" +
+                "4. DXY: ROC=" + str.tostring(dxy_roc, "#.2") + "% | State=" + str.tostring(dxy_state) + " | Pts=" + str.tostring(state_points(dxy_state, true), "#.1") + "\n" +
+                "5. US10Y: Raw=" + str.tostring(us10y_raw, "#.2") + "% | State=" + str.tostring(us10y_state) + " | Pts=" + str.tostring(state_points(us10y_state, false), "#.1") + "\n" +
+                "6. ETF: Input=" + etf_flow_state_input + " | State=" + str.tostring(etf_state) + " | Pts=" + str.tostring(state_points(etf_state, true), "#.1") + "\n" +
+                "7. USDT: ROC=" + str.tostring(usdt_roc_active, "#.2") + "% | State=" + str.tostring(stable_state) + " | Pts=" + str.tostring(state_points(stable_state, true), "#.1") + "\n" +
+                "8. Fund: Proxy=" + str.tostring(funding_proxy, "#.3") + "% | State=" + str.tostring(funding_state) + " | Pts=" + str.tostring(state_points(funding_state, true), "#.1") + "\n" +
+                "9. OI: Chg=" + str.tostring(btc_oi_change_5d, "#.1") + "% | State=" + str.tostring(oi_state) + " | Pts=" + str.tostring(state_points(oi_state, true), "#.1") + "\n" +
+                "10. VIX: 9D=" + str.tostring(vix9d_raw, "#.1") + "/VVIX=" + str.tostring(vvix_raw, "#.1") + " | State=" + str.tostring(vix_state) + " | Pts=" + str.tostring(state_points(vix_state, false), "#.1") + "\n" +
+                "11. CuAu: Slope=" + str.tostring(cg_slope_debug, "#.4") + " | State=" + str.tostring(cg_slope_state) + " | Pts=" + str.tostring(state_points(cg_slope_state, false), "#.1") + "\n" +
+                "─────────────────────────\n" +
+                "TOTAL: " + str.tostring(macro_score_raw, "#.1") + " → Score: " + str.tostring(macro_score) + "/10 [" + macro_regime + "]"
+
+    debugLabel := label.new(bar_index + rightOffset + 5, -20,
+                            debug_str,
+                            xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_left,
+                            size=size.tiny, textcolor=color.white, color=color.new(color.blue, 40))
+
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ────────── Scale Stabilization ──────────
+// Extended lower bound to accommodate Copper/Gold band (-15 to 5)
+plot(show_cg_overlay ? -15 : 0, color=color.new(color.black, 100), title="Invisible Lower Bound")
+plot(100, color=color.new(color.black, 100), title="Invisible Upper Bound")
+
+// ────────── Day / HTF Timeframe Box ──────────
+// var label dayTfLabel = na
+// if barstate.islast
+//     label.delete(dayTfLabel)
+//     dayTfLabel := label.new(bar_index + rightOffset, 10.0, 
+//        "Day Timeframe Score: " + str.tostring(htf_score, "#.1") + "%\n" +
+//        "Bias: " + htf_bias + "\n" +
+//        "Vol: " + str.tostring(math.min(htf_vol_intensity * 100, 100), "#.1") + "%\n" +
+//        "Trend: " + str.tostring(math.min(htf_trend, 100), "#.1") + "%\n" +
+//        "• Higher timeframe trend alignment", 
+//        xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_left, size=size.small, textcolor=color.white, color=color.gray)
+
+// ────────── Emoji Signals (Optional) ──────────
+// var int last_bull_signal_bar = 0
+// var int last_bear_signal_bar = 0
+// extreme_bullish = k > extreme_threshold and d > extreme_threshold and rsi_value > extreme_threshold
+// extreme_bearish = k < (100 - extreme_threshold) and d < (100 - extreme_threshold) and rsi_value < (100 - extreme_threshold)
+// if show_emojis
+//     if extreme_bullish and (bar_index - last_bull_signal_bar > 20) and not extreme_bullish[1]
+//         label.new(bar_index, high + (atr * emoji_offset), bull_emoji, xloc=xloc.bar_index, yloc=yloc.belowbar, style=label.style_label_down, size=size.normal)
+//         last_bull_signal_bar := bar_index
+//     if extreme_bearish and (bar_index - last_bear_signal_bar > 20) and not extreme_bearish[1]
+//         label.new(bar_index, low - (atr * emoji_offset), bear_emoji, xloc=xloc.bar_index, yloc=yloc.belowbar, style=label.style_label_up, size=size.normal)
+//         last_bear_signal_bar := bar_index
+
+// ────────── Background Coloring ──────────
+bgcolor(color=rsi_value < rsi_oversold   ? color.new(color.green, 90) : na)
+bgcolor(color=rsi_value > rsi_overbought ? color.new(color.red,   90) : na)
+
+// ────────── Alerts ──────────
+alertcondition(long_condition,  title="Long Alert",  message="Long Trade Entry Condition Met")
+alertcondition(short_condition, title="Short Alert", message="Short Trade Entry Condition Met")
