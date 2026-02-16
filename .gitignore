@@ -73,3 +73,6 @@ test-multiline-validation.js
 test-ternary-validation.js
 validate-flashcrash-strategy.js
 validate-psstrategyxlite.js
+
+examples/
+.agent/
