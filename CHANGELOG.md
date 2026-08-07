@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.1] - 2026-08-07
+
+Packaging release. **No validator behaviour changes from 0.5.0** — the version is
+incremented so the VSIX installs as an unambiguous upgrade.
+
+v0.5.0 was installed alongside a still-present v0.4.4 in `~/.vscode/extensions/`,
+and the extension host kept serving the old build: users saw the very
+`alertcondition() expects 3 parameters` false positives that 0.5.0 fixed. A
+distinct version supersedes the old install cleanly.
+
+If both remain, remove the stale one and reload the window:
+
+```bash
+rm -rf ~/.vscode/extensions/jpantsjoha.pinescript-v6-extension-0.4.4
+# then: Cmd+Shift+P -> Developer: Reload Window
+```
+
+---
+
 ## [0.5.0] - 2026-08-07
 
 First release since v0.4.4 (2025-10-07). Focus: eliminating false positives,
@@ -89,9 +108,9 @@ was missing. Added:
 ### ⚠️ Known issues
 
 - `ComprehensiveValidator` still throws `ast.body is not iterable` on valid input.
-  It is imported by `extension.ts` but never called, so the extension is unaffected.
+  Its import has been removed from `extension.ts`, so the extension is unaffected.
   The AST path (parser/lexer/typeSystem) feeds only this validator, which is why
-  type-system validation remains unavailable.
+  type-system validation remains unavailable. See `STATUS.md`.
 
 ---
 

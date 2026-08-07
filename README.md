@@ -24,7 +24,7 @@ Search for **"Pine Script v6 IDE Tools"** in VS Code Extensions or [install dire
 ### Or Install from VSIX
 Download the latest `.vsix` from [Releases](https://github.com/jpantsjoha/pinescript-vscode-extension/releases) and install:
 ```bash
-code --install-extension pinescript-v6-extension-0.5.0.vsix
+code --install-extension pinescript-v6-extension-0.5.1.vsix
 ```
 
 ---
@@ -104,7 +104,7 @@ The extension works out of the box with zero configuration. All Pine Script v6 f
 
 ---
 
-## 📊 What's New in v0.5.0
+## 📊 What's New in v0.5.1
 
 ### False positives eliminated
 The coordinate forms of `line.new`, `label.new` and `box.new` are official v6
@@ -112,7 +112,7 @@ overloads, but the bundled reference only carried the `chart.point` form — so
 correct code lit up red. Overloads are now modelled properly.
 
 ```pinescript
-// Before v0.5.0: 10 errors on these three lines. Now: clean. ✅
+// Before v0.5.1: 10 errors on these three lines. Now: clean. ✅
 line.new(x1=bar_index[1], y1=low[1], x2=bar_index, y2=high)
 label.new(x=bar_index, y=high, text="hi")
 box.new(left=bar_index[5], top=high, right=bar_index, bottom=low)
@@ -206,4 +206,4 @@ Special thanks to:
 
 **Full Language Coverage**: 6,665 Pine Script v6 constructs
 **Test Coverage**: 112 tests
-**Current Version**: 0.5.0
+**Current Version**: 0.5.1
