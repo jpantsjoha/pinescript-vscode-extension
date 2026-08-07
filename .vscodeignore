@@ -85,3 +85,8 @@ my-pinescript-edit.pine
 
 # Compiled tests — built by tsc, never needed at runtime
 dist/test/**
+
+# Engine package: source and config are development-only. Its compiled output is
+# NOT shipped either — the extension imports from its own dist/, and duplicating
+# 800KB of identical data would double the VSIX for nothing.
+packages/**
