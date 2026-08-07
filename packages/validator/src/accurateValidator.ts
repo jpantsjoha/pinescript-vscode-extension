@@ -43,6 +43,12 @@ export interface ValidationError {
   length: number;
   message: string;
   severity: DiagnosticSeverity;
+  /**
+   * Set only on SEMANTIC findings (S1-S9). Its presence is what makes a finding
+   * suppressible via `// pine-ignore`; syntactic diagnostics leave it undefined
+   * and can never be silenced.
+   */
+  checkId?: string;
 }
 
 export class AccurateValidator {
