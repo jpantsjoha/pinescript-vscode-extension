@@ -10,6 +10,34 @@ code and uninstall. Every validation change must be proved in BOTH directions:
 it silences the false positive AND still catches the real error. If you cannot
 write the "still flags" test, do not ship the rule.
 
+## Definition of Done — per task type
+
+No task is done until its row passes. `npm run audit` mechanises most of this;
+run it before claiming completion.
+
+| Task | Done when |
+|---|---|
+| Fix a false positive | Reduced case added to the golden corpus **before** the fix · paired "must still flag" test · `npm test` green · `npm run audit` green |
+| Add a validation rule | Paired tests both directions · rule verified against the official v6 reference **and** release notes · zero new diagnostics on the golden corpus |
+| Add v6 API | Added to `MODERN_V6_FUNCTIONS` (never the generated file) with its release date · a test exercising it |
+| Change packaging | `vsce package` succeeds · VSIX **extracted and the packaged code executed** · entry point resolves |
+| Release | Version consistent in package.json / CHANGELOG / README / git tag · audit green · VSIX smoke-tested |
+| Harness change | `npm run audit` green · hook pipe-tested on every branch · agents/skills carry frontmatter |
+
+## Diagnostics come from MORE THAN ONE place
+
+`AccurateValidator` is **not** the only source of squiggles. `documentChecks.ts`
+runs whole-document heuristics alongside it. Both are wired into `validate-cli.js`
+and `test/golden-corpus.test.js`.
+
+This matters because it already went wrong: the document checks lived inline in
+`extension.ts`, untested and invisible to the CLI, and shipped **28 false
+`alertcondition` errors** across the same corpus the suite was certifying as clean.
+A green test run meant nothing for half the diagnostics a user saw.
+
+**If you add a diagnostic source, wire it into both.** `scripts/audit.js` fails the
+build otherwise — that guard is the reason this cannot silently recur.
+
 ## Before you change validation logic
 
 ```bash

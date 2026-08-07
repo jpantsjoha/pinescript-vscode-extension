@@ -261,6 +261,54 @@ function auditDataCurrency() {
 }
 
 //──────────────────────────────────────────────────────────
+// 6b. Every diagnostic source must be gated by the corpus and the CLI
+//
+// The extension emits diagnostics from more than one module. When a source is
+// not wired into validate-cli.js and the golden corpus, the suite reports
+// "0 errors" on files the editor covers in squiggles — that is exactly how 28
+// false alertcondition errors survived a green test run.
+//──────────────────────────────────────────────────────────
+function auditDiagnosticCoverage() {
+  const parserDir = 'src/parser';
+  if (!exists(parserDir)) return;
+
+  // A diagnostic source is any module the extension imports AND that returns
+  // diagnostics — identified by exporting a validate/check entry point.
+  const extension = exists('src/extension.ts') ? read('src/extension.ts') : '';
+  const sources = fs.readdirSync(path.join(ROOT, parserDir))
+    .filter(f => f.endsWith('.ts'))
+    .filter(f => {
+      const body = read(`${parserDir}/${f}`);
+      return /export (class|function) \w*(Validator|Checks|runDocumentChecks)/.test(body);
+    })
+    .map(f => f.replace(/\.ts$/, ''))
+    .filter(name => new RegExp(`from '\\./parser/${name}'`).test(extension));
+
+  if (!sources.length) {
+    warn('diagnostics', 'could not identify any diagnostic source imported by extension.ts');
+    return;
+  }
+
+  const cli = exists('validate-cli.js') ? read('validate-cli.js') : '';
+  const corpus = exists('test/golden-corpus.test.js') ? read('test/golden-corpus.test.js') : '';
+
+  const ungatedByCli = sources.filter(name => !cli.includes(name));
+  const ungatedByCorpus = sources.filter(name => !corpus.includes(name));
+
+  if (ungatedByCli.length) {
+    fail('diagnostics', `diagnostic source(s) not run by validate-cli.js: ${ungatedByCli.join(', ')} — the CLI will disagree with the editor`);
+  } else {
+    pass('diagnostics', `all ${sources.length} diagnostic source(s) run by validate-cli.js`);
+  }
+
+  if (ungatedByCorpus.length) {
+    fail('diagnostics', `diagnostic source(s) not gated by the golden corpus: ${ungatedByCorpus.join(', ')} — false positives there are invisible to CI`);
+  } else {
+    pass('diagnostics', `all ${sources.length} diagnostic source(s) gated by the golden corpus`);
+  }
+}
+
+//──────────────────────────────────────────────────────────
 // 7. CI must not have checks that silently no-op
 //──────────────────────────────────────────────────────────
 function auditCi() {
@@ -293,6 +341,7 @@ auditTestGate();
 auditPackaging();
 auditVersionConsistency();
 auditDataCurrency();
+auditDiagnosticCoverage();
 auditCi();
 
 const ICON = { PASS: '[32m PASS[0m', WARN: '[33m WARN[0m', FAIL: '[31m FAIL[0m' };

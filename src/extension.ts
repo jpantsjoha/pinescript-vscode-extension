@@ -8,9 +8,12 @@ import {
   createCompletionItem
 } from './completions';
 import { createSignatureHelpProvider } from './signatureHelp';
-import { Parser } from './parser/parser';
-import { PineScriptValidator } from './parser/validator';
-import { ComprehensiveValidator } from './parser/comprehensiveValidator';
+// NOTE: the extension deliberately imports ONLY the validators it runs.
+// parser.ts / validator.ts / comprehensiveValidator.ts were imported here but never
+// called; ComprehensiveValidator additionally throws `ast.body is not iterable` on
+// valid input. Importing a dead diagnostic source makes it look gated when it is
+// not — scripts/audit.js now fails the build if a source reaches extension.ts
+// without also being covered by validate-cli.js and the golden corpus. See STATUS.md.
 import { AccurateValidator } from './parser/accurateValidator';
 import { runDocumentChecks } from './parser/documentChecks';
 
