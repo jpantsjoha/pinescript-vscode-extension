@@ -1,3 +1,8 @@
+---
+name: publisher
+description: Publish the extension to the VS Code Marketplace: version bump, changelog, VSIX packaging, verification of package contents, tagging and release. Use when preparing or executing a marketplace release.
+---
+
 # VSCode Extension Publisher Agent
 
 **Role:** Autonomous agent for publishing VS Code extensions to the Marketplace

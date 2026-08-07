@@ -68,12 +68,7 @@ examples/FlashCrashDetection/flashcrashdetection.pine
 examples/FlashCrashDetection/flashcrashdetection.promt
 examples/FlashCrashDetection/FlashCrashWarningScore.pine
 examples/FlashCrashDetection/README.md
-test-flashcrash-comprehensive.js
-test-flashcrash-strategy.js
-validate-flashcrash-strategy.js
-validate-psstrategyxlite.js
 
-.agent/
 
 # Vendored third-party MCP projects, cloned for reference only. Not part of this
 # extension and not ours to redistribute:

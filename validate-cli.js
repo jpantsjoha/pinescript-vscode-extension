@@ -29,6 +29,11 @@ function loadValidators() {
   catch (e) { out.accurateErr = e.message; }
   try { out.comprehensive = new (require('./dist/src/parser/comprehensiveValidator').ComprehensiveValidator)(); }
   catch (e) { out.comprehensiveErr = e.message; }
+  // The editor emits diagnostics from TWO sources: AccurateValidator plus the
+  // whole-document heuristics. A CLI that ran only the first reported "0 errors"
+  // on files the editor covered in squiggles, so both run here by default.
+  try { out.documentChecks = { validate: require('./dist/src/parser/documentChecks').runDocumentChecks }; }
+  catch (e) { out.documentChecksErr = e.message; }
   return out;
 }
 
@@ -79,6 +84,7 @@ function main() {
     catch (e) { console.error(paint(`Cannot read ${file}: ${e.message}`, c.red)); totalErrors++; continue; }
     console.log(`\n${paint('▸ ' + file, c.bold)}  ${paint('(' + code.split('\n').length + ' lines)', c.dim)}`);
     if (mode === 'accurate' || mode === 'both') totalErrors += printErrors('AccurateValidator', run(v.accurate, code));
+    if ((mode === 'accurate' || mode === 'both') && v.documentChecks) totalErrors += printErrors('DocumentChecks', run(v.documentChecks, code));
     if (mode === 'comprehensive' || mode === 'both') totalErrors += printErrors('ComprehensiveValidator', run(v.comprehensive, code));
   }
   console.log('');

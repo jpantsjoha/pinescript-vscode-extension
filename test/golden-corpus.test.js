@@ -18,6 +18,15 @@ const fs = require('fs');
 const path = require('path');
 
 const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
+const { runDocumentChecks } = require('../dist/src/parser/documentChecks.js');
+
+/**
+ * The editor emits diagnostics from TWO independent sources. Gating only the
+ * first is how 28 false `alertcondition` errors survived a "0 errors" corpus run.
+ */
+function allDiagnostics(source) {
+  return [...new AccurateValidator().validate(source), ...runDocumentChecks(source)];
+}
 
 const REPO_ROOT = path.join(__dirname, '..');
 
@@ -67,9 +76,7 @@ for (const relativePath of GOLDEN_FILES) {
     }
 
     const source = fs.readFileSync(absolutePath, 'utf8');
-    const errors = new AccurateValidator()
-      .validate(source)
-      .filter(e => e.severity === 0);
+    const errors = allDiagnostics(source).filter(e => e.severity === 0);
 
     const detail = errors
       .slice(0, 10)

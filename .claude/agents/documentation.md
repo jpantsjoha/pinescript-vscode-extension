@@ -1,3 +1,8 @@
+---
+name: documentation
+description: Review and improve this project's documentation for accuracy and completeness: README, CHANGELOG, STATUS, CLAUDE.md and docs/. Use after shipping a feature, before a release, or when docs and code have drifted apart.
+---
+
 # DOCA - Documentation Quality Agent
 
 ## Role & Responsibility

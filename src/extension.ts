@@ -12,6 +12,7 @@ import { Parser } from './parser/parser';
 import { PineScriptValidator } from './parser/validator';
 import { ComprehensiveValidator } from './parser/comprehensiveValidator';
 import { AccurateValidator } from './parser/accurateValidator';
+import { runDocumentChecks } from './parser/documentChecks';
 
 export function activate(context: vscode.ExtensionContext) {
   // Optional: ensure files.associations maps *.pine -> pine
@@ -186,112 +187,23 @@ export function activate(context: vscode.ExtensionContext) {
       console.error('[Pine Validator] Validation error:', e);
     }
 
-    // 1) Version header
-    if (!/^\s*\/\/\@version=6/m.test(text)) {
-      diags.push(new vscode.Diagnostic(new vscode.Range(0, 0, 0, 1), 'Recommend using //@version=6 for Pine v6.', vscode.DiagnosticSeverity.Warning));
-    }
-
-    // 2) input.timeframe suggestion
-    if (/input\.string\s*\(\s*\"\d+\"\s*,\s*\"HTF/m.test(text) && !/input\.timeframe/m.test(text)) {
-      diags.push(createDocDiag(doc, /input\.string\s*\(\s*\"\d+\"\s*,\s*\"HTF/m, 'Use input.timeframe(...) for timeframe inputs in v6.'));
-    }
-
-    // 3) time()/session boolean usage
-    if (/\btime\(timeframe\.period,\s*\w+\)/m.test(text) && !/not\s+na\(time\(timeframe\.period,/m.test(text)) {
-      diags.push(createDocDiag(doc, /time\(timeframe\.period,\s*\w+\)/m, 'Wrap session checks as: not na(time(timeframe.period, session)) to avoid bool-NA pitfalls.'));
-    }
-
-    // 4) ta.change in condition hint
-    if (/ta\.change\s*\(/m.test(text) && /\?\s*\(|\)\s*and|\)\s*or/.test(text)) {
-      diags.push(createDocDiag(doc, /ta\.change\s*\(/m, 'Consider assigning ta.change(...) to a variable before using in conditions for consistent evaluation.'));
-    }
-
-    // 5) timenow milliseconds reminder
-    if (/timenow\s*-\s*\w+\s*<=\s*\w+\s*\*\s*60(?!\s*\*\s*1000)/m.test(text)) {
-      diags.push(createDocDiag(doc, /timenow\s*-\s*\w+\s*<=\s*\w+\s*\*\s*60(?!\s*\*\s*1000)/m, 'timenow is in milliseconds. Multiply seconds by 1000.'));
-    }
-
-    // 6) Invalid functions (e.g., math.clamp)
-    if (/\bmath\.clamp\b/.test(text)) {
-      diags.push(createDocDiag(doc, /math\.clamp/, 'Pine v6: use math.min/math.max pattern; math.clamp is not available.'));
-    }
-
-    // 7) plotshape with wrong parameter name (shape= instead of style=)
-    const plotshapeShapeMatch = /plotshape\s*\([^)]*\bshape\s*=/g;
-    let match;
-    while ((match = plotshapeShapeMatch.exec(text)) !== null) {
-      const pos = doc.positionAt(match.index + match[0].indexOf('shape='));
-      const endPos = pos.translate(0, 6); // length of "shape="
-      diags.push(new vscode.Diagnostic(
-        new vscode.Range(pos, endPos),
-        'Invalid parameter "shape". Did you mean "style"?',
-        vscode.DiagnosticSeverity.Error
-      ));
-    }
-
-    // 8) plotchar with wrong parameter name (shape= instead of char=)
-    const plotcharShapeMatch = /plotchar\s*\([^)]*\bshape\s*=/g;
-    while ((match = plotcharShapeMatch.exec(text)) !== null) {
-      const pos = doc.positionAt(match.index + match[0].indexOf('shape='));
-      const endPos = pos.translate(0, 6);
-      diags.push(new vscode.Diagnostic(
-        new vscode.Range(pos, endPos),
-        'Invalid parameter "shape". Did you mean "char"?',
-        vscode.DiagnosticSeverity.Error
-      ));
-    }
-
-    // 9) timeframe_gaps without timeframe parameter in indicator/strategy
-    const indicatorMatch = /(indicator|strategy)\s*\([^)]*timeframe_gaps\s*=\s*true[^)]*\)/g;
-    while ((match = indicatorMatch.exec(text)) !== null) {
-      const fullCall = match[0];
-      // Check if "timeframe" parameter is present in the call
-      if (!/\btimeframe\s*=/.test(fullCall)) {
-        const pos = doc.positionAt(match.index + fullCall.indexOf('timeframe_gaps'));
-        const endPos = pos.translate(0, 14); // length of "timeframe_gaps"
-        diags.push(new vscode.Diagnostic(
-          new vscode.Range(pos, endPos),
-          '"timeframe_gaps" has no effect without a "timeframe" argument in indicator/strategy call',
-          vscode.DiagnosticSeverity.Warning
-        ));
+    // Whole-document heuristic checks. Extracted to src/parser/documentChecks.ts so
+    // they are testable and runnable from validate-cli.js — inline here they were
+    // invisible to every test, and shipped 28 false alertcondition errors across the
+    // TradingView-verified corpus.
+    try {
+      for (const check of runDocumentChecks(text)) {
+        const pos = new vscode.Position(check.line - 1, check.column);
+        const endPos = pos.translate(0, check.length);
+        diags.push(new vscode.Diagnostic(new vscode.Range(pos, endPos), check.message, check.severity));
       }
-    }
-
-    // 10) alertcondition with too many arguments (should be 3: condition, title, message)
-    const alertCondMatch = /alertcondition\s*\(([^)]+)\)/g;
-    while ((match = alertCondMatch.exec(text)) !== null) {
-      const args = match[1].split(',').map(a => a.trim());
-      if (args.length > 3) {
-        const pos = doc.positionAt(match.index);
-        const endPos = pos.translate(0, 14); // length of "alertcondition"
-        diags.push(new vscode.Diagnostic(
-          new vscode.Range(pos, endPos),
-          `alertcondition() expects 3 parameters (condition, title, message), but got ${args.length}`,
-          vscode.DiagnosticSeverity.Error
-        ));
-      }
-    }
-
-    // 11) input.string() without required defval parameter
-    const inputStringMatch = /input\.string\s*\(\s*\)/g;
-    while ((match = inputStringMatch.exec(text)) !== null) {
-      const pos = doc.positionAt(match.index);
-      const endPos = pos.translate(0, 12); // length of "input.string"
-      diags.push(new vscode.Diagnostic(
-        new vscode.Range(pos, endPos),
-        'input.string() requires at least one parameter: defval (default value)',
-        vscode.DiagnosticSeverity.Error
-      ));
+    } catch (e) {
+      console.error('[Pine Validator] Document check error:', e);
     }
 
     diagCollection.set(doc.uri, diags);
   };
 
-  const createDocDiag = (doc: vscode.TextDocument, re: RegExp, message: string): vscode.Diagnostic => {
-    const m = re.exec(doc.getText());
-    const pos = m ? doc.positionAt(m.index) : new vscode.Position(0, 0);
-    return new vscode.Diagnostic(new vscode.Range(pos, pos.translate(0, 1)), message, vscode.DiagnosticSeverity.Warning);
-  };
 
   context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(runDiagnostics));
   context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(e => runDiagnostics(e.document)));

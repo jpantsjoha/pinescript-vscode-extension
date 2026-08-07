@@ -191,7 +191,11 @@ MIT License - see [LICENSE](./LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
-Created by **[Jaroslav Pantsjoha](https://jpantsjoha.com)** — [website](https://jpantsjoha.com) · [GitHub](https://github.com/jpantsjoha)
+Created by **[Jaroslav Pantsjoha](https://jpantsjoha.com)**
+
+- Website: [jpantsjoha.com](https://jpantsjoha.com)
+- GitHub: [@jpantsjoha](https://github.com/jpantsjoha)
+- LinkedIn: [in/johas](https://www.linkedin.com/in/johas)
 
 Special thanks to:
 - TradingView for Pine Script

@@ -250,3 +250,73 @@ test('FP: v6 API added after the reference scrape is accepted', () => {
     'Release notes Oct 2025 - Jul 2026 added these; the scraped dataset predates them'
   );
 });
+
+//──────────────────────────────────────────────────────────
+// Whole-document heuristics (src/parser/documentChecks.ts)
+//
+// These ran inline in extension.ts, invisible to the CLI and to every test, and
+// produced 28 false `alertcondition` errors across the TradingView-verified
+// corpus — on files this suite simultaneously certified as clean.
+//──────────────────────────────────────────────────────────
+
+const { runDocumentChecks } = require('../dist/src/parser/documentChecks.js');
+
+function docErrors(source) {
+  return runDocumentChecks(source).filter(e => e.severity === 0);
+}
+
+test('FP: alertcondition message containing a comma is not an extra argument', () => {
+  const errors = docErrors(
+    HEADER + 'c = close > open\n' +
+    'alertcondition(c, title="MED Conf Long", message="MEDIUM CONFIDENCE: Conditions met, reduce size or tighten stops")\n'
+  );
+  assert.strictEqual(errors.length, 0,
+    'A comma inside a string literal is not an argument separator. Got: ' +
+    errors.map(e => e.message).join(' | '));
+});
+
+test('FP: alertcondition with a nested call in an argument is not truncated', () => {
+  const errors = docErrors(
+    HEADER + 'c = close > open\n' +
+    'alertcondition(c and not na(close[1]), title="T", message="M")\n'
+  );
+  assert.strictEqual(errors.length, 0,
+    'Matching with [^)]+ stopped at the first inner ")". Got: ' +
+    errors.map(e => e.message).join(' | '));
+});
+
+test('Still flags: alertcondition genuinely given four arguments', () => {
+  const errors = docErrors(HEADER + 'c = close > open\nalertcondition(c, "T", "M", "extra")\n');
+  assert.ok(
+    errors.some(e => e.message.includes('expects 3 parameters')),
+    'Four real arguments must still be reported'
+  );
+});
+
+test('Still flags: plotshape called with shape= instead of style=', () => {
+  const errors = docErrors(HEADER + 'plotshape(close > open, shape=shape.triangleup)\n');
+  assert.ok(errors.some(e => e.message.includes('Did you mean "style"')), 'shape= is wrong on plotshape');
+});
+
+test('FP: plotshape with a nested call before style= is still checked correctly', () => {
+  const errors = docErrors(HEADER + 'plotshape(close > open, style=shape.triangleup, color=color.new(color.green, 0))\n');
+  assert.strictEqual(errors.length, 0, 'Correct usage must be silent: ' + errors.map(e => e.message).join(' | '));
+});
+
+test('FP: time() with the v6 timeframe_bars_back named argument is not a session check', () => {
+  const warnings = runDocumentChecks(HEADER + 't = time(timeframe.period, timeframe_bars_back=1)\n');
+  assert.ok(
+    !warnings.some(w => w.message.includes('bool-NA')),
+    'timeframe_bars_back is a named argument added in October 2025, not a session argument'
+  );
+});
+
+test('FP: the removed ta.change heuristic no longer fires on valid code', () => {
+  const warnings = runDocumentChecks(
+    HEADER + 'ch = ta.change(close)\nsig = (ch > 0) and (close > open)\nplot(sig ? 1 : 0)\n'
+  );
+  assert.ok(
+    !warnings.some(w => w.message.includes('ta.change')),
+    'An unlocalisable style hint that fired on 3 of 11 verified files was removed'
+  );
+});

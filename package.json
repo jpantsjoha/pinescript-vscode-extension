@@ -16,7 +16,7 @@
   "bugs": {
     "url": "https://github.com/jpantsjoha/pinescript-vscode-extension/issues"
   },
-  "homepage": "https://github.com/jpantsjoha/pinescript-vscode-extension#readme",
+  "homepage": "https://jpantsjoha.com",
   "license": "MIT",
   "engines": {
     "vscode": "^1.88.0"
@@ -121,15 +121,16 @@
     "test": "npm run build && node --test test/*.test.js",
     "test:validation": "npm run build && node --test test/validation.test.js",
     "test:benchmark": "node --test test/benchmark.test.js",
-    "qa:pinescript": "npm run build && node qa-validate-pinescript.js",
-    "qa:pinescript:watch": "npm run build && node qa-validate-pinescript.js --watch",
-    "test:mcp": "npm run build && node test-mcp-server.js",
+    "qa:pinescript": "node validate-cli.js examples/*.pine",
     "package": "vsce package --out build/",
     "rebuild": "npm run clean && npm run build && npm test && npm run package",
     "rebuild:skip-tests": "npm run clean && npm run build && npm run package",
     "crawl": "node v6/scripts/crawl-docs.js",
     "generate": "node v6/scripts/generate-builtins.js",
-    "scrape": "node v6/scripts/scrape-builtins.js"
+    "scrape": "node v6/scripts/scrape-builtins.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "npm run typecheck && node scripts/audit.js",
+    "audit": "node scripts/audit.js"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.19.1",
