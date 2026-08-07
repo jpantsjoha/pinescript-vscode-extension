@@ -195,7 +195,7 @@ Created by **[Jaroslav Pantsjoha](https://jpantsjoha.com)**
 
 - Website: [jpantsjoha.com](https://jpantsjoha.com)
 - GitHub: [@jpantsjoha](https://github.com/jpantsjoha)
-- LinkedIn: [in/johas](https://www.linkedin.com/in/johas)
+- LinkedIn: [in/johas](https://uk.linkedin.com/in/johas)
 
 Special thanks to:
 - TradingView for Pine Script
