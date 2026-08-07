@@ -10,7 +10,9 @@ node_modules/
 # IDE & Editor
 .vscode/
 .idea/
-.claude/
+# .claude/ is tracked: it carries the project hooks and agent definitions.
+# Only the personal, machine-specific overrides stay out of git.
+.claude/settings.local.json
 *.swp
 *.swo
 *~
@@ -62,17 +64,20 @@ examples/FlashCrashDetection/TESTING-REPORT.md
 examples/FlashCrashDetection/VALIDATION-GAP-AUDIT.md
 examples/PSStrategyXLite/PSStrategyXLite.pine
 examples/PSStrategyXLite/README.md
-.gitignore
 examples/FlashCrashDetection/flashcrashdetection.pine
 examples/FlashCrashDetection/flashcrashdetection.promt
 examples/FlashCrashDetection/FlashCrashWarningScore.pine
 examples/FlashCrashDetection/README.md
 test-flashcrash-comprehensive.js
 test-flashcrash-strategy.js
-test-multiline-validation.js
-test-ternary-validation.js
 validate-flashcrash-strategy.js
 validate-psstrategyxlite.js
 
-examples/
 .agent/
+
+# Vendored third-party MCP projects, cloned for reference only. Not part of this
+# extension and not ours to redistribute:
+#   mcp/pinescript-mcp-server/ -> github.com/CyberBOB07/pinescript-mcp-server (own .git)
+#   mcp/tradingview-mcp/       -> separate Python project
+mcp/pinescript-mcp-server/
+mcp/tradingview-mcp/

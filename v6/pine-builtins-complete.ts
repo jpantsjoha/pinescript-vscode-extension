@@ -89,6 +89,9 @@ export const VARIABLE_NAMESPACES = new Set([
 // Examples: ta.sma(), input.int(), str.tostring()
 export const FUNCTION_NAMESPACES = new Set([
   'array',
+  // Added January 2026 with request.footprint() — volume footprint data.
+  'footprint',
+  'volume_row',
   'box',
   'chart',
   'color',

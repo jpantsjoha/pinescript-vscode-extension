@@ -227,6 +227,16 @@ export const V6_VARIABLES: Record<string, PineItem> = {
     "type": "simple float",
     "category": "syminfo"
   },
+  "syminfo.isin": {
+    "description": "The 12-character International Securities Identification Number (ISIN) of the current symbol, or na if unavailable. Added in the November 2025 Pine Script release.",
+    "type": "simple string",
+    "category": "syminfo"
+  },
+  "syminfo.current_contract": {
+    "description": "For continuous futures symbols, the ticker identifier of the contract the current bar belongs to. Added in the July 2025 Pine Script release.",
+    "type": "simple string",
+    "category": "syminfo"
+  },
   "timeframe.period": {
     "description": "Current timeframe period as a string.",
     "type": "simple string",

@@ -17,7 +17,19 @@ const fs = require('fs');
 const path = require('path');
 
 // Import the validator
-const { validatePineScript } = require('../test-comprehensive-validator.js');
+// Uses AccurateValidator — the SAME engine the VS Code extension runs, so an MCP
+// client and the editor never disagree about a file.
+//
+// This previously required `../test-comprehensive-validator.js`, which does not
+// exist at the repo root (and the dev-tools copy is a zero-byte file), so the
+// server failed at load. That wrapper fronted ComprehensiveValidator, which still
+// throws `ast.body is not iterable` on valid input — reconciling on the shipping
+// validator fixes the crash and the divergence in one move.
+const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
+
+function validatePineScript(code) {
+  return new AccurateValidator().validate(code);
+}
 
 // Create MCP server
 const server = new Server(

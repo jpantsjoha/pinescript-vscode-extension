@@ -24,7 +24,7 @@ Search for **"Pine Script v6 IDE Tools"** in VS Code Extensions or [install dire
 ### Or Install from VSIX
 Download the latest `.vsix` from [Releases](https://github.com/jpantsjoha/pinescript-vscode-extension/releases) and install:
 ```bash
-code --install-extension pinescript-v6-extension-0.4.4.vsix
+code --install-extension pinescript-v6-extension-0.5.0.vsix
 ```
 
 ---
@@ -42,7 +42,8 @@ code --install-extension pinescript-v6-extension-0.4.4.vsix
 - Catches undefined functions and variables
 - Detects missing/extra parameters
 - Validates namespace properties
-- **Zero false positives** on valid v6 code
+- **Zero false positives** on the golden corpus — 13 real scripts that compile
+  on TradingView, asserted clean on every commit
 
 ### 💡 **Intelligent IntelliSense**
 - Smart autocomplete for all built-in functions
@@ -103,24 +104,36 @@ The extension works out of the box with zero configuration. All Pine Script v6 f
 
 ---
 
-## 📊 What's New in v0.4.4
+## 📊 What's New in v0.5.0
 
-### Fixed Parser Issues
-- ✅ `math.round()` now correctly accepts optional `precision` parameter
-- ✅ Added 32 missing `strategy.*` runtime variables
-- ✅ Eliminates false positives for valid strategy scripts
+### False positives eliminated
+The coordinate forms of `line.new`, `label.new` and `box.new` are official v6
+overloads, but the bundled reference only carried the `chart.point` form — so
+correct code lit up red. Overloads are now modelled properly.
 
-### Before v0.4.4
 ```pinescript
-rounded = math.round(close, 2)  // ❌ ERROR: Too many arguments
-if strategy.position_size > 0   // ⚠️  WARNING: Unknown constant
+// Before v0.5.0: 10 errors on these three lines. Now: clean. ✅
+line.new(x1=bar_index[1], y1=low[1], x2=bar_index, y2=high)
+label.new(x=bar_index, y=high, text="hi")
+box.new(left=bar_index[5], top=high, right=bar_index, bottom=low)
 ```
 
-### After v0.4.4
-```pinescript
-rounded = math.round(close, 2)  // ✅ Valid
-if strategy.position_size > 0   // ✅ Valid
-```
+Also fixed: `for … in` loop iterators, comments and blank lines inside wrapped
+calls, nested parentheses in arguments, user-defined `type`/`enum` namespaces, and
+two indentation rules TradingView removed in December 2025.
+
+### 12.8× faster
+A 1,302-line script validates in **12.3ms**, down from 158ms.
+
+### Caught up with Pine v6
+Ten months of TradingView releases the bundled reference was missing —
+multiline strings (`"""…"""`), `request.footprint()`, `calc_on_every_history_tick`,
+`sort_field`, `active` on inputs, `timeframe_bars_back`, `syminfo.isin`,
+`box.set_xloc()`.
+
+### A real test gate
+67 → **112 tests**, including a golden corpus of 13 scripts that compile on
+TradingView and must validate with zero errors.
 
 See [CHANGELOG](./CHANGELOG.md) for complete version history.
 
@@ -128,21 +141,21 @@ See [CHANGELOG](./CHANGELOG.md) for complete version history.
 
 ## 🧪 Testing
 
-This extension is thoroughly tested:
-- **67/67 unit tests passing** (100%)
-- **7/8 example files validated**
-- Parameter validation verified
-- Namespace property detection tested
+- **112/112 tests passing** (100%)
+- **Golden corpus**: 13 real scripts that compile on TradingView, asserted to
+  produce zero errors — any error against them is a false positive by definition
+- **Paired regression tests**: every false-positive fix ships with a "must still
+  flag" counterpart, so a check cannot be silently deleted instead of repaired
+- **Performance budget**: enforced in CI (<100ms for a 1,300-line script)
 
 ```bash
-npm test  # Run test suite
+npm test                          # full suite
+node validate-cli.js file.pine    # headless single-file validation
 ```
-
----
 
 ## 🤝 Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
+Contributions welcome! See [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) for guidelines.
 
 ### Found a Bug?
 - Check [existing issues](https://github.com/jpantsjoha/pinescript-vscode-extension/issues)
@@ -178,7 +191,7 @@ MIT License - see [LICENSE](./LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
-Created by [Jaroslav Pantsjoha](https://github.com/jpantsjoha)
+Created by **[Jaroslav Pantsjoha](https://jpantsjoha.com)** — [website](https://jpantsjoha.com) · [GitHub](https://github.com/jpantsjoha)
 
 Special thanks to:
 - TradingView for Pine Script
@@ -188,5 +201,5 @@ Special thanks to:
 ---
 
 **Full Language Coverage**: 6,665 Pine Script v6 constructs
-**Test Coverage**: 67 comprehensive tests
-**Current Version**: 0.4.4
+**Test Coverage**: 112 tests
+**Current Version**: 0.5.0

@@ -37,6 +37,21 @@ export class AccurateValidator {
 
   private declaredVariables = new Set<string>();
 
+  // User-defined types and enums (`type Foo` / `enum Bar`). These act as namespaces
+  // for `.new(...)` constructors and field access, so they must not be flagged as
+  // "undefined namespace".
+  private declaredTypes = new Set<string>();
+
+  // Functions whose parameter-NAME data is verified complete — safe to flag unknown
+  // named arguments as errors. (Most functions have incomplete generated param data,
+  // e.g. plot/input.*, so a blanket check would false-positive. This is the curated
+  // allowlist of drawing functions where wrong arg names are common and catchable —
+  // this is what catches e.g. `label.new(... text_halign=...)` → should be `textalign`.)
+  private namedArgCheckedFunctions = new Set([
+    'label.new', 'line.new', 'box.new', 'table.new', 'table.cell',
+    'label.set_xy', 'label.set_text', 'label.set_point', 'polyline.new'
+  ]);
+
   // Functions with unreliable auto-generated parameter data - skip parameter validation
   private unreliableParamFunctions = new Set([
     'table.set_bgcolor', 'table.set_border_color', 'table.set_border_width',
@@ -48,9 +63,14 @@ export class AccurateValidator {
   validate(text: string): ValidationError[] {
     this.errors = [];
     this.declaredVariables.clear();
+    this.declaredTypes.clear();
 
-    // First pass: collect declared variables
-    const lines = text.split('\n');
+    // Pine v6 (April 2026) added multiline string literals delimited by `"""` or
+    // `'''`. Their contents are text, not code, and they span lines — so they must
+    // be neutralised before any per-line analysis, or every word inside a message
+    // block gets parsed as an identifier and the unbalanced quotes desynchronise
+    // single-line string stripping for the rest of the file.
+    const lines = this.blankMultilineStrings(text).split('\n');
     for (let i = 0; i < lines.length; i++) {
       this.collectDeclaredVariables(lines[i]);
     }
@@ -66,8 +86,11 @@ export class AccurateValidator {
         continue;
       }
 
-      // Remove string literals to avoid false positives on content inside strings
-      const lineWithoutStrings = this.removeStringLiterals(line);
+      // Remove string literals AND inline comments to avoid false positives on their
+      // content (e.g. a word followed by "(" inside a `// comment` was flagged as an
+      // undefined function). Strings are blanked first, so a "//" left over is a real
+      // comment, not part of a URL inside a string.
+      const lineWithoutStrings = this.removeStringLiterals(line).replace(/\/\/.*$/, '');
 
       // Check undefined namespaces (e.g., ssss.adas)
       this.checkUndefinedNamespaces(lineWithoutStrings, lineNum);
@@ -90,13 +113,34 @@ export class AccurateValidator {
       // Check multi-line function calls and statement continuation
       this.checkMultiLineStatements(lineWithoutStrings, lineNum, i, lines);
 
-      // Check each registered function (use original line for parameter extraction)
-      for (const [funcName, spec] of Object.entries(ALL_FUNCTION_SIGNATURES)) {
-        this.validateFunctionCall(line, lineNum, funcName, spec);
+      // Check each registered function (use original line for parameter extraction).
+      // Only the functions actually named on this line are considered. The previous
+      // implementation looped all 457 signatures per line and compiled a regex for
+      // each — roughly 595,000 regex executions on a 1,300-line script, which put
+      // validation well over the 100ms budget. Candidate extraction is one scan.
+      for (const funcName of this.extractCalledFunctionNames(lineWithoutStrings)) {
+        const spec = (ALL_FUNCTION_SIGNATURES as any)[funcName];
+        if (spec) {
+          this.validateFunctionCall(line, lineNum, funcName, spec);
+        }
       }
     }
 
     return this.errors;
+  }
+
+  /**
+   * Replace the body of every multiline string literal (`"""..."""` / `'''...'''`)
+   * with spaces, leaving the delimiters and all newlines in place.
+   *
+   * Preserving both the line count and each line's length matters: reported line
+   * numbers and columns are offsets into the ORIGINAL document, so the blanked text
+   * has to stay positionally identical to what the user sees in the editor.
+   */
+  private blankMultilineStrings(text: string): string {
+    return text.replace(/"""[\s\S]*?"""|'''[\s\S]*?'''/g, match =>
+      match.replace(/[^\n]/g, ' ')
+    );
   }
 
   private removeStringLiterals(line: string): string {
@@ -106,6 +150,29 @@ export class AccurateValidator {
   }
 
   private collectDeclaredVariables(line: string): void {
+    // Collect user-defined type / enum declarations so `TypeName.new(...)` and field
+    // access aren't mistaken for an undefined namespace.
+    const typeDecl = line.match(/^\s*(?:export\s+)?(?:type|enum)\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+    if (typeDecl) {
+      this.declaredTypes.add(typeDecl[1]);
+      this.declaredVariables.add(typeDecl[1]);
+    }
+
+    // `for ... in` loop iterators bind names without an `=`, so the assignment
+    // pattern below never sees them. Both v6 forms are handled:
+    //     for element in collection
+    //     for [index, element] in collection
+    const forInDecl = line.match(/^\s*for\s+(?:\[([^\]]+)\]|([a-zA-Z_][a-zA-Z0-9_]*))\s+in\s+/);
+    if (forInDecl) {
+      const bound = forInDecl[1] ? forInDecl[1].split(',') : [forInDecl[2]];
+      for (const name of bound) {
+        const iterator = name.trim();
+        if (iterator && !this.isReservedKeyword(iterator)) {
+          this.declaredVariables.add(iterator);
+        }
+      }
+    }
+
     // Match variable declarations: varname = ..., var type varname = ..., varip type varname = ...
     const varDeclarations = line.matchAll(/\b(var|varip)?\s*(?:int|float|bool|string|color)?\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*=/g);
     for (const match of varDeclarations) {
@@ -145,6 +212,7 @@ export class AccurateValidator {
       // Skip if it's a known namespace, declared variable, or built-in
       if (!this.knownNamespaces.has(namespace) &&
           !this.declaredVariables.has(namespace) &&
+          !this.declaredTypes.has(namespace) &&
           !this.isBuiltInVariable(namespace)) {
         this.addError(
           lineNum,
@@ -367,38 +435,20 @@ export class AccurateValidator {
     const closeParens = (line.match(/\)/g) || []).length;
     const unclosedParens = openParens - closeParens;
 
-    // If line has unclosed parentheses, next line should be indented continuation
-    if (unclosedParens > 0 && lineIndex + 1 < allLines.length) {
-      const nextLine = allLines[lineIndex + 1];
-      const currentIndent = line.search(/\S/); // First non-whitespace
-      const nextIndent = nextLine.search(/\S/);
+    // NOTE ON INDENTATION: this validator used to warn when a continuation line was
+    // not indented past its opening line, and again when an `input.string()` options
+    // continuation was indented by a multiple of four. TradingView REMOVED both
+    // restrictions in the December 2025 release ("Removed indentation restrictions
+    // for wrapped lines within parentheses... now supports multiples of four spaces
+    // inside enclosed expressions"). Enforcing them flagged correct modern code, so
+    // the rules are gone rather than downgraded — a warning on valid syntax is still
+    // a false positive.
 
-      // Next line should be indented more than current line (continuation)
-      // Exception: if next line closes the parentheses immediately
-      if (nextLine.trim() && !nextLine.trim().startsWith(')')) {
-        if (nextIndent <= currentIndent) {
-          // Check if this is a function call with parameters
-          const funcMatch = line.match(/([a-zA-Z_][a-zA-Z0-9_.]*)\s*\(/);
-          if (funcMatch) {
-            this.addError(
-              lineNum + 1,
-              0,
-              nextLine.trim().length,
-              `Improper indentation for multi-line function call continuation. Continuation lines should be indented beyond the opening line.`,
-              vscode.DiagnosticSeverity.Warning
-            );
-          }
-        }
-      }
-    }
-
-    // Check for lines ending with comma (parameter continuation)
-    if (trimmed.endsWith(',') && lineIndex + 1 < allLines.length) {
-      const nextLine = allLines[lineIndex + 1];
-      const nextTrimmed = nextLine.trim();
-
-      // If line ends with comma, there should be a continuation
-      if (nextTrimmed === '' || nextTrimmed.startsWith('//')) {
+    // Trailing comma must be followed by something. Blank lines and comment lines
+    // are legal *inside* a wrapped call, so look past them for the real continuation
+    // rather than treating the very next line as authoritative.
+    if (trimmed.endsWith(',')) {
+      if (this.nextMeaningfulLineIndex(allLines, lineIndex + 1) === -1) {
         this.addError(
           lineNum,
           line.lastIndexOf(','),
@@ -407,66 +457,16 @@ export class AccurateValidator {
           vscode.DiagnosticSeverity.Error
         );
       }
-
-      // Check if next line is properly indented for parameter continuation
-      const currentIndent = line.search(/\S/);
-      const nextIndent = nextLine.search(/\S/);
-
-      // For input functions with options parameter, next line should be indented
-      if (line.includes('input.') && line.includes('(') && nextIndent <= currentIndent) {
-        this.addError(
-          lineNum + 1,
-          0,
-          Math.min(10, nextLine.trim().length),
-          `Multi-line input function: continuation line should be indented. Consider proper indentation for readability.`,
-          vscode.DiagnosticSeverity.Warning
-        );
-      }
     }
 
-    // Check for specific input.string() pattern with options parameter
-    // Pattern: input.string(default, title, options=[...])
-    if (line.includes('input.string(') && trimmed.endsWith(',')) {
-      const nextLine = lineIndex + 1 < allLines.length ? allLines[lineIndex + 1] : '';
-      const nextTrimmed = nextLine.trim();
-
-      // If next line starts with "options=" but is not indented properly
-      if (nextTrimmed.startsWith('options=')) {
-        const currentIndent = line.search(/\S/);
-        const nextIndent = nextLine.search(/\S/);
-
-        if (nextIndent <= currentIndent + 4) {
-          this.addError(
-            lineNum + 1,
-            0,
-            7, // Length of "options"
-            `Multi-line input.string() with options parameter: ensure proper indentation (use spaces not a multiple of 4 for continuation as per style guide).`,
-            vscode.DiagnosticSeverity.Warning
-          );
-        }
-      }
-    }
-
-    // Check for incomplete statements - line ends without clear continuation marker
-    // But has function call patterns suggesting multi-line
+    // An unclosed parenthesis is only an error if nothing meaningful follows it.
+    // Pine allows blank lines and comments between arguments:
+    //     plot(close,
+    //         // the series title
+    //         "Close")
     const hasOpenFunc = /([a-zA-Z_][a-zA-Z0-9_.]*)\s*\([^)]*$/.test(line);
     if (hasOpenFunc && unclosedParens > 0) {
-      // Check if next line exists and continues properly
-      if (lineIndex + 1 < allLines.length) {
-        const nextLine = allLines[lineIndex + 1].trim();
-
-        // If next line is empty or comment, warn about incomplete statement
-        if (!nextLine || nextLine.startsWith('//')) {
-          this.addError(
-            lineNum,
-            line.lastIndexOf('('),
-            1,
-            `Incomplete function call. Opening parenthesis without corresponding parameters or closing parenthesis.`,
-            vscode.DiagnosticSeverity.Error
-          );
-        }
-      } else {
-        // This is the last line with unclosed parentheses
+      if (this.nextMeaningfulLineIndex(allLines, lineIndex + 1) === -1) {
         this.addError(
           lineNum,
           line.lastIndexOf('('),
@@ -476,6 +476,22 @@ export class AccurateValidator {
         );
       }
     }
+  }
+
+  /**
+   * Index of the next line carrying actual code, skipping blank lines and
+   * whole-line comments. Returns -1 when only blanks/comments remain, which is the
+   * only condition under which an open call or trailing comma is genuinely
+   * unterminated.
+   */
+  private nextMeaningfulLineIndex(allLines: string[], from: number): number {
+    for (let i = from; i < allLines.length; i++) {
+      const candidate = allLines[i].trim();
+      if (candidate && !candidate.startsWith('//')) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   private isValidConstantOrFunction(namespace: string, member: string): boolean {
@@ -559,25 +575,53 @@ export class AccurateValidator {
       return;
     }
 
-    // Create regex to match function calls
+    // Match the function NAME + opening paren only. The argument string is then
+    // extracted with a depth-aware scan so nested parentheses don't truncate it
+    // (the old `\(([^)]*)\)` regex stopped at the first inner ')', under-counting
+    // args for any call like `ta.ema(a / (b + c) * 100, 3)`).
     // Use negative lookbehind to prevent matching namespaced functions
     // e.g., when checking 'bool', don't match 'input.bool'
     const escapedName = functionName.replace(/\./g, '\\.');
-    const regex = new RegExp(`(?<![a-zA-Z0-9_\\.])${escapedName}\\s*\\(([^)]*)\\)`, 'g');
+    const regex = new RegExp(`(?<![a-zA-Z0-9_\\.])${escapedName}\\s*\\(`, 'g');
 
     let match;
     while ((match = regex.exec(line)) !== null) {
-      const argsString = match[1];
+      const openParenIndex = match.index + match[0].length - 1;
+      const argsString = this.extractBalancedArgs(line, openParenIndex);
+      // null = the call's parens don't close on this line (multi-line call) — skip
+      // count validation here to avoid false positives.
+      if (argsString === null) {
+        continue;
+      }
       const column = match.index;
 
       // Count arguments (simple split by comma, not perfect but good enough)
       const args = argsString.trim() === '' ? [] : this.splitArguments(argsString);
 
-      const requiredCount = spec.requiredParams ? spec.requiredParams.length : 0;
-      const totalCount = (spec.requiredParams ? spec.requiredParams.length : 0) + (spec.optionalParams ? spec.optionalParams.length : 0);
+      // Overload-aware arity bounds. A call is valid if it satisfies ANY overload,
+      // so the accepted range is min(required) .. max(required + optional) across
+      // all forms. Functions without an `overloads` field have exactly one form.
+      const forms: Array<{ requiredParams?: string[]; optionalParams?: string[] }> =
+        spec.overloads && spec.overloads.length > 0 ? spec.overloads : [spec];
 
-      // Check if function is variadic (signature contains "...")
-      const isVariadic = spec.signature && spec.signature.includes('...');
+      const requiredCount = Math.min(
+        ...forms.map(f => (f.requiredParams ? f.requiredParams.length : 0))
+      );
+      const totalCount = Math.max(
+        ...forms.map(f =>
+          (f.requiredParams ? f.requiredParams.length : 0) +
+          (f.optionalParams ? f.optionalParams.length : 0)
+        )
+      );
+
+      // Check if function is variadic (signature contains "...").
+      // This is a string heuristic over display text, so it only applies when we
+      // have no structured data: a spec carrying explicit `overloads` is fully
+      // described, and an ellipsis in its human-readable signature must not be
+      // mistaken for "unbounded arguments".
+      const isVariadic =
+        !(spec.overloads && spec.overloads.length > 0) &&
+        spec.signature && spec.signature.includes('...');
 
       // Only validate parameter counts for well-defined specs
       // Skip if:
@@ -585,20 +629,28 @@ export class AccurateValidator {
       // 2. Variadic function (contains ...)
       // 3. No parameter info but has signature (auto-generated with incomplete data)
       // 4. Generated functions without parameters array (unreliable)
+      // NOTE: `continue`, not `return` — a line can contain several calls to the
+      // same function (`f(x) + f(y)`); returning would skip every later call.
       if (this.unreliableParamFunctions.has(functionName)) {
-        return; // Skip known unreliable functions
+        continue; // Skip known unreliable functions
       }
 
-      const hasReliableParams = spec.parameters && spec.parameters.length > 0;
+      const hasReliableParams =
+        (spec.parameters && spec.parameters.length > 0) ||
+        (spec.overloads && spec.overloads.length > 0);
 
       if (isVariadic || (!hasReliableParams && (requiredCount === 0 || totalCount === 0))) {
         // Skip validation for variadic or auto-generated functions with incomplete data
-        return;
+        continue;
       }
 
-      // Check if too few arguments
+      // Check if too few arguments. Reported against the overload with the fewest
+      // required parameters, so the message names the minimum the user must supply.
       if (args.length < requiredCount) {
-        const missing = spec.requiredParams.slice(args.length);
+        const leanest = forms.reduce((a, b) =>
+          (a.requiredParams?.length ?? 0) <= (b.requiredParams?.length ?? 0) ? a : b
+        );
+        const missing = (leanest.requiredParams || []).slice(args.length);
         this.addError(
           lineNum,
           column,
@@ -619,9 +671,135 @@ export class AccurateValidator {
         );
       }
 
+      // Validate named-argument NAMES against the function's known parameters
+      // (only for curated functions with complete data — avoids false positives).
+      // With overloads, the accepted set is the UNION across every form: writing
+      // `line.new(x1=..., y1=...)` is valid even though the first overload has no
+      // `x1`. Flattening to a single form is exactly what produced the earlier
+      // false positives on the coordinate constructors.
+      if (this.namedArgCheckedFunctions.has(functionName)) {
+        const validNames = this.collectValidParamNames(spec);
+        if (validNames.size > 0) {
+          for (const arg of args) {
+            const nm = arg.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)/);
+            if (nm && !validNames.has(nm[1])) {
+              this.addError(
+                lineNum,
+                column,
+                functionName.length,
+                `No parameter named '${nm[1]}' in '${functionName}'`,
+                vscode.DiagnosticSeverity.Error
+              );
+            }
+          }
+        }
+      }
+
       // Special validations
       this.validateSpecialCases(line, lineNum, column, functionName, args);
     }
+  }
+
+  /**
+   * The (possibly namespaced) identifiers called as functions on this line.
+   *
+   * The identifier pattern is greedy across dots, so `input.bool(...)` yields
+   * `input.bool` rather than a bare `bool` — this preserves the behaviour the old
+   * per-function negative lookbehind provided, without needing one regex per known
+   * function. Returned as a Set because a name repeated on one line only needs
+   * validating once; `validateFunctionCall` already walks every occurrence.
+   */
+  private extractCalledFunctionNames(line: string): Set<string> {
+    const names = new Set<string>();
+    const callPattern = /([a-zA-Z_][a-zA-Z0-9_.]*)\s*\(/g;
+    let match;
+    while ((match = callPattern.exec(line)) !== null) {
+      names.add(match[1]);
+    }
+    return names;
+  }
+
+  /**
+   * Every parameter name this function will accept, across all of its overloads.
+   *
+   * Sources, in order of reliability: the manual `overloads` list, the manual
+   * required/optional lists, and finally the auto-generated `parameters` array.
+   * All are unioned — an argument name is valid if ANY overload declares it.
+   * Returns an empty set when nothing is known, which the caller treats as
+   * "no data, do not flag" rather than "nothing is valid".
+   */
+  private collectValidParamNames(spec: any): Set<string> {
+    const names = new Set<string>();
+
+    if (Array.isArray(spec.overloads)) {
+      for (const overload of spec.overloads) {
+        for (const name of overload.requiredParams || []) names.add(name);
+        for (const name of overload.optionalParams || []) names.add(name);
+      }
+    }
+
+    for (const name of spec.requiredParams || []) names.add(name);
+    for (const name of spec.optionalParams || []) names.add(name);
+
+    if (Array.isArray(spec.parameters)) {
+      for (const parameter of spec.parameters) {
+        if (parameter && parameter.name) names.add(parameter.name);
+      }
+    }
+
+    return names;
+  }
+
+  /**
+   * Given a line and the index of an opening '(', return the substring of arguments
+   * up to (but not including) the matching ')', honouring nested ()/[] and string
+   * literals. Returns null if the parenthesis never closes on this line (multi-line
+   * call), so the caller can skip count validation rather than emit a false error.
+   */
+  private extractBalancedArgs(line: string, openParenIndex: number): string | null {
+    let depth = 0;
+    let inString = false;
+    let stringChar = '';
+    let args = '';
+
+    for (let i = openParenIndex; i < line.length; i++) {
+      const char = line[i];
+      const prev = i > 0 ? line[i - 1] : '';
+
+      if (inString) {
+        if (char === stringChar && prev !== '\\') {
+          inString = false;
+        }
+        if (i > openParenIndex) args += char;
+        continue;
+      }
+
+      if (char === '"' || char === "'") {
+        inString = true;
+        stringChar = char;
+        if (i > openParenIndex) args += char;
+        continue;
+      }
+
+      if (char === '(' || char === '[') {
+        depth++;
+        if (i > openParenIndex) args += char;
+        continue;
+      }
+
+      if (char === ')' || char === ']') {
+        depth--;
+        if (depth === 0) {
+          return args; // matched the function's closing paren
+        }
+        if (i > openParenIndex) args += char;
+        continue;
+      }
+
+      if (i > openParenIndex) args += char;
+    }
+
+    return null; // unbalanced on this line
   }
 
   private splitArguments(argsString: string): string[] {

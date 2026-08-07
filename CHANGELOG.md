@@ -7,6 +7,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-08-07
+
+First release since v0.4.4 (2025-10-07). Focus: eliminating false positives,
+catching up with ten months of Pine v6 releases, and building the test gate that
+should have caught the regressions in the first place.
+
+### 🔴 Fixed — false positives on valid v6 code
+
+- **Overloaded drawing constructors.** `line.new`, `label.new` and `box.new` each
+  have two official call forms — a `chart.point` form and an independent-coordinate
+  form. The reference scrape captured only the first, so the far more common
+  coordinate form reported a wall of errors (`No parameter named 'x1'`,
+  `'left'`, `'top'`…). Ten false errors on a five-line script. Overloads are now
+  modelled explicitly: a call is valid if it satisfies **any** overload.
+- **Multi-line indentation rules.** Two checks enforced indentation restrictions
+  that TradingView **removed in December 2025**. A continuation indented by four
+  spaces, or not indented past its opening line, is legal — both now pass.
+- **Comments and blank lines inside wrapped calls.** Legal Pine, previously two
+  errors apiece.
+- **`for … in` loop iterators.** `for b in boxes` bound no variable, so `b.delete()`
+  was flagged undefined. Both the element and `[index, element]` forms now bind.
+- **Multiline strings** (`"""…"""` / `'''…'''`, added to Pine in April 2026) are
+  recognised. Their contents are no longer parsed as code, and the unbalanced
+  quotes no longer desynchronise parsing for the rest of the file. Line numbers
+  are preserved exactly.
+- **`ta.pivothigh` / `ta.pivotlow`** three-argument overload no longer reports
+  "too many arguments".
+- **Nested parentheses in arguments** are no longer truncated when counting
+  arguments (`ta.ema(a / (b + c) * 100, 3)` parsed as one argument, not two).
+- **User-defined `type` / `enum`** declarations register as namespaces, so
+  `MyType.new(...)` and field access validate.
+
+### ⚡ Performance
+
+- Validation of a 1,302-line script: **158ms → 12.3ms (12.8× faster)**, now well
+  inside the 100ms budget and enforced by a test. The old code looped all 457
+  function signatures for every line, compiling a regex each time — roughly 595,000
+  regex executions per file. Candidate function names are now extracted in one scan.
+
+### ✨ Pine v6 API currency (Oct 2025 → Jul 2026)
+
+The bundled reference was scraped 2025-10-03; everything TradingView shipped since
+was missing. Added:
+
+| Added | Release |
+|---|---|
+| `box.set_xloc()` | March 2025 |
+| `active` parameter on all `input.*()` functions | July 2025 |
+| `timeframe_bars_back` on `time()` / `time_close()` | October 2025 |
+| `syminfo.isin`, `syminfo.current_contract` | Nov 2025 / Jul 2025 |
+| `request.footprint()` + `footprint` / `volume_row` namespaces | January 2026 |
+| `sort_field` on `array.sort()`, `array.sort_indices()`, `matrix.sort()` | April 2026 |
+| Multiline string literals | April 2026 |
+| `calc_on_every_history_tick` on `strategy()` | July 2026 |
+
+### 🧪 Testing — 67 → 112 tests
+
+- **`test/golden-corpus.test.js`** — 13 real scripts that compile on TradingView
+  must validate with zero errors. Any error against them is a false positive by
+  definition. This is the gate that was missing; reproducing the v1.2.0 bug now
+  fails six tests. Includes a performance-budget assertion and a guard against the
+  corpus silently shrinking.
+- **`test/false-positive-regression.test.js`** — every fix above, with a paired
+  "must still flag" case so a check can never be quietly deleted instead of fixed.
+- **`test/ternary-and-multiline.test.js`** — replaces two root-level scripts that
+  printed results but asserted nothing, sat outside the `npm test` glob, and were
+  gitignored, so CI never ran them.
+- `examples/` is no longer gitignored — the corpus now reaches CI.
+
+### 🔧 Other
+
+- **MCP server repaired.** `mcp/pinescript-mcp-server.js` required a file that does
+  not exist (the dev-tools copy is zero bytes), so it failed at load. It now uses
+  `AccurateValidator` — the same engine the extension runs, so MCP and editor
+  cannot disagree.
+- `validate-cli.js` added as the supported headless entry point for CI and agents.
+- Two documents misnamed `.pine` renamed to `.md`; they were prose, and produced
+  77 meaningless "errors" between them.
+
+### ⚠️ Known issues
+
+- `ComprehensiveValidator` still throws `ast.body is not iterable` on valid input.
+  It is imported by `extension.ts` but never called, so the extension is unaffected.
+  The AST path (parser/lexer/typeSystem) feeds only this validator, which is why
+  type-system validation remains unavailable.
+
+---
+
 ## [0.4.4] - 2025-10-07
 
 ### 🔧 Parser Database Fixes
