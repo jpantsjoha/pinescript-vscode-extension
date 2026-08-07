@@ -4,7 +4,6 @@
  * Complete v6 language support (6,665 items)
  */
 
-import * as vscode from 'vscode';
 import { PINE_FUNCTIONS_MERGED as ALL_FUNCTION_SIGNATURES } from '../../v6/parameter-requirements-merged';
 import { isValidNamespaceMember, CONSTANT_NAMESPACES } from '../../v6/pine-constants-complete';
 import {
@@ -17,12 +16,33 @@ import {
   isKnownNamespace
 } from '../../v6/pine-builtins-complete';
 
+/**
+ * Diagnostic severity, mirroring `vscode.DiagnosticSeverity` by value.
+ *
+ * Declared locally rather than imported so this module has NO dependency on the
+ * `vscode` runtime, which exists only inside the extension host. Importing it made
+ * the validator unloadable outside VS Code — CI failed with
+ * `Cannot find module 'vscode'`, and it would equally block the headless CLI, the
+ * MCP server, and the agent plugin from reusing the engine.
+ *
+ * `extension.ts` maps these integers straight onto the real enum; the values are
+ * identical, so nothing downstream changes.
+ */
+export const Severity = {
+  Error: 0,
+  Warning: 1,
+  Information: 2,
+  Hint: 3
+} as const;
+
+export type DiagnosticSeverity = 0 | 1 | 2 | 3;
+
 export interface ValidationError {
   line: number;
   column: number;
   length: number;
   message: string;
-  severity: vscode.DiagnosticSeverity;
+  severity: DiagnosticSeverity;
 }
 
 export class AccurateValidator {
@@ -219,7 +239,7 @@ export class AccurateValidator {
           column,
           namespace.length + 1 + member.length,
           `Undefined namespace or variable '${namespace}'`,
-          vscode.DiagnosticSeverity.Error
+          Severity.Error
         );
       }
       // Check if member is a valid constant for known namespaces
@@ -241,7 +261,7 @@ export class AccurateValidator {
               column + namespace.length + 1,
               member.length,
               `Unknown ${namespace} constant or function '${member}'`,
-              vscode.DiagnosticSeverity.Warning
+              Severity.Warning
             );
           }
         }
@@ -269,7 +289,7 @@ export class AccurateValidator {
             column,
             namespace.length + 1,
             `Incomplete reference to '${namespace}' namespace`,
-            vscode.DiagnosticSeverity.Error
+            Severity.Error
           );
         }
       }
@@ -297,7 +317,7 @@ export class AccurateValidator {
         column,
         match[0].length,
         `Invalid comma-separated variable declaration. Pine Script v6 requires separate declarations:\n${declarationMode} ${type} ${firstVar} = ...\n${declarationMode} ${type} ${secondVar} = ...`,
-        vscode.DiagnosticSeverity.Error
+        Severity.Error
       );
     }
   }
@@ -326,7 +346,7 @@ export class AccurateValidator {
           semicolonPos,
           1,
           `Invalid semicolon in ternary operator. Use colon (:) instead of semicolon (;) for ternary operator continuation`,
-          vscode.DiagnosticSeverity.Error
+          Severity.Error
         );
       }
     }
@@ -345,7 +365,7 @@ export class AccurateValidator {
         semicolonPos,
         1,
         `Invalid semicolon in nested ternary operator. Use colon (:) for ternary continuation, not semicolon (;)`,
-        vscode.DiagnosticSeverity.Error
+        Severity.Error
       );
     }
   }
@@ -367,7 +387,7 @@ export class AccurateValidator {
           column,
           1,
           `Incomplete ternary operator. Expected value after '?', found semicolon on next line`,
-          vscode.DiagnosticSeverity.Error
+          Severity.Error
         );
       }
     }
@@ -391,7 +411,7 @@ export class AccurateValidator {
           0,
           1,
           `Invalid expression continuation. Semicolon found after ternary colon (:). Did you mean to use another colon for nested ternary?`,
-          vscode.DiagnosticSeverity.Error
+          Severity.Error
         );
       }
     }
@@ -413,7 +433,7 @@ export class AccurateValidator {
           column,
           1,
           `Invalid semicolon in function call with ternary operator. Ternary operators require colons (:), not semicolons (;)`,
-          vscode.DiagnosticSeverity.Error
+          Severity.Error
         );
       }
     }
@@ -454,7 +474,7 @@ export class AccurateValidator {
           line.lastIndexOf(','),
           1,
           `Trailing comma without continuation. Expected parameter or closing parenthesis on next line.`,
-          vscode.DiagnosticSeverity.Error
+          Severity.Error
         );
       }
     }
@@ -472,7 +492,7 @@ export class AccurateValidator {
           line.lastIndexOf('('),
           1,
           `Unclosed parenthesis. Function call is incomplete.`,
-          vscode.DiagnosticSeverity.Error
+          Severity.Error
         );
       }
     }
@@ -533,7 +553,7 @@ export class AccurateValidator {
               column,
               funcName.length,
               `Undefined function '${fullName}'`,
-              vscode.DiagnosticSeverity.Error
+              Severity.Error
             );
           }
         } else if (!namespaceMatch) {
@@ -543,7 +563,7 @@ export class AccurateValidator {
             column,
             funcName.length,
             `Undefined function '${funcName}'`,
-            vscode.DiagnosticSeverity.Error
+            Severity.Error
           );
         }
       }
@@ -656,7 +676,7 @@ export class AccurateValidator {
           column,
           functionName.length,
           `Missing required parameter(s) for '${functionName}': ${missing.join(', ')}`,
-          vscode.DiagnosticSeverity.Error
+          Severity.Error
         );
       }
 
@@ -667,7 +687,7 @@ export class AccurateValidator {
           column,
           functionName.length,
           `Too many arguments for '${functionName}'. Expected max ${totalCount}, got ${args.length}`,
-          vscode.DiagnosticSeverity.Error
+          Severity.Error
         );
       }
 
@@ -688,7 +708,7 @@ export class AccurateValidator {
                 column,
                 functionName.length,
                 `No parameter named '${nm[1]}' in '${functionName}'`,
-                vscode.DiagnosticSeverity.Error
+                Severity.Error
               );
             }
           }
@@ -869,7 +889,7 @@ export class AccurateValidator {
         shapeIndex,
         6,
         'Invalid parameter "shape" for plotshape(). Did you mean "style"?',
-        vscode.DiagnosticSeverity.Error
+        Severity.Error
       );
     }
 
@@ -881,7 +901,7 @@ export class AccurateValidator {
         shapeIndex,
         6,
         'Invalid parameter "shape" for plotchar(). Did you mean "char"?',
-        vscode.DiagnosticSeverity.Error
+        Severity.Error
       );
     }
 
@@ -894,7 +914,7 @@ export class AccurateValidator {
         index,
         14,
         '"timeframe_gaps" has no effect without "timeframe" parameter',
-        vscode.DiagnosticSeverity.Warning
+        Severity.Warning
       );
     }
   }
@@ -904,7 +924,7 @@ export class AccurateValidator {
     column: number,
     length: number,
     message: string,
-    severity: vscode.DiagnosticSeverity
+    severity: DiagnosticSeverity
   ): void {
     this.errors.push({
       line,

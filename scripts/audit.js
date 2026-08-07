@@ -39,20 +39,41 @@ function auditNpmScripts() {
   const pkg = JSON.parse(read('package.json'));
   const broken = [];
 
+  // A target that is missing because it is deliberately gitignored is a different
+  // problem from a target that is simply gone: the first only breaks a local dev
+  // convenience, the second breaks the script for everyone. CI has no gitignored
+  // files at all, so failing on those would fail every clean checkout.
+  const ignoredButMissing = [];
+
+  const isGitIgnored = target => {
+    try {
+      execSync(`git check-ignore -q "${target}"`, { cwd: ROOT, stdio: 'ignore' });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   for (const [name, command] of Object.entries(pkg.scripts || {})) {
     // Only local script targets are checkable; binaries resolve via PATH.
     const targets = command.match(/(?:^|\s)((?:\.\/)?[\w./-]+\.js)(?=\s|$)/g) || [];
     for (const raw of targets) {
       const target = raw.trim().replace(/^\.\//, '');
       if (target.includes('*')) continue;
-      if (!exists(target)) broken.push(`${name} -> ${target}`);
+      if (exists(target)) continue;
+      if (isGitIgnored(target)) ignoredButMissing.push(`${name} -> ${target}`);
+      else broken.push(`${name} -> ${target}`);
     }
   }
 
   if (broken.length) {
     fail('npm scripts', `point at missing files: ${broken.join(', ')}`);
   } else {
-    pass('npm scripts', `all ${Object.keys(pkg.scripts).length} script targets resolve`);
+    pass('npm scripts', `all tracked script targets resolve (${Object.keys(pkg.scripts).length} scripts)`);
+  }
+
+  if (ignoredButMissing.length) {
+    warn('npm scripts', `target(s) live under a gitignored path, so they are absent from a clean checkout and from CI: ${ignoredButMissing.join(', ')}`);
   }
 }
 
@@ -309,6 +330,30 @@ function auditDiagnosticCoverage() {
 }
 
 //──────────────────────────────────────────────────────────
+// 6c. The engine must not import the `vscode` runtime
+//
+// `vscode` exists only inside the extension host. A validator that imports it
+// cannot load in CI, in validate-cli.js, in the MCP server, or in the agent
+// plugin. This was masked locally by a stray node_modules/vscode stub, so the
+// suite passed on the author's machine and failed in CI.
+//──────────────────────────────────────────────────────────
+function auditEnginePortability() {
+  const engineModules = ['src/parser/accurateValidator.ts', 'src/parser/documentChecks.ts'];
+  const coupled = engineModules.filter(m => exists(m) && /from 'vscode'/.test(read(m)));
+
+  if (coupled.length) {
+    fail('portability', `engine module(s) import the vscode runtime and cannot load outside the extension host: ${coupled.join(', ')}`);
+  } else {
+    pass('portability', 'engine modules are free of the vscode runtime (loadable by CLI, MCP and CI)');
+  }
+
+  // A stub inside node_modules makes a broken import look fine locally.
+  if (exists('node_modules/vscode') && !/"vscode"/.test(read('package.json'))) {
+    warn('portability', 'node_modules/vscode exists but is not a declared dependency — a stray stub can mask a real "Cannot find module" failure that CI will hit');
+  }
+}
+
+//──────────────────────────────────────────────────────────
 // 7. CI must not have checks that silently no-op
 //──────────────────────────────────────────────────────────
 function auditCi() {
@@ -342,6 +387,7 @@ auditPackaging();
 auditVersionConsistency();
 auditDataCurrency();
 auditDiagnosticCoverage();
+auditEnginePortability();
 auditCi();
 
 const ICON = { PASS: '[32m PASS[0m', WARN: '[33m WARN[0m', FAIL: '[31m FAIL[0m' };

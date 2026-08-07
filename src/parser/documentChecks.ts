@@ -12,12 +12,13 @@
  * covered by the same golden corpus as `AccurateValidator`.
  */
 
-import { ValidationError } from './accurateValidator';
+import { ValidationError, Severity } from './accurateValidator';
 
-/** vscode.DiagnosticSeverity values, inlined so this module stays dependency-free. */
-const SEVERITY_ERROR = 0;
-const SEVERITY_WARNING = 1;
-const SEVERITY_INFO = 2;
+// Severity values are shared with the validator so both diagnostic sources speak
+// the same vocabulary without either importing `vscode`.
+const SEVERITY_ERROR = Severity.Error;
+const SEVERITY_WARNING = Severity.Warning;
+const SEVERITY_INFO = Severity.Information;
 
 /**
  * Blank the contents of every string literal, preserving length and newlines, so
