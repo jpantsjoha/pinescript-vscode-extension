@@ -2,7 +2,10 @@
 dist/
 *.tsbuildinfo
 build/
-!build/pine-script-extension-*.vsix
+
+# Packaged extensions — a build artefact, never committed. One was tracked at the
+# repo root for a whole release cycle (1.8 MB of stale binary).
+*.vsix
 
 # Dependencies
 node_modules/
@@ -76,6 +79,10 @@ examples/FlashCrashDetection/README.md
 #   mcp/tradingview-mcp/       -> separate Python project
 mcp/pinescript-mcp-server/
 mcp/tradingview-mcp/
+
+# Scratch Pine files at the repo root. `my-pinescript-edit.pine` (an 811-line
+# strategy) sat here tracked; anything ad-hoc belongs outside version control.
+/*.pine
 
 # Author's own Pine strategies — proprietary, never public.
 # The CI golden corpus lives in test/fixtures/corpus/ (synthetic fixtures) so the
