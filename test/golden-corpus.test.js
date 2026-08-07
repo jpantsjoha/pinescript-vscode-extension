@@ -133,3 +133,95 @@ test('Golden corpus: validation stays within the 100ms performance budget', () =
     `function signatures.`
   );
 });
+
+//──────────────────────────────────────────────────────────
+// Semantic-check gate (W1)
+//
+// Corpus files compile on TradingView, so ANY semantic finding against them is a
+// false positive by definition. This gate is what makes it safe to add checks
+// S1-S9 incrementally: each one must arrive silent on known-good code.
+//──────────────────────────────────────────────────────────
+
+const {
+  SEMANTIC_CHECKS,
+  extractSuppressions,
+  validatePineScript
+} = require('../packages/validator/dist/index.js');
+
+// The original premise here was wrong: "these compile on TradingView, so any
+// finding is a false positive". That holds for semantic ERRORS (S5-S8 describe
+// compile failures) but NOT for warnings — a script can compile perfectly and
+// still repaint. Warnings on real-world files are true positives.
+//
+// So the gate splits. Committed fixtures are exemplars and must be spotless;
+// real-world examples are only held to the compile-failure bar.
+test('Semantic gate: no check fires on any committed fixture', () => {
+  const offenders = [];
+
+  for (const relativePath of FIXTURE_FILES) {
+    const absolutePath = path.join(REPO_ROOT, relativePath);
+    if (!fs.existsSync(absolutePath)) continue;
+
+    const source = fs.readFileSync(absolutePath, 'utf8');
+    // MUST go through the package's validatePineScript, not the extension's
+    // validator directly. Semantic checks live in the package; calling the
+    // extension's modules bypasses them entirely and the gate silently passes
+    // whatever it is supposed to be catching.
+    const semantic = validatePineScript(source).filter(d => d.checkId);
+
+    for (const finding of semantic) {
+      offenders.push(`${relativePath}:${finding.line} [${finding.checkId}] ${finding.message}`);
+    }
+  }
+
+  assert.strictEqual(
+    offenders.length, 0,
+    'Committed fixtures are teaching material — they must not model the mistakes ' +
+    'the checks warn about:\n  ' + offenders.slice(0, 10).join('\n  ')
+  );
+});
+
+test('Semantic gate: no semantic ERROR on any real-world example', () => {
+  // Errors mean TradingView will reject the script. A warning here may well be a
+  // true positive — several of these files genuinely repaint.
+  const offenders = [];
+
+  for (const relativePath of LOCAL_ONLY_FILES) {
+    const absolutePath = path.join(REPO_ROOT, relativePath);
+    if (!fs.existsSync(absolutePath)) continue;
+
+    const errors = validatePineScript(fs.readFileSync(absolutePath, 'utf8'))
+      .filter(d => d.checkId && d.severity === 0);
+
+    for (const finding of errors) {
+      offenders.push(`${relativePath}:${finding.line} [${finding.checkId}] ${finding.message}`);
+    }
+  }
+
+  assert.strictEqual(
+    offenders.length, 0,
+    'A semantic ERROR means the script will not compile:\n  ' + offenders.slice(0, 10).join('\n  ')
+  );
+});
+
+test('Semantic gate: fixtures carry no suppression directives', () => {
+  // A check that only passes because the corpus silences it proves nothing. The
+  // gate must be earned, not configured away.
+  const withDirectives = FIXTURE_FILES.filter(relativePath => {
+    const absolutePath = path.join(REPO_ROOT, relativePath);
+    if (!fs.existsSync(absolutePath)) return false;
+    return extractSuppressions(fs.readFileSync(absolutePath, 'utf8')).size > 0;
+  });
+
+  assert.deepStrictEqual(
+    withDirectives, [],
+    'Corpus fixtures must not use // pine-ignore — suppressing a check there ' +
+    'hides exactly the false positive this gate exists to catch'
+  );
+});
+
+test('Semantic gate: registry ids are unique and well-formed', () => {
+  const ids = Object.keys(SEMANTIC_CHECKS);
+  assert.strictEqual(new Set(ids).size, ids.length, 'duplicate check id');
+  for (const id of ids) assert.match(id, /^S\d+$/, `malformed id: ${id}`);
+});

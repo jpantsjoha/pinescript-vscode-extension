@@ -116,7 +116,7 @@
   },
   "scripts": {
     "clean": "rm -rf dist && rm -f build/*.vsix",
-    "build": "tsc -p .",
+    "build": "tsc -p . && tsc -p packages/validator",
     "watch": "tsc -w -p .",
     "test": "npm run build && node --test test/*.test.js",
     "test:validation": "npm run build && node --test test/validation.test.js",
@@ -130,7 +130,8 @@
     "scrape": "node v6/scripts/scrape-builtins.js",
     "typecheck": "tsc --noEmit",
     "lint": "npm run typecheck && node scripts/audit.js",
-    "audit": "node scripts/audit.js"
+    "audit": "node scripts/audit.js",
+    "build:engine": "tsc -p packages/validator"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.19.1",

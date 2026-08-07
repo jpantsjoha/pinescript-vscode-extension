@@ -88,3 +88,6 @@ mcp/tradingview-mcp/
 # The CI golden corpus lives in test/fixtures/corpus/ (synthetic fixtures) so the
 # false-positive gate works without exposing any trading logic. See CLAUDE.md.
 examples/
+
+# npm pack output
+packages/*/*.tgz
