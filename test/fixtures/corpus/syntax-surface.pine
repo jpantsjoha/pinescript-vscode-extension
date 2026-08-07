@@ -1,0 +1,100 @@
+//@version=6
+// ─────────────────────────────────────────────────────────────────────────────
+// GOLDEN CORPUS FIXTURE — valid Pine v6. The validator MUST report zero errors.
+//
+// Exercises the language surface that produced false positives before v0.5.0:
+// wrapped calls containing comments and blank lines, continuations indented by
+// four spaces or not indented at all (TradingView removed both restrictions in
+// December 2025), multiline strings, `for ... in` iterators, user-defined types
+// and enums, nested parentheses in arguments, and alertcondition messages that
+// contain commas.
+//
+// Synthetic fixture — no trading logic, no proprietary content.
+// ─────────────────────────────────────────────────────────────────────────────
+indicator("Corpus — syntax surface", overlay=false)
+
+// ── Wrapped call with a comment between arguments (legal) ────────────────────
+plot(close,
+    // the series title, on its own line inside the call
+    "Close",
+    color=color.blue)
+
+// ── Wrapped call with a blank line between arguments (legal) ─────────────────
+smoothed = ta.sma(close,
+
+    14)
+
+// ── Continuation indented by exactly four spaces (legal since Dec 2025) ──────
+mode = input.string("Balanced", "Mode",
+    options=["Conservative", "Balanced", "Aggressive"])
+
+// ── Continuation not indented beyond the opening line (legal since Dec 2025) ─
+fast = ta.ema(close,
+9)
+
+// ── Nested parentheses inside an argument (must not truncate arg counting) ───
+numerator   = math.max(high - close, 0.0)
+denominator = math.max(high - low, syminfo.mintick)
+ratio       = ta.ema(numerator / (numerator + denominator) * 100, 3)
+
+// ── Multiline string literals (Pine v6, April 2026) ──────────────────────────
+helpText = """This block spans several lines.
+It may contain punctuation the parser must ignore: plot( , ) and "quotes".
+The contents are text, not code."""
+
+// ── User-defined type and enum, used as namespaces ───────────────────────────
+type Level
+    float price
+    string tag
+
+enum Regime
+    bullish
+    bearish
+    neutral
+
+currentRegime = close > smoothed ? Regime.bullish : close < smoothed ? Regime.bearish : Regime.neutral
+
+// ── for ... in iterators, both forms ─────────────────────────────────────────
+var levels = array.new<Level>()
+if barstate.islast
+    array.clear(levels)
+    array.push(levels, Level.new(price=ta.highest(high, 20), tag="resistance"))
+    array.push(levels, Level.new(price=ta.lowest(low, 20), tag="support"))
+
+    for lvl in levels
+        label.new(x=bar_index, y=lvl.price, text=lvl.tag, style=label.style_none, textcolor=color.gray)
+
+    for [idx, lvl] in levels
+        if idx == 0
+            line.new(x1=bar_index[20], y1=lvl.price, x2=bar_index, y2=lvl.price, color=color.teal)
+
+// ── Classic numeric for loop ─────────────────────────────────────────────────
+total = 0.0
+for i = 0 to 9
+    total += close[i]
+average = total / 10
+
+// ── Ternaries: single-line chained, and multi-line with colons ───────────────
+signalScore = close > open ? 1 : close < open ? -1 : 0
+
+bandColour = signalScore > 0 ? color.new(color.green, 80) :
+             signalScore < 0 ? color.new(color.red, 80) :
+             color.new(color.gray, 90)
+
+// ── alertcondition: messages containing commas (must not count as arguments) ─
+crossedUp   = ta.crossover(close, smoothed)
+crossedDown = ta.crossunder(close, smoothed)
+
+alertcondition(crossedUp, title="Cross Up", message="Signal fired: conditions met, review position sizing, then act")
+alertcondition(crossedDown, title="Cross Down", message="Signal fired: conditions met, reduce exposure or tighten stops")
+alertcondition(crossedUp and not na(close[1]), title="Confirmed Cross", message="Confirmed on close")
+
+// ── plotshape / plotchar with the CORRECT parameter names ────────────────────
+plotshape(crossedUp, title="Up", style=shape.triangleup, location=location.bottom, color=color.new(color.green, 0), size=size.tiny)
+plotchar(crossedDown, title="Down", char="▼", location=location.top, color=color.red)
+
+plot(smoothed, "SMA", color=bandColour)
+plot(fast, "EMA")
+plot(ratio, "Ratio", display=display.data_window)
+plot(average, "Average", display=display.data_window)
+plot(signalScore, "Score", display=display.data_window)

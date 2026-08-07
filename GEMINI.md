@@ -52,6 +52,117 @@ Your mission: Generate **correct, efficient, maintainable** Pine Script v6 code 
 
 ---
 
+## 🔌 MCP Servers for Enhanced Validation & Testing
+
+### Installed MCP Servers
+
+This repository is configured with two MCP (Model Context Protocol) servers that provide **direct access to TradingView's platform** for validation and testing:
+
+#### 1. **PineScript MCP Server** (`mcp/pinescript-mcp-server`)
+**Purpose:** Syntax validation, code fixing, and template generation
+**Repository:** https://github.com/CyberBOB07/pinescript-mcp-server
+
+**Available Tools:**
+- `validate_pinescript` - Check syntax errors using TradingView's official API
+- `fix_pinescript` - Auto-fix common syntax issues
+- `generate_strategy` - Generate validated strategy templates
+- `generate_indicator` - Generate validated indicator templates
+
+**Usage Example:**
+```typescript
+// Validate Pine Script code before committing
+const result = await mcp.call('validate_pinescript', {
+    code: pineScriptCode
+});
+if (result.errors.length > 0) {
+    console.error('Syntax errors found:', result.errors);
+}
+```
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "pinescript-mcp-server": {
+      "command": "node",
+      "args": ["/path/to/mcp/pinescript-mcp-server/build/index.js"],
+      "cwd": "/path/to/pinescript-vscode-extension/mcp/pinescript-mcp-server"
+    }
+  }
+}
+```
+
+#### 2. **TradingView MCP Server** (`mcp/tradingview-mcp`)
+**Purpose:** Real-time market analysis, technical indicators, and market screening
+**Repository:** https://github.com/atilaahmettaner/tradingview-mcp
+
+**Available Tools:**
+- `screen_crypto` - Real-time cryptocurrency screening
+- `screen_stocks` - Stock market screening
+- `analyze_symbol` - Technical analysis for any symbol
+- `get_bollinger_bands` - Bollinger Band intelligence
+- `get_candlestick_patterns` - Pattern recognition
+
+**Supported Markets:**
+- Crypto: Binance, KuCoin, Bybit, Coinbase
+- Traditional: NYSE, NASDAQ, FOREX
+- Timeframes: 1m, 5m, 15m, 1h, 4h, D, W, M
+
+**Usage Example:**
+```typescript
+// Test if your indicator matches market conditions
+const analysis = await mcp.call('analyze_symbol', {
+    symbol: 'BTCUSDT',
+    exchange: 'BINANCE',
+    interval: '1h'
+});
+console.log('RSI:', analysis.indicators.rsi);
+console.log('MACD:', analysis.indicators.macd);
+```
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "tradingview-mcp": {
+      "command": "uv",
+      "args": ["run", "python", "src/tradingview_mcp/server.py"],
+      "cwd": "/path/to/pinescript-vscode-extension/mcp/tradingview-mcp"
+    }
+  }
+}
+```
+
+### When to Use MCP Servers
+
+**✅ Use PineScript MCP for:**
+- Validating syntax BEFORE pushing to TradingView
+- Auto-fixing multi-line syntax errors (the ones we just fixed!)
+- Generating compliant templates
+- CI/CD pipeline validation
+
+**✅ Use TradingView MCP for:**
+- Testing indicator logic against real market data
+- Verifying backtest assumptions
+- Comparing your indicator output to TradingView's built-in indicators
+- Real-time strategy validation
+
+### Installation Verification
+
+```bash
+# Verify PineScript MCP
+cd mcp/pinescript-mcp-server
+npm run start-server
+
+# Verify TradingView MCP
+cd mcp/tradingview-mcp
+uv run python src/tradingview_mcp/server.py
+```
+
+**Both servers are installed and ready to use.** See `MCP-INTEGRATION.md` for detailed setup instructions for your AI assistant.
+
+---
+
 ## 🏗️ Pine Script v6 Core Architecture
 
 ### 1. Execution Model (CRITICAL - Most Important Concept)

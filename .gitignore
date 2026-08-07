@@ -2,7 +2,10 @@
 dist/
 *.tsbuildinfo
 build/
-!build/pine-script-extension-*.vsix
+
+# Packaged extensions — a build artefact, never committed. One was tracked at the
+# repo root for a whole release cycle (1.8 MB of stale binary).
+*.vsix
 
 # Dependencies
 node_modules/
@@ -10,7 +13,9 @@ node_modules/
 # IDE & Editor
 .vscode/
 .idea/
-.claude/
+# .claude/ is tracked: it carries the project hooks and agent definitions.
+# Only the personal, machine-specific overrides stay out of git.
+.claude/settings.local.json
 *.swp
 *.swo
 *~
@@ -54,3 +59,32 @@ coverage/
 # Personal notes (not for public repo)
 NOTES.md
 TODO-personal.md
+examples/FlashCrashDetection/FIXED-STATUS.md
+examples/FlashCrashDetection/FlashCrashStrategy.pine
+examples/FlashCrashDetection/SESSION-SUMMARY.md
+examples/FlashCrashDetection/STRATEGY-TESTING-REPORT.md
+examples/FlashCrashDetection/TESTING-REPORT.md
+examples/FlashCrashDetection/VALIDATION-GAP-AUDIT.md
+examples/PSStrategyXLite/PSStrategyXLite.pine
+examples/PSStrategyXLite/README.md
+examples/FlashCrashDetection/flashcrashdetection.pine
+examples/FlashCrashDetection/flashcrashdetection.promt
+examples/FlashCrashDetection/FlashCrashWarningScore.pine
+examples/FlashCrashDetection/README.md
+
+
+# Vendored third-party MCP projects, cloned for reference only. Not part of this
+# extension and not ours to redistribute:
+#   mcp/pinescript-mcp-server/ -> github.com/CyberBOB07/pinescript-mcp-server (own .git)
+#   mcp/tradingview-mcp/       -> separate Python project
+mcp/pinescript-mcp-server/
+mcp/tradingview-mcp/
+
+# Scratch Pine files at the repo root. `my-pinescript-edit.pine` (an 811-line
+# strategy) sat here tracked; anything ad-hoc belongs outside version control.
+/*.pine
+
+# Author's own Pine strategies — proprietary, never public.
+# The CI golden corpus lives in test/fixtures/corpus/ (synthetic fixtures) so the
+# false-positive gate works without exposing any trading logic. See CLAUDE.md.
+examples/

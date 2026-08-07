@@ -30,17 +30,22 @@ docs/**
 !CHANGELOG.md
 !LICENSE
 
-# Agent definitions (private)
+# Agent / assistant context (development only, not shipped to users)
 multi-agent-devex/**
-.CLAUDE.md
+CLAUDE.md
+GEMINI.md
+.agent/**
 
 # GitHub workflows (not needed in extension)
 .github/**
 
 # Scripts & Tools
-v6/scripts/**
-v6/raw/**
 scripts/**
+
+# v6/ TypeScript sources are compiled into dist/v6/ at build time, and the built
+# extension resolves them there (dist/src/parser -> ../../v6 -> dist/v6). Shipping
+# the .ts originals adds ~800KB of dead weight to every install.
+v6/**
 
 # Examples & Test Files
 examples/**
@@ -68,3 +73,15 @@ Thumbs.db
 
 # Build artifacts
 *.vsix
+build/**
+
+# Development tooling — kept in the repo, never shipped in the VSIX
+dev-tools/**
+validate-cli.js
+validate-*.js
+qa-*.js
+my-pinescript-edit.pine
+*.promt
+
+# Compiled tests — built by tsc, never needed at runtime
+dist/test/**

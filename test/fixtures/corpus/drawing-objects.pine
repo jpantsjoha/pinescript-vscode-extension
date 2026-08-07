@@ -1,0 +1,62 @@
+//@version=6
+// ─────────────────────────────────────────────────────────────────────────────
+// GOLDEN CORPUS FIXTURE — valid Pine v6. The validator MUST report zero errors.
+//
+// Exercises the overloaded drawing constructors. Both call forms of line.new,
+// label.new and box.new are official v6 overloads; the bundled reference scrape
+// captured only the chart.point form, so the coordinate form produced ten false
+// errors on a five-line script (fixed in v0.5.0).
+//
+// Synthetic fixture — no trading logic, no proprietary content.
+// ─────────────────────────────────────────────────────────────────────────────
+indicator("Corpus — drawing objects", overlay=true, max_lines_count=500, max_labels_count=500, max_boxes_count=500)
+
+lookback   = input.int(20, "Lookback", minval=1, maxval=500)
+showLabels = input.bool(true, "Show labels", tooltip="Draw labels at pivots")
+
+hi = ta.highest(high, lookback)
+lo = ta.lowest(low, lookback)
+
+// ── line.new: coordinate overload (x1, y1, x2, y2, ...) ──────────────────────
+if barstate.islast
+    line.new(x1=bar_index[lookback], y1=lo, x2=bar_index, y2=hi, color=color.blue, width=2, extend=extend.none)
+    line.new(x1=bar_index[lookback], y1=hi, x2=bar_index, y2=lo, color=color.red, style=line.style_dashed)
+
+// ── line.new: chart.point overload (first_point, second_point, ...) ──────────
+if barstate.islast
+    pointA = chart.point.now(hi)
+    pointB = chart.point.from_index(bar_index[lookback], lo)
+    line.new(first_point=pointA, second_point=pointB, color=color.gray, width=1)
+
+// ── label.new: coordinate overload (x, y, text, ...) ─────────────────────────
+if showLabels and barstate.islast
+    label.new(x=bar_index, y=hi, text="High " + str.tostring(hi, format.mintick), style=label.style_label_down, color=color.new(color.blue, 20), textcolor=color.white, size=size.small)
+    label.new(x=bar_index, y=lo, text="Low", style=label.style_label_up, textalign=text.align_center, tooltip="Lowest close in window")
+
+// ── label.new: chart.point overload (point, text, ...) ───────────────────────
+if showLabels and barstate.islast
+    label.new(point=chart.point.now(close), text="Now", style=label.style_circle)
+
+// ── box.new: coordinate overload (left, top, right, bottom, ...) ─────────────
+if barstate.islast
+    box.new(left=bar_index[lookback], top=hi, right=bar_index, bottom=lo, bgcolor=color.new(color.orange, 90), border_color=color.orange, border_width=1, text="Range", text_halign=text.align_center, text_valign=text.align_top)
+
+// ── box.new: chart.point overload (top_left, bottom_right, ...) ──────────────
+if barstate.islast
+    box.new(top_left=chart.point.from_index(bar_index[lookback], hi), bottom_right=chart.point.from_index(bar_index, lo), bgcolor=color.new(color.gray, 95))
+
+// ── polyline, table, and the setter family ───────────────────────────────────
+var points = array.new<chart.point>()
+if barstate.islast
+    array.push(points, chart.point.from_index(bar_index[2], close[2]))
+    array.push(points, chart.point.from_index(bar_index[1], close[1]))
+    array.push(points, chart.point.now(close))
+    polyline.new(points=points, curved=false, closed=false, line_color=color.purple, line_width=2)
+
+var infoTable = table.new(position=position.top_right, columns=2, rows=2, bgcolor=color.new(color.black, 80), frame_color=color.gray, frame_width=1)
+if barstate.islast
+    table.cell(table_id=infoTable, column=0, row=0, text="High", text_color=color.white, text_size=size.small)
+    table.cell(table_id=infoTable, column=1, row=0, text=str.tostring(hi, format.mintick), text_color=color.white, text_halign=text.align_right)
+
+plot(hi, "Highest", color=color.new(color.blue, 50))
+plot(lo, "Lowest", color=color.new(color.red, 50))
