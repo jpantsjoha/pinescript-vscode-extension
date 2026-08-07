@@ -76,3 +76,8 @@ examples/FlashCrashDetection/README.md
 #   mcp/tradingview-mcp/       -> separate Python project
 mcp/pinescript-mcp-server/
 mcp/tradingview-mcp/
+
+# Author's own Pine strategies — proprietary, never public.
+# The CI golden corpus lives in test/fixtures/corpus/ (synthetic fixtures) so the
+# false-positive gate works without exposing any trading logic. See CLAUDE.md.
+examples/

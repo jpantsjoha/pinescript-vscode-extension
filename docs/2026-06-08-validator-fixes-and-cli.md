@@ -1,8 +1,9 @@
 # Validator fixes + headless CLI — 2026-06-08
 
-Ground-truthed against a **known-good** Pine v6 file (`examples/JP-MMG46.pine`, which
-compiles and runs live on TradingView). Before these fixes `AccurateValidator` reported
-**4 false-positive errors** on that file; after, it reports **0**.
+Ground-truthed against a **known-good** Pine v6 script that compiles and runs live on
+TradingView. Before these fixes `AccurateValidator` reported **4 false-positive
+errors** on it; after, it reports **0**. The equivalent constructs are now covered by
+the committed corpus in `test/fixtures/corpus/`.
 
 ## New: `validate-cli.js` (repo root)
 
@@ -59,6 +60,6 @@ manual overrides (2 required + 1 optional `source` = max 3). *File: `v6/paramete
 ## Verification
 
 ```
-node validate-cli.js examples/JP-MMG46.pine                       # 0 issues  (was 4 FPs)
-node validate-cli.js ../../local/PersonalTrader/ta/indicators/jp-mmg-v47.pine  # 0 issues
+node validate-cli.js test/fixtures/corpus/drawing-objects.pine    # 0 issues
+node validate-cli.js test/fixtures/corpus/syntax-surface.pine     # 0 issues  (was 4 FPs)
 ```

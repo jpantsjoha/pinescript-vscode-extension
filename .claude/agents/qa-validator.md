@@ -375,11 +375,11 @@ node test-ternary-validation.js
 node test-multiline-validation.js
 # Expected: 5/5 tests passing (100%)
 
-# Test against FlashCrash indicator
+# Test against a corpus fixture (indicator)
 node test-flashcrash-comprehensive.js
 # Expected: 0 errors, 0 warnings
 
-# Test against FlashCrash strategy
+# Test against a corpus fixture (strategy)
 node test-flashcrash-strategy.js
 # Expected: 0 errors, 0 warnings
 ```
@@ -389,19 +389,19 @@ node test-flashcrash-strategy.js
 # Test against all example files
 for file in examples/**/*.pine; do
   echo "Validating $file..."
-  node qa-validate-pinescript.js "$file"
+  node validate-cli.js "$file"
   # Should have 0 false positives
 done
 
-# Critical: Validate FlashCrash examples
-node qa-validate-pinescript.js examples/FlashCrashDetection/FlashCrashWarningScore.pine
-node qa-validate-pinescript.js examples/FlashCrashDetection/FlashCrashStrategy.pine
+# Critical: validate the committed corpus fixtures
+node validate-cli.js test/fixtures/corpus/syntax-surface.pine
+node validate-cli.js test/fixtures/corpus/syntax-surface.pine
 ```
 
 ### 4. TradingView Parity Check ⭐ NEW (v1.2.0)
 ```bash
 # For each .pine file:
-# 1. Run validator: node qa-validate-pinescript.js file.pine
+# 1. Run validator: node validate-cli.js file.pine
 # 2. Copy to TradingView Pine Editor
 # 3. Check for compilation errors
 # 4. Document discrepancies in regression test suite
@@ -427,7 +427,7 @@ code --install-extension build/*.vsix
 # 2. Check Problems panel - should be empty
 # 3. Open examples/errors/invalid.pine
 # 4. Check Problems panel - should show errors
-# 5. Open examples/FlashCrashDetection/FlashCrashStrategy.pine
+# 5. Open test/fixtures/corpus/syntax-surface.pine
 # 6. Verify multi-line input.string() shows no errors
 # 7. Type new code - should validate in real-time
 ```
@@ -579,7 +579,7 @@ echo "📋 Summary:"
 echo "   ✅ Core tests passing"
 echo "   ✅ Ternary operator validation working"
 echo "   ✅ Multi-line statement validation working"
-echo "   ✅ FlashCrash examples validated"
+echo "   ✅ Corpus fixtures validated"
 echo "   ✅ Performance benchmarks met"
 echo ""
 echo "📊 Next Target: v1.3.0 (Type System Validation)"

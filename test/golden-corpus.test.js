@@ -31,38 +31,56 @@ function allDiagnostics(source) {
 const REPO_ROOT = path.join(__dirname, '..');
 
 /**
- * Files verified to compile on TradingView. Keep this list additive: when a user
- * reports a false positive, add their (reduced) script here before fixing it.
+ * The corpus is deliberately split.
+ *
+ * `test/fixtures/corpus/` holds SYNTHETIC fixtures, committed to the public repo.
+ * They carry no trading logic and exist to exercise the exact constructs that have
+ * produced false positives. These are the CI gate.
+ *
+ * `examples/` is gitignored — it holds the author's own strategies, which are
+ * proprietary and must never reach the public repository. When present locally they
+ * are validated as an extended corpus; in CI they are simply absent and skipped.
+ * Never move a file from examples/ into this list.
  */
-const GOLDEN_FILES = [
-  'examples/JP-MMG46.pine',
-  'examples/JP-MMG4.pine',
-  'examples/JP-MMG-v4.1_1.pine',
-  'examples/JP-MmtDirGold-Macro-v3.pine',
+const FIXTURE_FILES = [
+  'test/fixtures/corpus/drawing-objects.pine',
+  'test/fixtures/corpus/syntax-surface.pine',
+  'test/fixtures/corpus/modern-api-strategy.pine',
+];
+
+/** Validated when present; absent in CI by design. */
+const LOCAL_ONLY_FILES = [
+  'examples/demo/deltaflow-volume-profile.pine',
+  'examples/demo/mft-state-of-delivery.pine',
+  'examples/demo/multi-tf-fvg.pine',
   'examples/global-liquidity.v6.pine',
   'examples/mysample.v6.pine',
   'examples/indicator.2.3.pine',
   'examples/test-v6-features.pine',
-  'examples/test-plot-parsing.pine',
-  'examples/test-named-args.pine',
-  'examples/demo/deltaflow-volume-profile.pine',
-  'examples/demo/mft-state-of-delivery.pine',
-  'examples/demo/multi-tf-fvg.pine',
 ];
+
+const GOLDEN_FILES = [...FIXTURE_FILES, ...LOCAL_ONLY_FILES];
 
 /**
  * Guards against the corpus silently disappearing (a bad .gitignore once hid
  * `examples/` from CI entirely). A shrinking corpus must fail loudly rather than
  * turn into a vacuously passing test.
  */
-const MINIMUM_CORPUS_SIZE = 10;
+test('Golden corpus: every committed fixture is present', () => {
+  const missing = FIXTURE_FILES.filter(f => !fs.existsSync(path.join(REPO_ROOT, f)));
+  assert.strictEqual(
+    missing.length, 0,
+    `Committed corpus fixtures are missing: ${missing.join(', ')}. ` +
+    `These are the CI gate and must never be gitignored.`
+  );
+});
 
-test('Golden corpus: files are present', () => {
-  const found = GOLDEN_FILES.filter(f => fs.existsSync(path.join(REPO_ROOT, f)));
-  assert.ok(
-    found.length >= MINIMUM_CORPUS_SIZE,
-    `Golden corpus shrank to ${found.length} file(s); expected at least ${MINIMUM_CORPUS_SIZE}. ` +
-    `Missing: ${GOLDEN_FILES.filter(f => !found.includes(f)).join(', ')}`
+test('Golden corpus: no proprietary file has crept into the committed list', () => {
+  const leaked = FIXTURE_FILES.filter(f => f.startsWith('examples/'));
+  assert.strictEqual(
+    leaked.length, 0,
+    `examples/ is gitignored and holds private strategies. Committed fixtures must ` +
+    `live under test/fixtures/corpus/. Leaked: ${leaked.join(', ')}`
   );
 });
 
@@ -92,7 +110,7 @@ for (const relativePath of GOLDEN_FILES) {
 }
 
 test('Golden corpus: validation stays within the 100ms performance budget', () => {
-  const largest = path.join(REPO_ROOT, 'examples/JP-MMG46.pine');
+  const largest = path.join(REPO_ROOT, 'test/fixtures/corpus/syntax-surface.pine');
   if (!fs.existsSync(largest)) return;
 
   const source = fs.readFileSync(largest, 'utf8');

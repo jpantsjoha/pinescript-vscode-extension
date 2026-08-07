@@ -1,7 +1,7 @@
 # Project Status
 
 **Updated**: 2026-08-07
-**Working version**: 0.5.0 (unreleased — tagged, not yet published)
+**Working version**: 0.5.1 (tagged, not yet published)
 **Marketplace version**: 0.4.4, published 2025-10-07
 **Installs**: 1,403 · **Rating**: 4.45★
 
@@ -17,9 +17,10 @@ and the gate that should have caught it now exists.
 | Signal | State |
 |---|---|
 | `npx tsc --noEmit` | clean |
-| `npm test` | 112/112 pass |
-| Golden corpus (13 TradingView-verified scripts) | 0 errors |
-| Validation speed, 1,302-line script | 12.3ms (budget: 100ms) |
+| `npm test` | 117/117 pass |
+| `npm run audit` | 17 pass · 1 warn · 0 fail |
+| Golden corpus (synthetic fixtures, both diagnostic paths) | 0 errors |
+| Validation speed, 1,300-line script | ~12ms (budget: 100ms) |
 | MCP server | loads and validates |
 | `ComprehensiveValidator` | **still broken** — see Known Issues |
 
@@ -56,16 +57,22 @@ structural, not effort — see below.
 
 ## The central architectural decision (unresolved)
 
-Four validators exist. **One ships.**
+Four validators exist. **Two ship.**
 
 ```
 src/parser/
-  accurateValidator.ts       846 LOC   ← the only one the extension runs
-  comprehensiveValidator.ts 1126 LOC   ← imported by extension.ts, never called, CRASHES
-  validator.ts               373 LOC   ← imported, never called
+  accurateValidator.ts       ~900 LOC  ← ships
+  documentChecks.ts          ~220 LOC  ← ships (whole-document heuristics)
+  comprehensiveValidator.ts 1126 LOC   ← DEAD. Import removed. Crashes on valid input.
+  validator.ts               373 LOC   ← DEAD. Import removed.
   parser.ts / ast.ts / lexer.ts / typeSystem.ts / symbolTable.ts
                             ~2000 LOC  ← feeds only the dead path
 ```
+
+Both shipping sources are wired into `validate-cli.js` and the golden corpus, and
+`scripts/audit.js` fails the build if a new one is not. That guard exists because
+the document checks previously ran untested and shipped 28 false positives across
+files the suite was certifying as clean.
 
 `AccurateValidator` is regex-over-lines with no AST. That is why Gaps 4–6 are
 blocked rather than merely unstarted: **type inference cannot be bolted onto a
@@ -88,9 +95,9 @@ product decision, not a technical one — it should be made deliberately.
 ## Known issues
 
 - **`ComprehensiveValidator` throws `ast.body is not iterable`** on valid input.
-  The extension is unaffected (it never calls it), but the AST path is unusable
-  until this is fixed.
-- **Version namespace confusion.** The package is `0.5.0`; the validator was
+  Its import was removed from `extension.ts`, so the extension is unaffected, but
+  the AST path is unusable until this is fixed.
+- **Version namespace confusion.** The package is `0.5.1`; the validator was
   internally versioned `v1.2.0`; the roadmap targets `v2.0.0`. Three schemes for
   one artefact. Recommend collapsing to the package version alone.
 - **The reference dataset is a point-in-time scrape** (2025-10-03). Additions since
@@ -99,10 +106,33 @@ product decision, not a technical one — it should be made deliberately.
 
 ---
 
+## Related projects
+
+| Project | Relationship |
+|---|---|
+| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. Will consume the validation engine from this repo rather than copying it — a copy guarantees drift, and drift means the plugin contradicts the editor. Engine extraction is Phase 0 of that work. |
+
+---
+
 ## Next
 
-1. Publish 0.5.0 — ten months of fixes are sitting idle.
+1. Publish 0.5.1 — ten months of fixes are sitting idle.
 2. Decide the AST question above.
 3. Build the parity measurement harness, so accuracy claims become measurable
    rather than asserted.
 4. Re-crawl the v6 reference and un-gitignore `v6/scripts/`.
+5. Extract the validation engine so `pinescript-plugin` can consume it. The only
+   coupling to `vscode` is the `DiagnosticSeverity` enum (three references, all
+   plain integers), so this is far cheaper than it looks.
+
+---
+
+## Repository hygiene
+
+`examples/` is **gitignored** — it holds the author's own Pine strategies, which are
+proprietary. The CI false-positive gate runs on synthetic fixtures in
+`test/fixtures/corpus/` instead. Those fixtures were verified to fail when the
+original bugs are reintroduced, so the gate is real without exposing trading logic.
+
+Never move a file from `examples/` into the committed corpus list;
+`test/golden-corpus.test.js` asserts against exactly that.

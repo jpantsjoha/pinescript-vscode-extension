@@ -149,7 +149,7 @@ function auditTestGate() {
   }
 
   const corpus = read('test/golden-corpus.test.js');
-  const listed = [...corpus.matchAll(/'(examples\/[^']+\.pine)'/g)].map(m => m[1]);
+  const listed = [...corpus.matchAll(/'(test\/fixtures\/corpus\/[^']+\.pine)'/g)].map(m => m[1]);
   const missing = listed.filter(f => !exists(f));
 
   if (missing.length) {

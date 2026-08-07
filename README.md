@@ -172,6 +172,14 @@ Contributions welcome! See [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) for gu
 
 ---
 
+## 🔗 Related Projects
+
+| Project | What it is |
+|---|---|
+| **[pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin)** | Pine Script v6 skills and MCP tooling for **coding agents** — consumes this extension's validation engine, so an agent and your editor never disagree about a file. |
+
+---
+
 ## 📚 Resources
 
 - **Marketplace**: [Pine Script v6 IDE Tools](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)

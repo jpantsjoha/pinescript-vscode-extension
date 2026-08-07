@@ -1,0 +1,80 @@
+//@version=6
+// ─────────────────────────────────────────────────────────────────────────────
+// GOLDEN CORPUS FIXTURE — valid Pine v6. The validator MUST report zero errors.
+//
+// Exercises strategy() plus the API TradingView shipped AFTER the bundled
+// reference was scraped on 2025-10-03. Every symbol below is absent from the
+// generated dataset and supplied by MODERN_V6_FUNCTIONS, so this fixture is the
+// regression gate for reference currency.
+//
+// Synthetic fixture — a deliberately trivial moving-average cross. No proprietary
+// logic; it exists to exercise the parser, not to be traded.
+// ─────────────────────────────────────────────────────────────────────────────
+strategy("Corpus — modern API",
+    overlay=true,
+    calc_on_every_history_tick=false,   // July 2026
+    initial_capital=10000,
+    default_qty_type=strategy.percent_of_equity,
+    default_qty_value=10,
+    commission_type=strategy.commission.percent,
+    commission_value=0.05)
+
+// ── `active` on input.*() — July 2025 ────────────────────────────────────────
+enableLongs  = input.bool(true, "Enable longs")
+fastLength   = input.int(9, "Fast length", minval=1, active=enableLongs)
+slowLength   = input.int(21, "Slow length", minval=2, active=enableLongs)
+riskNote     = input.text_area("Position sizing is fixed percent of equity.", "Notes", active=false)
+
+// ── timeframe_bars_back on time()/time_close() — October 2025 ────────────────
+htfOpenTime  = time(timeframe.period, timeframe_bars_back=1)
+htfCloseTime = time_close(timeframe.period, timeframe_bars_back=1)
+
+// ── syminfo.isin (Nov 2025) and syminfo.current_contract (Jul 2025) ──────────
+instrumentId = syminfo.isin
+contractId   = syminfo.current_contract
+
+// ── sort_field on collection sorts — April 2026 ─────────────────────────────
+type Reading
+    float value
+    int   at
+
+var readings = array.new<Reading>()
+if bar_index % 50 == 0
+    array.push(readings, Reading.new(value=close, at=bar_index))
+    if array.size(readings) > 1
+        array.sort(readings, order.ascending, sort_field="value")
+
+// ── box.set_xloc — March 2025 ───────────────────────────────────────────────
+var box marker = na
+if barstate.islast
+    if not na(marker)
+        box.delete(marker)
+    marker := box.new(left=bar_index[10], top=high, right=bar_index, bottom=low, bgcolor=color.new(color.blue, 92))
+    box.set_xloc(marker, bar_index[10], bar_index, xloc.bar_index)
+
+// ── Anti-repainting higher-timeframe request ────────────────────────────────
+dailyClose = request.security(syminfo.tickerid, "D", close[1], lookahead=barmerge.lookahead_off)
+
+// ── Signals ─────────────────────────────────────────────────────────────────
+fastMa = ta.ema(close, fastLength)
+slowMa = ta.ema(close, slowLength)
+
+goLong  = ta.crossover(fastMa, slowMa) and enableLongs and not na(dailyClose)
+goFlat  = ta.crossunder(fastMa, slowMa)
+
+if goLong
+    strategy.entry("Long", strategy.long, comment="MA cross up")
+
+if goFlat
+    strategy.close("Long", comment="MA cross down")
+
+// ── strategy.* runtime state ────────────────────────────────────────────────
+inPosition = strategy.position_size > 0
+
+plot(fastMa, "Fast", color=color.new(color.aqua, 0))
+plot(slowMa, "Slow", color=color.new(color.orange, 0))
+plot(dailyClose, "Daily close", color=color.new(color.gray, 60))
+plot(strategy.equity, "Equity", display=display.data_window)
+plot(inPosition ? 1 : 0, "In position", display=display.data_window)
+plot(htfOpenTime, "HTF open", display=display.data_window)
+plot(htfCloseTime, "HTF close", display=display.data_window)
