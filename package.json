@@ -7,7 +7,7 @@
     "name": "Jaroslav Pantsjoha",
     "url": "https://jpantsjoha.com"
   },
-  "version": "0.5.1",
+  "version": "0.6.0",
   "icon": "images/pinescript-extension.png",
   "repository": {
     "type": "git",
@@ -116,7 +116,7 @@
   },
   "scripts": {
     "clean": "rm -rf dist && rm -f build/*.vsix",
-    "build": "tsc -p . && tsc -p packages/validator",
+    "build": "tsc -p . && tsc -p packages/validator && rm -rf dist/engine && mkdir -p dist/engine && cp -R node_modules/pinescript-v6-validator/dist/* dist/engine/",
     "watch": "tsc -w -p .",
     "test": "npm run build && node --test test/*.test.js",
     "test:validation": "npm run build && node --test test/validation.test.js",
@@ -142,6 +142,7 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "glob": "^11.0.3"
+    "glob": "^11.0.3",
+    "pinescript-v6-validator": "^0.2.0"
   }
 }

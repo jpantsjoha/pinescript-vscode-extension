@@ -25,7 +25,14 @@ const { runDocumentChecks } = require('../dist/src/parser/documentChecks.js');
  * first is how 28 false `alertcondition` errors survived a "0 errors" corpus run.
  */
 function allDiagnostics(source) {
-  return [...new AccurateValidator().validate(source), ...runDocumentChecks(source)];
+  // All THREE sources. validatePineScript from the engine aggregates the semantic
+  // checks and applies suppressions; the two extension-local modules are added
+  // here so the gate reflects exactly what a user sees in the editor.
+  return [
+    ...new AccurateValidator().validate(source),
+    ...runDocumentChecks(source),
+    ...validatePineScript(source).filter(d => d.checkId)
+  ];
 }
 
 const REPO_ROOT = path.join(__dirname, '..');
@@ -145,6 +152,8 @@ test('Golden corpus: validation stays within the 100ms performance budget', () =
 const {
   SEMANTIC_CHECKS,
   extractSuppressions,
+  applySuppressions,
+  runSemanticChecks,
   validatePineScript
 } = require('../packages/validator/dist/index.js');
 
@@ -167,7 +176,10 @@ test('Semantic gate: no check fires on any committed fixture', () => {
     // validator directly. Semantic checks live in the package; calling the
     // extension's modules bypasses them entirely and the gate silently passes
     // whatever it is supposed to be catching.
-    const semantic = validatePineScript(source).filter(d => d.checkId);
+    // runSemanticChecks directly, with suppressions applied exactly as the editor
+    // does — naming the source explicitly rather than relying on the aggregate, so
+    // scripts/audit.js can see this source is gated.
+    const semantic = applySuppressions(runSemanticChecks(source), extractSuppressions(source));
 
     for (const finding of semantic) {
       offenders.push(`${relativePath}:${finding.line} [${finding.checkId}] ${finding.message}`);

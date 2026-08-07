@@ -24,7 +24,7 @@ Search for **"Pine Script v6 IDE Tools"** in VS Code Extensions or [install dire
 ### Or Install from VSIX
 Download the latest `.vsix` from [Releases](https://github.com/jpantsjoha/pinescript-vscode-extension/releases) and install:
 ```bash
-code --install-extension pinescript-v6-extension-0.5.1.vsix
+code --install-extension pinescript-v6-extension-0.6.0.vsix
 ```
 
 ---
@@ -37,6 +37,15 @@ code --install-extension pinescript-v6-extension-0.5.1.vsix
 - **31 constant namespaces** (xloc, yloc, extend, scale, display, etc.)
 - **22 function namespaces** with full parameter validation
 - **32 strategy.* variables** (position_size, equity, netprofit, etc.)
+
+### 🧠 **Semantic checks — catches code that compiles and is still wrong**
+- **Repainting** — `request.security()` reading the current, forming bar
+- **`ta.*` in a conditional** — silently corrupts the indicator's own history
+- **Scope errors** — `plot`/`bgcolor` inside `if`, functions defined in a block
+- **Platform limits** — 64 plots, 40 `request.*()` calls, counted before TradingView rejects you
+- **Unbounded risk** — `strategy.entry` with no exit anywhere
+
+Suppress one you have considered: `// pine-ignore: S1`
 
 ### 🔍 **Real-Time Validation**
 - Catches undefined functions and variables
@@ -141,7 +150,7 @@ See [CHANGELOG](./CHANGELOG.md) for complete version history.
 
 ## 🧪 Testing
 
-- **112/112 tests passing** (100%)
+- **169/169 tests passing** (100%)
 - **Golden corpus**: 13 real scripts that compile on TradingView, asserted to
   produce zero errors — any error against them is a false positive by definition
 - **Paired regression tests**: every false-positive fix ships with a "must still
@@ -213,5 +222,5 @@ Special thanks to:
 ---
 
 **Full Language Coverage**: 6,665 Pine Script v6 constructs
-**Test Coverage**: 112 tests
-**Current Version**: 0.5.1
+**Test Coverage**: 169 tests
+**Current Version**: 0.6.0

@@ -318,6 +318,12 @@ function auditDiagnosticCoverage() {
     .map(f => f.replace(/\.ts$/, ''))
     .filter(name => new RegExp(`from '\\./parser/${name}'`).test(extension));
 
+  // Since ADR-0001 the semantic checks live in the published engine rather than
+  // src/parser/, so they are named by their package import instead of a local file.
+  if (/from 'pinescript-v6-validator'/.test(extension)) {
+    sources.push('runSemanticChecks');
+  }
+
   if (!sources.length) {
     warn('diagnostics', 'could not identify any diagnostic source imported by extension.ts');
     return;
