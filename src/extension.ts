@@ -16,6 +16,12 @@ import { createSignatureHelpProvider } from './signatureHelp';
 // without also being covered by validate-cli.js and the golden corpus. See STATUS.md.
 import { AccurateValidator } from './parser/accurateValidator';
 import { runDocumentChecks } from './parser/documentChecks';
+// Semantic checks come from the published engine rather than a local copy.
+// ADR-0001: a check is written once, in the engine. Two copies drift, and a
+// drifted rule means the editor and the agent disagree about the same file.
+// Resolved at runtime from dist/engine, which the build copies from the pinned
+// npm package. Same single source; avoids shipping node_modules in the VSIX.
+const engine = require('../engine/index.js');
 
 export function activate(context: vscode.ExtensionContext) {
   // Optional: ensure files.associations maps *.pine -> pine
@@ -188,6 +194,20 @@ export function activate(context: vscode.ExtensionContext) {
       }
     } catch (e) {
       console.error('[Pine Validator] Validation error:', e);
+    }
+
+    // Semantic checks — defects that compile and are still wrong (repainting,
+    // ta.* history gaps, scope violations). Suppressions are read from the RAW
+    // text, before any pass blanks the comments the directives live in.
+    try {
+      const suppressions = engine.extractSuppressions(text);
+      for (const check of engine.applySuppressions(engine.runSemanticChecks(text), suppressions)) {
+        const pos = new vscode.Position(check.line - 1, check.column);
+        const endPos = pos.translate(0, check.length);
+        diags.push(new vscode.Diagnostic(new vscode.Range(pos, endPos), check.message, check.severity));
+      }
+    } catch (e) {
+      console.error('[Pine Validator] Semantic check error:', e);
     }
 
     // Whole-document heuristic checks. Extracted to src/parser/documentChecks.ts so

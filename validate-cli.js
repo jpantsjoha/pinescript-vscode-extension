@@ -34,6 +34,14 @@ function loadValidators() {
   // on files the editor covered in squiggles, so both run here by default.
   try { out.documentChecks = { validate: require('./dist/src/parser/documentChecks').runDocumentChecks }; }
   catch (e) { out.documentChecksErr = e.message; }
+  // Semantic checks — the third diagnostic source, from the published engine.
+  // ADR-0001: written once, consumed here and by the extension.
+  try {
+    const eng = require('pinescript-v6-validator');
+    out.semanticChecks = {
+      validate: (code) => eng.applySuppressions(eng.runSemanticChecks(code), eng.extractSuppressions(code))
+    };
+  } catch (e) { out.semanticChecksErr = e.message; }
   return out;
 }
 
@@ -85,6 +93,7 @@ function main() {
     console.log(`\n${paint('▸ ' + file, c.bold)}  ${paint('(' + code.split('\n').length + ' lines)', c.dim)}`);
     if (mode === 'accurate' || mode === 'both') totalErrors += printErrors('AccurateValidator', run(v.accurate, code));
     if ((mode === 'accurate' || mode === 'both') && v.documentChecks) totalErrors += printErrors('DocumentChecks', run(v.documentChecks, code));
+    if ((mode === 'accurate' || mode === 'both') && v.semanticChecks) totalErrors += printErrors('SemanticChecks', run(v.semanticChecks, code));
     if (mode === 'comprehensive' || mode === 'both') totalErrors += printErrors('ComprehensiveValidator', run(v.comprehensive, code));
   }
   console.log('');

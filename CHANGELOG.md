@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.0] - 2026-08-07
+
+### ✨ Semantic checks — defects that compile and are still wrong
+
+Until now this extension caught code TradingView would reject. These catch code it
+**accepts** and then behaves unexpectedly — the category that costs money rather
+than time.
+
+| ID | Detects | Severity |
+|---|---|---|
+| **S1** | `request.security()` reading the current, still-forming bar — repainting | Warning |
+| **S2** | `ta.*` called inside a ternary or block — its history develops gaps | Warning |
+| **S5** | More than 64 plot calls — TradingView rejects the script | Error |
+| **S6** | More than 40 `request.*()` calls | Error |
+| **S7** | `plot` / `bgcolor` / `fill` outside global scope — a v6 scope error | Error |
+| **S8** | A function defined inside a block — Pine has no nested functions | Error |
+| **S9** | `strategy.entry` with no exit anywhere — unbounded risk | Warning |
+
+Suppress a finding you have considered:
+
+```pine
+d = request.security(t, "D", close)   // pine-ignore: S1
+```
+
+Syntactic diagnostics are never suppressible — a compile error is a fact, not a
+judgement.
+
+### 🔧 Architecture
+
+The validation engine is now published as
+[`pinescript-v6-validator`](https://www.npmjs.com/package/pinescript-v6-validator)
+and consumed by this extension rather than duplicated. A check is written once;
+the editor renders it and agent tooling returns it. Two copies would drift, and a
+drifted rule means your agent and your editor disagree about the same file.
+
+### 🐛 Found by the new checks
+
+`examples/indicator.2.3.pine` called `bgcolor()` inside an `if` — a genuine v6
+scope error, twelve lines above code in the same file doing it correctly.
+
+---
+
 ## [0.5.1] - 2026-08-07
 
 Packaging release. **No validator behaviour changes from 0.5.0** — the version is

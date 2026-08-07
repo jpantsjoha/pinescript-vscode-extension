@@ -6,7 +6,11 @@
 .gitattributes
 .claude/**
 
-# Dependencies
+# Dependencies.
+# node_modules is excluded wholesale, but RUNTIME dependencies must ship or the
+# extension dies at activation with "Cannot find module". This was caught by
+# extracting the VSIX and executing the packaged code — the file listing looked
+# perfectly fine.
 node_modules/**
 
 # Coverage

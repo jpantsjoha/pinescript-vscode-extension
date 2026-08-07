@@ -1,20 +1,46 @@
 {
   "name": "pinescript-v6-validator",
-  "version": "0.1.0",
-  "description": "TradingView Pine Script v6 validator and reference dataset — 457 function signatures with explicit overload modelling. The engine behind the Pine Script v6 IDE Tools VS Code extension.",
-  "keywords": ["pinescript", "pine-script", "pine-v6", "tradingview", "validator", "linter", "trading", "indicators"],
-  "author": { "name": "Jaroslav Pantsjoha", "url": "https://jpantsjoha.com" },
+  "version": "0.2.0",
+  "description": "TradingView Pine Script v6 validator and reference dataset \u2014 457 function signatures with explicit overload modelling. The engine behind the Pine Script v6 IDE Tools VS Code extension.",
+  "keywords": [
+    "pinescript",
+    "pine-script",
+    "pine-v6",
+    "tradingview",
+    "validator",
+    "linter",
+    "trading",
+    "indicators"
+  ],
+  "author": {
+    "name": "Jaroslav Pantsjoha",
+    "url": "https://jpantsjoha.com"
+  },
   "license": "MIT",
   "homepage": "https://github.com/jpantsjoha/pinescript-vscode-extension",
-  "repository": { "type": "git", "url": "git+https://github.com/jpantsjoha/pinescript-vscode-extension.git", "directory": "packages/validator" },
-  "bugs": { "url": "https://github.com/jpantsjoha/pinescript-vscode-extension/issues" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jpantsjoha/pinescript-vscode-extension.git",
+    "directory": "packages/validator"
+  },
+  "bugs": {
+    "url": "https://github.com/jpantsjoha/pinescript-vscode-extension/issues"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "README.md", "LICENSE"],
-  "engines": { "node": ">=18" },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc -p .",
     "prepublishOnly": "npm run build && node -e \"require('./dist/index.js')\""
   },
-  "devDependencies": { "typescript": "^5.4.5" }
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
 }

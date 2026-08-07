@@ -34,6 +34,29 @@ PINE_FUNCTIONS_MERGED['line.new'].overloads;
 // Both official call forms: (first_point, second_point, …) and (x1, y1, x2, y2, …)
 ```
 
+## Semantic checks — defects that compile
+
+Most Pine tooling catches code TradingView will reject. These catch code it
+**accepts** and then behaves unexpectedly:
+
+| ID | Detects |
+|---|---|
+| S1 | `request.security()` reading the current, still-forming bar — repainting |
+| S2 | `ta.*` called inside a conditional — its history develops gaps |
+| S5 / S6 | More than 64 plots or 40 `request.*()` calls — TradingView rejects the script |
+| S7 | `plot` / `bgcolor` / `fill` outside global scope — a v6 scope error |
+| S8 | A function defined inside a block — Pine has no nested functions |
+| S9 | `strategy.entry` with no exit anywhere — unbounded risk |
+
+Suppress a specific finding when you have considered it:
+
+```pine
+d = request.security(t, "D", close)   // pine-ignore: S1
+```
+
+Syntactic diagnostics are never suppressible — a compile error is a fact, not a
+judgement.
+
 ## What it catches
 
 - **Overloaded constructors.** `line.new`, `label.new` and `box.new` each accept a
