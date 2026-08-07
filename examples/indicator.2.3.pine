@@ -170,10 +170,8 @@ shortSig = barstate.isconfirmed and armedShort and shortBrk and allowShortPat an
 
 // ───────────────────────── Visuals ─────────────────────────
 // Session shading
-if shadeSessions and inS1
-    bgcolor(color.new(color.blue, 92))
-if shadeSessions and inS2
-    bgcolor(color.new(color.purple, 92))
+bgcolor(shadeSessions and inS1 ? color.new(color.blue, 92) : na)
+bgcolor(shadeSessions and inS2 ? color.new(color.purple, 92) : na)
 
 // Pre/Armed ribbons
 bgcolor(preLong  ? color.new(color.lime, 88)  : na)

@@ -55,11 +55,16 @@ enum Regime
 currentRegime = close > smoothed ? Regime.bullish : close < smoothed ? Regime.bearish : Regime.neutral
 
 // ── for ... in iterators, both forms ─────────────────────────────────────────
+// ta.* runs unconditionally so its history has no gaps; only the ARRAY work is
+// gated on the last bar.
+resistance = ta.highest(high, 20)
+support    = ta.lowest(low, 20)
+
 var levels = array.new<Level>()
 if barstate.islast
     array.clear(levels)
-    array.push(levels, Level.new(price=ta.highest(high, 20), tag="resistance"))
-    array.push(levels, Level.new(price=ta.lowest(low, 20), tag="support"))
+    array.push(levels, Level.new(price=resistance, tag="resistance"))
+    array.push(levels, Level.new(price=support,    tag="support"))
 
     for lvl in levels
         label.new(x=bar_index, y=lvl.price, text=lvl.tag, style=label.style_none, textcolor=color.gray)

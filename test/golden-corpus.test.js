@@ -148,7 +148,14 @@ const {
   validatePineScript
 } = require('../packages/validator/dist/index.js');
 
-test('Semantic gate: no check fires on any corpus fixture', () => {
+// The original premise here was wrong: "these compile on TradingView, so any
+// finding is a false positive". That holds for semantic ERRORS (S5-S8 describe
+// compile failures) but NOT for warnings — a script can compile perfectly and
+// still repaint. Warnings on real-world files are true positives.
+//
+// So the gate splits. Committed fixtures are exemplars and must be spotless;
+// real-world examples are only held to the compile-failure bar.
+test('Semantic gate: no check fires on any committed fixture', () => {
   const offenders = [];
 
   for (const relativePath of FIXTURE_FILES) {
@@ -169,8 +176,31 @@ test('Semantic gate: no check fires on any corpus fixture', () => {
 
   assert.strictEqual(
     offenders.length, 0,
-    'These files compile on TradingView, so every finding below is a false ' +
-    'positive:\n  ' + offenders.slice(0, 10).join('\n  ')
+    'Committed fixtures are teaching material — they must not model the mistakes ' +
+    'the checks warn about:\n  ' + offenders.slice(0, 10).join('\n  ')
+  );
+});
+
+test('Semantic gate: no semantic ERROR on any real-world example', () => {
+  // Errors mean TradingView will reject the script. A warning here may well be a
+  // true positive — several of these files genuinely repaint.
+  const offenders = [];
+
+  for (const relativePath of LOCAL_ONLY_FILES) {
+    const absolutePath = path.join(REPO_ROOT, relativePath);
+    if (!fs.existsSync(absolutePath)) continue;
+
+    const errors = validatePineScript(fs.readFileSync(absolutePath, 'utf8'))
+      .filter(d => d.checkId && d.severity === 0);
+
+    for (const finding of errors) {
+      offenders.push(`${relativePath}:${finding.line} [${finding.checkId}] ${finding.message}`);
+    }
+  }
+
+  assert.strictEqual(
+    offenders.length, 0,
+    'A semantic ERROR means the script will not compile:\n  ' + offenders.slice(0, 10).join('\n  ')
   );
 });
 

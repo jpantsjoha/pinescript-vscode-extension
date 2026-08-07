@@ -12,12 +12,14 @@ export { AccurateValidator, Severity } from './src/accurateValidator';
 export type { ValidationError, DiagnosticSeverity } from './src/accurateValidator';
 export { runDocumentChecks, blankStrings, blankComments } from './src/documentChecks';
 export { SEMANTIC_CHECKS, extractSuppressions, applySuppressions } from './src/checkRegistry';
+export { runSemanticChecks } from './src/semanticChecks';
 export type { SemanticCheckId, SemanticCheck, SuppressionMap } from './src/checkRegistry';
 export { PINE_FUNCTIONS_MERGED } from './data/parameter-requirements-merged';
 
 import { AccurateValidator } from './src/accurateValidator';
 import { runDocumentChecks } from './src/documentChecks';
 import { extractSuppressions, applySuppressions } from './src/checkRegistry';
+import { runSemanticChecks } from './src/semanticChecks';
 import type { ValidationError } from './src/accurateValidator';
 
 /**
@@ -35,6 +37,7 @@ export function validatePineScript(source: string): ValidationError[] {
   const findings = [
     ...new AccurateValidator().validate(source),
     ...runDocumentChecks(source),
+    ...runSemanticChecks(source),
   ];
 
   // Only semantic findings carry a checkId, so syntactic diagnostics pass through
