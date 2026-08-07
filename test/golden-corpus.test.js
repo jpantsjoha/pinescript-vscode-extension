@@ -37,15 +37,19 @@ const REPO_ROOT = path.join(__dirname, '..');
  * They carry no trading logic and exist to exercise the exact constructs that have
  * produced false positives. These are the CI gate.
  *
- * `examples/` is gitignored — it holds the author's own strategies, which are
- * proprietary and must never reach the public repository. When present locally they
- * are validated as an extended corpus; in CI they are simply absent and skipped.
- * Never move a file from examples/ into this list.
+ * `examples/` is gitignored, so nothing NEW can be added there and reach the public
+ * repository. Eleven generic example files were committed before that rule existed
+ * and remain tracked — .gitignore does not untrack what is already committed. They
+ * are ordinary samples, not strategies, and are validated as an extended corpus.
+ *
+ * The author's actual strategies were removed from this branch's history and are
+ * excluded going forward. Never add a file from examples/ to the committed list.
  */
 const FIXTURE_FILES = [
   'test/fixtures/corpus/drawing-objects.pine',
   'test/fixtures/corpus/syntax-surface.pine',
   'test/fixtures/corpus/modern-api-strategy.pine',
+  'test/fixtures/corpus/comments-and-columns.pine',
 ];
 
 /** Validated when present; absent in CI by design. */

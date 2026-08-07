@@ -20,10 +20,25 @@ esac
 [ -f "$file_path" ] || exit 0
 [ -f "$REPO_ROOT/dist/src/parser/accurateValidator.js" ] || exit 0
 
+# Resolve to an absolute path BEFORE cd, or a relative path from the hook payload
+# would be looked up against the repo root instead of the caller's directory.
+case "$file_path" in
+  /*) ;;
+  *) file_path="$PWD/$file_path" ;;
+esac
+
 output="$(cd "$REPO_ROOT" && node validate-cli.js "$file_path" 2>&1)"
 status=$?
 
-if [ "$status" -ne 0 ]; then
+# Only exit 1 means "this file has validation errors". validate-cli.js exits 2 when
+# it cannot read the file or load the validator, and a missing node yields 127 —
+# tooling problems, not code problems. Blocking the edit on those contradicts this
+# hook's own contract and would stop work for reasons the author cannot act on.
+if [ "$status" -ne 1 ]; then
+  exit 0
+fi
+
+if [ "$status" -eq 1 ]; then
   # Strip ANSI colour so the feedback reads cleanly in the transcript.
   printf 'Pine validation failed for %s\n\n%s\n' \
     "$file_path" "$(printf '%s' "$output" | sed $'s/\033\\[[0-9;]*m//g')" >&2

@@ -110,7 +110,7 @@ export class AccurateValidator {
       // content (e.g. a word followed by "(" inside a `// comment` was flagged as an
       // undefined function). Strings are blanked first, so a "//" left over is a real
       // comment, not part of a URL inside a string.
-      const lineWithoutStrings = this.removeStringLiterals(line).replace(/\/\/.*$/, '');
+      const lineWithoutStrings = this.removeComments(this.removeStringLiterals(line));
 
       // Check undefined namespaces (e.g., ssss.adas)
       this.checkUndefinedNamespaces(lineWithoutStrings, lineNum);
@@ -138,10 +138,17 @@ export class AccurateValidator {
       // implementation looped all 457 signatures per line and compiled a regex for
       // each — roughly 595,000 regex executions on a 1,300-line script, which put
       // validation well over the 100ms budget. Candidate extraction is one scan.
+      // NOTE: the CLEANED line is passed, not the original. Candidate names were
+      // already taken from the cleaned line, but validateFunctionCall re-scans
+      // whatever it is given — so handing it the raw line meant a commented-out
+      // call sharing a line with a real one got validated:
+      //     x = ta.sma(close, 14)  // previously ta.sma(close, 14, 99)
+      // reported "Too many arguments" against the comment. Blanking preserves
+      // length, so reported columns still point at the right character.
       for (const funcName of this.extractCalledFunctionNames(lineWithoutStrings)) {
         const spec = (ALL_FUNCTION_SIGNATURES as any)[funcName];
         if (spec) {
-          this.validateFunctionCall(line, lineNum, funcName, spec);
+          this.validateFunctionCall(lineWithoutStrings, lineNum, funcName, spec);
         }
       }
     }
@@ -163,10 +170,31 @@ export class AccurateValidator {
     );
   }
 
+  /**
+   * Blank the CONTENTS of every string literal, keeping the delimiters and the
+   * original length.
+   *
+   * Length matters: this previously collapsed each literal to a two-character `""`,
+   * which shifted every subsequent column left by `length - 2`. Reported columns
+   * are offsets into the document the user is looking at, so a long string earlier
+   * on the line put the squiggle tens of characters away from the problem.
+   */
   private removeStringLiterals(line: string): string {
-    // Replace all string literals with empty strings to avoid validating their content
-    // Handles both single and double quoted strings
-    return line.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""');
+    return line.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, match =>
+      match[0] + ' '.repeat(Math.max(0, match.length - 2)) + match[match.length - 1]
+    );
+  }
+
+  /**
+   * Blank a trailing `//` comment, preserving length.
+   *
+   * Must run AFTER string blanking, so a `//` inside a string literal is already
+   * neutralised and cannot truncate the line early.
+   */
+  private removeComments(line: string): string {
+    const at = line.indexOf('//');
+    if (at === -1) return line;
+    return line.slice(0, at) + ' '.repeat(line.length - at);
   }
 
   private collectDeclaredVariables(line: string): void {
@@ -338,7 +366,11 @@ export class AccurateValidator {
 
       // Check if this is actually part of a ternary by looking for ? before it
       const beforeMatch = line.substring(0, column);
-      const hasQuestionMark = beforeMatch.includes('?') || match[0].includes('?');
+      // The regex already anchors on '?', so `match[0]` always contains one — the
+      // old `beforeMatch.includes('?') || match[0].includes('?')` was constant true
+      // and expressed an intent it did not implement. What actually distinguishes a
+      // ternary from an unrelated ';' is a '?' BEFORE this match on the same line.
+      const hasQuestionMark = beforeMatch.includes('?');
 
       if (hasQuestionMark) {
         this.addError(
@@ -401,11 +433,12 @@ export class AccurateValidator {
       // Pattern: condition ? value : condition ? value : value (all on one line)
       const hasSingleLineTernary = /\?\s*[^:]+:\s*[^:]+:\s*[^:]+/.test(line);
 
-      // Only flag as error if:
-      // 1. Next line starts with semicolon (wrong) OR
-      // 2. Line doesn't have complete single-line ternary
+      // Flag only when BOTH hold: the next line opens with a semicolon, and this
+      // line is not already a complete single-line ternary. The comment previously
+      // said "OR" while the code said "AND" — the code is right, because a
+      // self-contained ternary followed by an unrelated line is not an error.
+      // The error is reported against the NEXT line, where the stray semicolon is.
       if (nextLine.startsWith(';') && !hasSingleLineTernary) {
-        const column = line.length - 1;
         this.addError(
           lineNum + 1,
           0,

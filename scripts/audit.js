@@ -179,6 +179,12 @@ function auditTestGate() {
     pass('tests', `golden corpus lists ${listed.length} file(s), all present`);
   }
 
+  // A corpus of zero files would satisfy every check below while gating nothing.
+  if (listed.length === 0) {
+    fail('tests', 'golden corpus resolved to 0 files — the gate is vacuous. Check that fixture paths are inline single-quoted literals in golden-corpus.test.js');
+    return;
+  }
+
   // The corpus living under a gitignored path is how it vanishes from CI.
   try {
     const ignored = execSync(`git check-ignore ${listed.map(f => `"${f}"`).join(' ')} 2>/dev/null || true`,
@@ -218,8 +224,15 @@ function auditPackaging() {
   }
 
   // The compiled data the validator loads at runtime must survive packaging.
-  if (/^v6\/\*\*/m.test(ignore) && !/^dist\//m.test(ignore)) {
+  // Excluding dist/v6/ would ship an extension that dies at activation, so this
+  // must be able to FAIL — the previous form had no else branch and was inert.
+  const excludesRuntimeData = /^dist\/v6/m.test(ignore) || /^dist\/\*\*/m.test(ignore);
+  if (excludesRuntimeData) {
+    fail('packaging', '.vscodeignore excludes dist/v6/, which the validator loads at runtime — the extension would fail on activation');
+  } else if (/^v6\/\*\*/m.test(ignore)) {
     pass('packaging', 'v6/ TypeScript sources excluded; compiled dist/v6/ ships instead');
+  } else {
+    warn('packaging', 'v6/ TypeScript sources are shipped in the VSIX; only dist/v6/ is needed at runtime');
   }
 
   if (!/dev-tools/.test(ignore)) {

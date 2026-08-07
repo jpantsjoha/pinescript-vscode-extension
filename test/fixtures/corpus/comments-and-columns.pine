@@ -1,0 +1,36 @@
+//@version=6
+// ─────────────────────────────────────────────────────────────────────────────
+// GOLDEN CORPUS FIXTURE — valid Pine v6. The validator MUST report zero errors.
+//
+// Commented-out code. Both diagnostic paths previously scanned comments as if they
+// were live, so a line documenting an old API call reported a hard error. Four
+// false positives on a file whose only "problem" was that it explained itself.
+//
+// Also covers column accuracy after a long string literal: blanking a literal must
+// preserve its length, or every later column on the line shifts left.
+// ─────────────────────────────────────────────────────────────────────────────
+indicator("Corpus — comments and columns", overlay=true)
+
+// old API used: alertcondition(cond, "T", "M", "extra")
+// old API used: plotshape(x, shape=shape.circle)
+// old API used: line.new(x1=1, y1=2, colour=color.red)
+// migration note: box.new(left, top, right, bottom, textalign=text.align_left)
+
+length = input.int(14, "Length")        // was: input(14, "Length") in v4
+source = input.source(close, "Source")  // previously: ta.sma(close, 14, 99)
+
+fast = ta.sma(source, length)           // previously ta.sma(close, 14, 99)
+slow = ta.ema(source, length * 2)       // note: ta.ema(close)
+
+// A string containing punctuation that must not be parsed as syntax, followed by
+// real code on the same line — the column of any diagnostic after it must be exact.
+label_text = "brackets ) and commas , and a // sequence inside" + str.tostring(fast)
+
+// A comment containing an unbalanced paren, which must not desynchronise scanning:
+// e.g. plot(close  <- deliberately unclosed inside this comment
+
+alertcondition(ta.crossover(fast, slow), title="Cross", message="Fast crossed slow, review sizing")
+
+plot(fast, "Fast")
+plot(slow, "Slow")
+plotshape(ta.crossover(fast, slow), title="X", style=shape.triangleup, location=location.belowbar)

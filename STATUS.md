@@ -129,10 +129,15 @@ product decision, not a technical one — it should be made deliberately.
 
 ## Repository hygiene
 
-`examples/` is **gitignored** — it holds the author's own Pine strategies, which are
-proprietary. The CI false-positive gate runs on synthetic fixtures in
-`test/fixtures/corpus/` instead. Those fixtures were verified to fail when the
-original bugs are reintroduced, so the gate is real without exposing trading logic.
+`examples/` is **gitignored**, so nothing new added there can reach the public
+repository. Eleven generic sample files committed before that rule remain tracked —
+`.gitignore` does not untrack what is already committed, and those are ordinary
+samples rather than strategies. The author's actual strategies were removed from
+this branch's history.
+
+The CI false-positive gate runs on synthetic fixtures in `test/fixtures/corpus/`.
+Those were verified to fail when the original bugs are reintroduced, so the gate is
+real without exposing trading logic.
 
 Never move a file from `examples/` into the committed corpus list;
 `test/golden-corpus.test.js` asserts against exactly that.

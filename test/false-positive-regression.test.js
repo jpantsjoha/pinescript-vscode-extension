@@ -320,3 +320,82 @@ test('FP: the removed ta.change heuristic no longer fires on valid code', () => 
     'An unlocalisable style hint that fired on 3 of 11 verified files was removed'
   );
 });
+
+//──────────────────────────────────────────────────────────
+// Commented-out code
+//
+// Both diagnostic paths scanned comments as live code. A line documenting an old
+// API call produced a hard error — four false positives on a file whose only
+// fault was explaining itself. Found by code review, not by the corpus.
+//──────────────────────────────────────────────────────────
+
+test('FP: a commented-out alertcondition is not an arity error', () => {
+  assertClean(
+    HEADER + '// old API used: alertcondition(cond, "T", "M", "extra")\nplot(close)\n',
+    'Text after // is a comment, not a call'
+  );
+  assert.strictEqual(
+    docErrors(HEADER + '// old API used: alertcondition(cond, "T", "M", "extra")\n').length,
+    0,
+    'the document checks must strip comments too'
+  );
+});
+
+test('FP: a commented-out plotshape with shape= is not an error', () => {
+  assert.strictEqual(
+    docErrors(HEADER + '// old API used: plotshape(x, shape=shape.circle)\n').length,
+    0,
+    'shape= inside a comment is documentation, not a mistake'
+  );
+});
+
+test('FP: a trailing comment on a valid call is not validated as code', () => {
+  assertClean(
+    HEADER + 'x = ta.sma(close, 14)  // previously ta.sma(close, 14, 99)\n' +
+             'y = ta.ema(close, 21)  // note: ta.ema(close)\nplot(x)\nplot(y)\n',
+    'validateFunctionCall must receive the comment-stripped line'
+  );
+});
+
+test('FP: an unbalanced parenthesis inside a comment does not desynchronise scanning', () => {
+  assertClean(
+    HEADER + '// e.g. plot(close  <- deliberately unclosed\nplot(close, "ok")\n',
+    'Comment contents must not affect paren matching'
+  );
+});
+
+test('Still flags: the same constructs when NOT commented out', () => {
+  assertFlags(HEADER + 'z = ta.sma(close, 14, 99)\n', 'Too many arguments',
+    'stripping comments must not stop real code being checked');
+  assert.ok(
+    docErrors(HEADER + 'plotshape(close > open, shape=shape.circle)\n').length > 0,
+    'a real shape= mistake must still be reported'
+  );
+});
+
+test('Columns stay accurate after a long string literal on the same line', () => {
+  const source = HEADER + 'y = "a string with ) and , inside" + str.tostring(undefinedns.foo)\n';
+  const errors = errorsFor(source);
+  assert.ok(errors.length > 0, 'the undefined namespace should be reported');
+  const line = source.split('\n')[2];
+  assert.strictEqual(
+    errors[0].column,
+    line.indexOf('undefinedns'),
+    'blanking a string literal must preserve its length, or the squiggle lands in the wrong place'
+  );
+});
+
+test('The version-header check reads the original text, not the blanked copy', () => {
+  // `//@version=6` is itself a comment, so a blanked copy never contains it.
+  assert.strictEqual(
+    runDocumentChecks('//@version=6\nindicator("t")\nplot(close)\n')
+      .filter(d => d.message.includes('@version')).length,
+    0,
+    'a correctly versioned script must not be told to add a version'
+  );
+  assert.ok(
+    runDocumentChecks('indicator("t")\nplot(close)\n')
+      .some(d => d.message.includes('@version')),
+    'a script genuinely missing the version must still be flagged'
+  );
+});

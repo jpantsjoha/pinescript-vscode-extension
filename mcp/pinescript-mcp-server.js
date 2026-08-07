@@ -26,9 +26,16 @@ const path = require('path');
 // throws `ast.body is not iterable` on valid input — reconciling on the shipping
 // validator fixes the crash and the divergence in one move.
 const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
+const { runDocumentChecks } = require('../dist/src/parser/documentChecks.js');
 
 function validatePineScript(code) {
-  return new AccurateValidator().validate(code);
+  // BOTH diagnostic sources, because extension.ts runs both. Running only the
+  // validator gave MCP clients a clean bill of health on files the editor marked
+  // with errors — the exact divergence the comment above promises to prevent.
+  return [
+    ...new AccurateValidator().validate(code),
+    ...runDocumentChecks(code)
+  ].sort((a, b) => a.line - b.line || a.column - b.column);
 }
 
 // Create MCP server

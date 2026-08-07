@@ -33,6 +33,25 @@ export function blankStrings(text: string): string {
 }
 
 /**
+ * Blank every `//` comment, preserving length and newlines.
+ *
+ * Without this the checks below scan commented-out code as if it were live: a line
+ * reading `// old API used: alertcondition(c, "T", "M", "extra")` reported a hard
+ * arity error. That is the same false-positive class this module was extracted to
+ * eliminate. Comments are blanked AFTER strings, so a `//` inside a literal cannot
+ * truncate the line.
+ */
+export function blankComments(text: string): string {
+  return text
+    .split('\n')
+    .map(line => {
+      const at = line.indexOf('//');
+      return at === -1 ? line : line.slice(0, at) + ' '.repeat(line.length - at);
+    })
+    .join('\n');
+}
+
+/**
  * From the index of an opening '(', return the index of its matching ')', or -1
  * when it never closes. Assumes string literals have already been blanked.
  */
@@ -75,15 +94,18 @@ export function runDocumentChecks(text: string): ValidationError[] {
   const errors: ValidationError[] = [];
   // All positional scanning happens on the blanked copy so that string contents
   // never influence syntax decisions, while offsets still map to the original.
-  const scan = blankStrings(text);
+  const scan = blankComments(blankStrings(text));
 
   const add = (index: number, length: number, message: string, severity: number) => {
     const { line, column } = positionOf(text, index);
     errors.push({ line, column, length, message, severity: severity as any });
   };
 
-  // 1) Version header
-  if (!/^\s*\/\/@version=6/m.test(scan)) {
+  // 1) Version header.
+  //    Tested against the ORIGINAL text: `//@version=6` is itself a comment, so the
+  //    blanked copy never contains it. Checking `scan` reported every correctly
+  //    versioned script as missing its version.
+  if (!/^\s*\/\/@version=6/m.test(text)) {
     errors.push({ line: 1, column: 0, length: 1, message: 'Recommend using //@version=6 for Pine v6.', severity: SEVERITY_WARNING as any });
   }
 
