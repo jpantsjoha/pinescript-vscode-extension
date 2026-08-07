@@ -41,7 +41,8 @@ build otherwise — that guard is the reason this cannot silently recur.
 ## Before you change validation logic
 
 ```bash
-npm run build && npm test          # 112 tests; golden corpus must stay at 0 errors
+npm run build && npm test          # 119 tests; golden corpus must stay at 0 errors
+npm run audit                      # harness, packaging, version, diagnostic coverage
 node validate-cli.js <file.pine>   # headless single-file check
 node validate-cli.js --both <f>    # diff AccurateValidator vs ComprehensiveValidator
 ```
@@ -52,13 +53,14 @@ add their reduced script to the corpus *before* fixing it.
 
 ## Architecture — read this before adding a validator
 
-Four validators exist. **Only `AccurateValidator` ships.**
+Four validators exist. **`AccurateValidator` and `documentChecks` ship; the other two are dead.**
 
 | File | Status |
 |---|---|
 | `src/parser/accurateValidator.ts` | The live validator. Regex-over-lines, no AST. |
-| `src/parser/comprehensiveValidator.ts` | Imported by `extension.ts` but never called. Crashes: `ast.body is not iterable`. |
-| `src/parser/validator.ts` | Imported, never called. |
+| `src/parser/documentChecks.ts` | **Ships.** Whole-document heuristics, runs alongside AccurateValidator. |
+| `src/parser/comprehensiveValidator.ts` | Dead. Import removed from `extension.ts`. Crashes: `ast.body is not iterable`. |
+| `src/parser/validator.ts` | Dead. Import removed. |
 | `src/parser/{parser,ast,lexer,typeSystem,symbolTable}.ts` | Feeds only the dead path. |
 
 Consequence: `AccurateValidator` has no AST, so it cannot do type inference.
@@ -110,7 +112,7 @@ Build a **professional-grade Pine Script v6 IDE extension** for VS Code that pro
 - **100% accurate** parameter validation based on official TradingView documentation
 - **Intelligent IntelliSense** with 457+ built-in functions
 - **Real-time diagnostics** catching undefined variables, functions, and invalid constants
-- **Zero false positives** - only report actual errors, never valid v6 syntax
+- **Zero false positives on the golden corpus** - never flag valid v6 syntax
 
 ---
 
@@ -141,9 +143,10 @@ Build a **professional-grade Pine Script v6 IDE extension** for VS Code that pro
   - Undefined variable/function/namespace detection
   - Pine Script v6 constant validation
 
-- ❌ **NOT AST-based** (ComprehensiveValidator disabled)
-  - Reason: Produces false positives on valid v6 code
-  - Example: Incorrectly flags `var float cumPV = na` as error
+- ❌ **NOT AST-based** (ComprehensiveValidator dead)
+  - Produces false positives on valid v6 code, and throws `ast.body is not
+    iterable` on some valid input. Its import was removed from extension.ts.
+  - Consequence: no type inference is possible without repairing the AST path.
 
 ### 2. Data Sources (Accuracy Priority)
 
