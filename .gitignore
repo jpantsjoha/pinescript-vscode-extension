@@ -47,10 +47,17 @@ v6/scripts/
 *.temp
 .cache/
 
-# Local development & secrets
+# Local development & secrets.
+# Credentials belong in ~/.config/vscode-publishing/publish.env or the macOS
+# keychain, never in a project directory — a repo-local secret is one `git add -A`
+# away from being public, and this repo IS public.
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+*.pat
+*.token
+secrets.json
+.npmrc
 
 # Test coverage
 coverage/
@@ -88,3 +95,8 @@ mcp/tradingview-mcp/
 # The CI golden corpus lives in test/fixtures/corpus/ (synthetic fixtures) so the
 # false-positive gate works without exposing any trading logic. See CLAUDE.md.
 examples/
+
+# Working directory — process notes, planning, audits, release runbooks.
+# Same convention as _plugin/ in googlecloud-plugin and pinescript-plugin:
+# operational detail stays out of the public repo.
+_process/
