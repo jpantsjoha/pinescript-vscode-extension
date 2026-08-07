@@ -4,6 +4,14 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+# The final step posts test results as a PR comment. Without an explicit grant the
+# default GITHUB_TOKEN is read-only on pull requests, so that step failed with
+# "Resource not accessible by integration" and reported the whole job as failed
+# even when every test passed.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   pr-validation:
     name: PR Validation
