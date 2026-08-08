@@ -51,8 +51,9 @@ Suppress one you have considered: `// pine-ignore: S1`
 - Catches undefined functions and variables
 - Detects missing/extra parameters
 - Validates namespace properties
-- **Zero false positives** on the golden corpus — 13 real scripts that compile
-  on TradingView, asserted clean on every commit
+- **Zero false positives** on the golden corpus — four committed fixtures
+  exercising every construct that has ever produced one, asserted clean on every
+  commit, plus real scripts checked locally
 
 ### 💡 **Intelligent IntelliSense**
 - Smart autocomplete for all built-in functions
@@ -113,15 +114,24 @@ The extension works out of the box with zero configuration. All Pine Script v6 f
 
 ---
 
-## 📊 What's New in v0.5.1
+## 📊 What's New in v0.6.0
 
-### False positives eliminated
+### Semantic checks — catches code that compiles and is still wrong
+Repainting `request.security`, `ta.*` inside conditionals, scope errors, platform
+limits, entries with no exit. Suppress one you have considered with
+`// pine-ignore: S1`.
+
+### The engine is now a package
+Published as [`pinescript-v6-validator`](https://www.npmjs.com/package/pinescript-v6-validator)
+and shared with the agent plugin, so both cannot disagree about a file.
+
+### False positives eliminated (0.5.x)
 The coordinate forms of `line.new`, `label.new` and `box.new` are official v6
 overloads, but the bundled reference only carried the `chart.point` form — so
 correct code lit up red. Overloads are now modelled properly.
 
 ```pinescript
-// Before v0.5.1: 10 errors on these three lines. Now: clean. ✅
+// Before v0.5.0: 10 errors on these three lines. Now: clean. ✅
 line.new(x1=bar_index[1], y1=low[1], x2=bar_index, y2=high)
 label.new(x=bar_index, y=high, text="hi")
 box.new(left=bar_index[5], top=high, right=bar_index, bottom=low)
@@ -152,8 +162,8 @@ See [CHANGELOG](./CHANGELOG.md) for complete version history.
 ## 🧪 Testing
 
 - **169/169 tests passing** (100%)
-- **Golden corpus**: 13 real scripts that compile on TradingView, asserted to
-  produce zero errors — any error against them is a false positive by definition
+- **Golden corpus**: four committed fixtures asserted to produce zero errors, and
+  proven able to fail — reintroducing a fixed bug turns them red
 - **Paired regression tests**: every false-positive fix ships with a "must still
   flag" counterpart, so a check cannot be silently deleted instead of repaired
 - **Performance budget**: enforced in CI (<100ms for a 1,300-line script)
