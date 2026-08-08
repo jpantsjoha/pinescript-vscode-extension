@@ -1,7 +1,7 @@
 {
   "name": "pinescript-v6-validator",
-  "version": "0.2.1",
-  "description": "TradingView Pine Script v6 validator and reference dataset \u2014 457 function signatures with explicit overload modelling. The engine behind the Pine Script v6 IDE Tools VS Code extension.",
+  "version": "0.3.0",
+  "description": "TradingView Pine Script v6 validator and reference dataset — 457 function signatures with explicit overload modelling. The engine behind the Pine Script v6 IDE Tools VS Code extension.",
   "keywords": [
     "pinescript",
     "pine-script",

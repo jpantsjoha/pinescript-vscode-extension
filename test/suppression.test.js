@@ -33,8 +33,13 @@ test('every check carries an id, severity, title and doc anchor', () => {
     assert.strictEqual(check.id, id, `${id}: id must match its key`);
     assert.ok([0, 1, 2, 3].includes(check.severity), `${id}: severity`);
     assert.ok(check.title && check.title.length > 15, `${id}: needs a real title`);
-    assert.ok(check.docAnchor && check.docAnchor.includes('#'),
-      `${id}: docAnchor must point into a skill section`);
+    // Shape only. Whether the anchor RESOLVES is checked where the skills
+    // actually live — scripts/check_doc_anchors.js in pinescript-plugin. Asserting
+    // `includes('#')` here passed happily while four of the nine anchors pointed at
+    // headings that no longer existed, so treat this as a typo guard, not a link check.
+    const [skill, anchor] = (check.docAnchor || '').split('#');
+    assert.match(skill, /^pinescript-[a-z0-9]+$/, `${id}: docAnchor needs a skill name`);
+    assert.ok(anchor && anchor.length > 3, `${id}: docAnchor needs a section`);
   }
 });
 

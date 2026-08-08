@@ -41,7 +41,7 @@ export const SEMANTIC_CHECKS: Record<SemanticCheckId, SemanticCheck> = {
     id: 'S1',
     severity: Severity.Warning,
     title: 'Possible repainting: request.security() without a historical offset',
-    docAnchor: 'pinescript-strategy#1-repainting-higher-timeframe-data'
+    docAnchor: 'pinescript-strategy#1-repainting-higher-timeframe-data-detected-as-s1'
   },
   S2: {
     id: 'S2',
@@ -49,17 +49,22 @@ export const SEMANTIC_CHECKS: Record<SemanticCheckId, SemanticCheck> = {
     title: 'ta.* called inside a conditional — its history will have gaps',
     docAnchor: 'pinescript-v6#the-execution-model-decides-everything'
   },
+  // Two shapes, one question: does the accumulator's lifetime match its meaning?
+  //   S3a  `x := x + ...` with no `var`   -> resets every bar
+  //   S3b  `var x = 0` re-accumulated in a loop with no reset -> grows unbounded
+  // S3b is the costlier half: it produces a plausible number that drifts, which is
+  // the defect that survives a backtest. One ID so `// pine-ignore: S3` covers both.
   S3: {
     id: 'S3',
     severity: Severity.Warning,
-    title: 'Accumulator reassigned without var — it resets on every bar',
-    docAnchor: 'pinescript-strategy#4-accumulators-without-var'
+    title: 'Accumulator lifetime does not match its meaning',
+    docAnchor: 'pinescript-strategy#4-accumulator-lifetime-both-directions-are-wrong'
   },
   S4: {
     id: 'S4',
     severity: Severity.Warning,
     title: 'Assignment inside and/or — v6 short-circuits and may skip it',
-    docAnchor: 'pinescript-strategy#4-accumulators-without-var'
+    docAnchor: 'pinescript-strategy#4-accumulator-lifetime-both-directions-are-wrong'
   },
   S5: {
     id: 'S5',
@@ -83,7 +88,7 @@ export const SEMANTIC_CHECKS: Record<SemanticCheckId, SemanticCheck> = {
     id: 'S8',
     severity: Severity.Error,
     title: 'Functions cannot be defined inside a block',
-    docAnchor: 'pinescript-v6#language-rules-that-bite'
+    docAnchor: 'pinescript-v6#common-compile-errors'
   },
   S9: {
     id: 'S9',
