@@ -65,7 +65,7 @@ Three diagnostic sources ship. Two older validators are dead.
 
 ```
 packages/validator/          ← the engine, published as pinescript-v6-validator
-  semanticChecks.ts          ← ships. S1,S2,S5-S9. Consumed via dist/engine/
+  semanticChecks.ts          ← ships. S1,S2,S3,S5-S9. Consumed via dist/engine/
 src/parser/
   accurateValidator.ts       ~970 LOC  ← ships. DUPLICATED in the engine.
   documentChecks.ts          ~220 LOC  ← ships. DUPLICATED in the engine.

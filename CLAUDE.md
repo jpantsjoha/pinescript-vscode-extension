@@ -68,7 +68,7 @@ problem — do not repeat the claim that nothing is copied.
 |---|---|
 | `src/parser/accurateValidator.ts` | The live validator. Regex-over-lines, no AST. |
 | `src/parser/documentChecks.ts` | **Ships.** Whole-document heuristics, runs alongside AccurateValidator. |
-| `pinescript-v6-validator` (npm) | **Ships.** Semantic checks S1, S2, S5-S9 (S3/S4 specified but not built). Genuinely consumed — `dist/engine/`, never copied into `src/`. |
+| `pinescript-v6-validator` (npm) | **Ships.** Semantic checks S1, S2, S3, S5-S9 (only S4 specified but not built). Genuinely consumed — `dist/engine/`, never copied into `src/`. |
 | `src/parser/comprehensiveValidator.ts` | Dead. Import removed from `extension.ts`. Crashes: `ast.body is not iterable`. |
 | `src/parser/validator.ts` | Dead. Import removed. |
 | `src/parser/{parser,ast,lexer,typeSystem,symbolTable}.ts` | Feeds only the dead path. |
