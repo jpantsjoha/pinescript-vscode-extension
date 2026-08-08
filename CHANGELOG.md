@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.1] - 2026-08-08
+
+### 🐛 Three semantic checks missed common real-world shapes
+
+An adversarial review found each check working on its happy path and silently
+missing a shape that occurs constantly. Engine bumped to
+`pinescript-v6-validator@0.2.1`.
+
+- **S1 skipped every multi-line `request.security()`.** The code bailed when the
+  parentheses did not close on one line, with a comment claiming the call was
+  "assessed on its own line". Nothing assessed it. Wrapping is the normal
+  formatting for this function, so most real repainting escaped detection.
+- **S2 only checked the true branch of a ternary.** `cond ? na : ta.sma(...)`
+  passed clean. Both branches are conditional and both leave gaps in history.
+- **S9 counted `strategy.cancel` as an exit.** Cancel withdraws a pending order;
+  it does not close a position. A strategy that entered and only cancelled had
+  unbounded risk and was passed clean.
+
+### 🔧 The audit guard was blind to its newest source
+
+`scripts/audit.js` matched `from 'pinescript-v6-validator'` while `extension.ts`
+uses `require('../engine/...')`. It reported "all 2 diagnostic sources" and had
+not seen the semantic checks since they were added, in a guard both repos cite as
+the reason drift cannot silently recur.
+
+### 📋 Documentation corrected
+
+The README claimed "zero false positives on the golden corpus, 13 real scripts
+that compile on TradingView, asserted clean on every commit". It is four committed
+synthetic fixtures plus seven files skipped in CI. Wrong on count, provenance and
+coverage.
+
+`CLAUDE.md` claimed the engine is "consumed, never copied". In fact
+`src/parser/documentChecks.ts` is byte-identical to the package copy and `v6/`
+duplicates the package data exactly. Only the semantic checks are genuinely
+consumed. `test/engine-parity.test.js` now fails the build if the copies drift,
+and the migration is recorded as outstanding debt rather than claimed as done.
+
+---
+
 ## [0.6.0] - 2026-08-07
 
 ### ✨ Semantic checks — defects that compile and are still wrong

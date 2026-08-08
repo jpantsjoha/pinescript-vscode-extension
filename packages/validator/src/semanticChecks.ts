@@ -172,10 +172,32 @@ function checkRepainting(lines: string[]): ValidationError[] {
     let match;
     while ((match = pattern.exec(text)) !== null) {
       const open = match.index + match[0].length - 1;
-      const close = matchingParen(text, open);
-      if (close === -1) continue;   // multi-line call — assessed on its own line
+      let close = matchingParen(text, open);
+      let args: string;
 
-      const args = text.slice(open + 1, close);
+      if (close === -1) {
+        // The call wraps. Previously this bailed with "assessed on its own line",
+        // but nothing ever did — so every wrapped request.security escaped the
+        // check, and wrapping is the COMMON formatting for this function.
+        // Join forward until the parens balance.
+        let joined = text.slice(open);
+        let depth = 0;
+        for (const ch of joined) {
+          if (ch === '(' || ch === '[') depth++;
+          else if (ch === ')' || ch === ']') depth--;
+        }
+        for (let j = i + 1; j < lines.length && depth > 0; j++) {
+          joined += '\n' + lines[j];
+          for (const ch of lines[j]) {
+            if (ch === '(' || ch === '[') depth++;
+            else if (ch === ')' || ch === ']') depth--;
+          }
+        }
+        if (depth > 0) continue;          // never closes — a syntax error, not ours
+        args = joined.slice(1, joined.lastIndexOf(')'));
+      } else {
+        args = text.slice(open + 1, close);
+      }
 
       // An explicit lookahead is a deliberate decision, whichever way it goes.
       if (/\blookahead\s*=/.test(args)) continue;
@@ -218,9 +240,11 @@ function checkTaInConditional(lines: string[]): ValidationError[] {
     while ((match = taCall.exec(text)) !== null) {
       const before = text.slice(0, match.index);
 
-      // Inside a ternary: a '?' precedes the call on this line, and the call is
-      // not itself the condition being tested.
-      const inTernary = /\?/.test(before) && !/\?[^:]*$/.test(before) === false;
+      // Inside a ternary — EITHER branch. The previous expression reduced to
+      // "a '?' appears and no ':' sits between it and the call", which caught
+      // `cond ? ta.sma(...) : na` but silently missed `cond ? na : ta.sma(...)`.
+      // Both branches are conditional, so both corrupt the indicator's history.
+      const inTernary = /\?/.test(before);
 
       // Inside an indented block: this line starts a statement AND is indented.
       const indent = text.search(/\S/);
@@ -255,7 +279,10 @@ function checkEntryWithoutExit(lines: string[]): ValidationError[] {
   lines.forEach((text, i) => {
     const entry = /(?<![a-zA-Z0-9_.])strategy\.(entry|order)\s*\(/.exec(text);
     if (entry && !firstEntry) firstEntry = { line: i + 1, column: entry.index };
-    if (/(?<![a-zA-Z0-9_.])strategy\.(exit|close|close_all|cancel|cancel_all)\s*\(/.test(text)) {
+    // `cancel` / `cancel_all` withdraw a PENDING ORDER; they do not close an open
+    // position. Counting them as exits let a strategy with genuinely unbounded
+    // risk pass clean — the precise thing S9 exists to catch.
+    if (/(?<![a-zA-Z0-9_.])strategy\.(exit|close|close_all)\s*\(/.test(text)) {
       hasExit = true;
     }
   });

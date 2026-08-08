@@ -26,9 +26,9 @@ run it before claiming completion.
 
 ## Diagnostics come from MORE THAN ONE place
 
-`AccurateValidator` is **not** the only source of squiggles. `documentChecks.ts`
-runs whole-document heuristics alongside it. Both are wired into `validate-cli.js`
-and `test/golden-corpus.test.js`.
+There are **three**: `AccurateValidator` (signatures, arity, namespaces),
+`documentChecks` (whole-document heuristics) and the engine's `runSemanticChecks`
+(S1-S9). All three are wired into `validate-cli.js` and `test/golden-corpus.test.js`.
 
 This matters because it already went wrong: the document checks lived inline in
 `extension.ts`, untested and invisible to the CLI, and shipped **28 false
@@ -36,12 +36,14 @@ This matters because it already went wrong: the document checks lived inline in
 A green test run meant nothing for half the diagnostics a user saw.
 
 **If you add a diagnostic source, wire it into both.** `scripts/audit.js` fails the
-build otherwise — that guard is the reason this cannot silently recur.
+build otherwise. Note its limit: it enumerates `src/parser/` modules plus the engine
+import, so a NEW check added inside the engine package is not covered by that guard —
+the golden corpus is what catches those.
 
 ## Before you change validation logic
 
 ```bash
-npm run build && npm test          # 119 tests; golden corpus must stay at 0 errors
+npm run build && npm test          # 169 tests; golden corpus must stay at 0 errors
 npm run audit                      # harness, packaging, version, diagnostic coverage
 node validate-cli.js <file.pine>   # headless single-file check
 node validate-cli.js --both <f>    # diff AccurateValidator vs ComprehensiveValidator
@@ -53,12 +55,20 @@ add their reduced script to the corpus *before* fixing it.
 
 ## Architecture — read this before adding a validator
 
-Four validators exist. **`AccurateValidator` and `documentChecks` ship; the other two are dead.**
+Three diagnostic sources ship; two older validators are dead.
+
+**Caveat on ADR-0001.** Semantic checks are genuinely consumed from the engine. The
+SYNTACTIC validator is not: `src/parser/accurateValidator.ts` and
+`documentChecks.ts` are near-identical copies of the package sources, and `v6/`
+duplicates `packages/validator/data/`. `test/engine-parity.test.js` fails the build
+if they drift. Migrating them to the package is outstanding work, not a solved
+problem — do not repeat the claim that nothing is copied.
 
 | File | Status |
 |---|---|
 | `src/parser/accurateValidator.ts` | The live validator. Regex-over-lines, no AST. |
 | `src/parser/documentChecks.ts` | **Ships.** Whole-document heuristics, runs alongside AccurateValidator. |
+| `pinescript-v6-validator` (npm) | **Ships.** Semantic checks S1, S2, S5-S9 (S3/S4 specified but not built). Genuinely consumed — `dist/engine/`, never copied into `src/`. |
 | `src/parser/comprehensiveValidator.ts` | Dead. Import removed from `extension.ts`. Crashes: `ast.body is not iterable`. |
 | `src/parser/validator.ts` | Dead. Import removed. |
 | `src/parser/{parser,ast,lexer,typeSystem,symbolTable}.ts` | Feeds only the dead path. |

@@ -1,24 +1,28 @@
 # Project Status
 
 **Updated**: 2026-08-07
-**Working version**: 0.5.1 (tagged, not yet published)
-**Marketplace version**: 0.4.4, published 2025-10-07
-**Installs**: 1,403 · **Rating**: 4.45★
+**Working version**: 0.6.0
+**Marketplace version**: 0.6.0, published 2026-08-07
+**Installs**: 1,404 · **Rating**: 4.45★
+**Engine**: [`pinescript-v6-validator@0.2.0`](https://www.npmjs.com/package/pinescript-v6-validator) on npm
 
 ---
 
 ## Where this stands
 
-The extension works and has real users. Until this release it had been ten months
-since a publish, and the working tree carried a regression that put ten false
-errors on the most common drawing idiom in Pine. That is fixed, proven by tests,
-and the gate that should have caught it now exists.
+The extension works and has real users. Two releases shipped today: 0.5.1 closed a
+ten-month gap and eliminated the false positives, and 0.6.0 added semantic checks —
+detection of code that COMPILES and is still wrong (repainting, `ta.*` history
+gaps, scope errors, platform limits).
+
+The validation engine is now published as `pinescript-v6-validator` and consumed
+by both this extension and the agent plugin, so semantic findings are identical in both.
 
 | Signal | State |
 |---|---|
 | `npx tsc --noEmit` | clean |
-| `npm test` | 117/117 pass |
-| `npm run audit` | 17 pass · 1 warn · 0 fail |
+| `npm test` | 169/169 pass |
+| `npm run audit` | 19 pass · 1 warn · 0 fail |
 | Golden corpus (synthetic fixtures, both diagnostic paths) | 0 errors |
 | Validation speed, 1,300-line script | ~12ms (budget: 100ms) |
 | MCP server | loads and validates |
@@ -35,12 +39,12 @@ publish. None of it had reached a user until now.
 |---|---|---|
 | 1. Multi-line continuation | 🔴 CRITICAL | ✅ Shipped in 0.5.0 |
 | 2. Ternary operator | 🟡 MEDIUM | ✅ Shipped in 0.5.0 |
-| 3. Execution model (`var` / `:=`) | 🟡 MEDIUM | ❌ Not started |
+| 3. Execution model (`var` / `:=`) | 🟡 MEDIUM | ⚠️ Partial — S3/S4 specified, deliberately deferred |
 | 4. Type system | 🔴 HIGH | ⛔ **Blocked** — needs the AST path repaired |
 | 5. Control flow syntax | 🟡 MEDIUM | ⛔ Blocked (same) |
 | 6. Expression parsing | 🟢 LOW | ⛔ Blocked (same) |
-| 7. Platform limits | 🟢 LOW | ❌ Not started |
-| 8. Anti-repainting | 🟡 MEDIUM | ❌ Not started |
+| 7. Platform limits | 🟢 LOW | ✅ Shipped in 0.6.0 as checks S5/S6 |
+| 8. Anti-repainting | 🟡 MEDIUM | ✅ Shipped in 0.6.0 as check S1 |
 
 ### The roadmap's accuracy problem
 
@@ -57,20 +61,26 @@ structural, not effort — see below.
 
 ## The central architectural decision (unresolved)
 
-Four validators exist. **Two ship.**
+Three diagnostic sources ship. Two older validators are dead.
 
 ```
+packages/validator/          ← the engine, published as pinescript-v6-validator
+  semanticChecks.ts          ← ships. S1,S2,S5-S9. Consumed via dist/engine/
 src/parser/
-  accurateValidator.ts       ~900 LOC  ← ships
-  documentChecks.ts          ~220 LOC  ← ships (whole-document heuristics)
+  accurateValidator.ts       ~970 LOC  ← ships. DUPLICATED in the engine.
+  documentChecks.ts          ~220 LOC  ← ships. DUPLICATED in the engine.
   comprehensiveValidator.ts 1126 LOC   ← DEAD. Import removed. Crashes on valid input.
   validator.ts               373 LOC   ← DEAD. Import removed.
   parser.ts / ast.ts / lexer.ts / typeSystem.ts / symbolTable.ts
                             ~2000 LOC  ← feeds only the dead path
 ```
 
-Both shipping sources are wired into `validate-cli.js` and the golden corpus, and
-`scripts/audit.js` fails the build if a new one is not. That guard exists because
+All three shipping sources are wired into `validate-cli.js` and the golden corpus.
+
+**Known architectural debt:** the syntactic validator and the v6 dataset exist in
+both `src/parser/`+`v6/` and the engine package. `test/engine-parity.test.js` fails
+the build if they drift, but migrating them to the package — as the semantic checks
+already are — is outstanding. That guard exists because
 the document checks previously ran untested and shipped 28 false positives across
 files the suite was certifying as clean.
 
@@ -97,7 +107,7 @@ product decision, not a technical one — it should be made deliberately.
 - **`ComprehensiveValidator` throws `ast.body is not iterable`** on valid input.
   Its import was removed from `extension.ts`, so the extension is unaffected, but
   the AST path is unusable until this is fixed.
-- **Version namespace confusion.** The package is `0.5.1`; the validator was
+- **Version namespace confusion.** The package is `0.6.0`; the validator was
   internally versioned `v1.2.0`; the roadmap targets `v2.0.0`. Three schemes for
   one artefact. Recommend collapsing to the package version alone.
 - **The reference dataset is a point-in-time scrape** (2025-10-03). Additions since
@@ -110,20 +120,21 @@ product decision, not a technical one — it should be made deliberately.
 
 | Project | Relationship |
 |---|---|
-| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. Will consume the validation engine from this repo rather than copying it — a copy guarantees drift, and drift means the plugin contradicts the editor. Engine extraction is Phase 0 of that work. |
+| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart, v0.4.0. Consumes `pinescript-v6-validator@0.2.0` from npm — the same engine this extension uses, so the two cannot disagree about a file. |
 
 ---
 
 ## Next
 
-1. Publish 0.5.1 — ten months of fixes are sitting idle.
-2. Decide the AST question above.
-3. Build the parity measurement harness, so accuracy claims become measurable
+1. ~~Publish 0.5.1~~ ✅ done, plus 0.6.0.
+2. Decide on S3/S4 — the accumulator and lazy-evaluation checks are specified but
+   not built. S3 is a heuristic about intent; if its false-positive rate on real
+   scripts is not clearly zero it should ship as Information or be dropped.
+3. Decide the AST question above.
+4. Build the parity measurement harness, so accuracy claims become measurable
    rather than asserted.
-4. Re-crawl the v6 reference and un-gitignore `v6/scripts/`.
-5. Extract the validation engine so `pinescript-plugin` can consume it. The only
-   coupling to `vscode` is the `DiagnosticSeverity` enum (three references, all
-   plain integers), so this is far cheaper than it looks.
+5. Re-crawl the v6 reference and un-gitignore `v6/scripts/`.
+6. ~~Extract the validation engine~~ ✅ published as `pinescript-v6-validator@0.2.0`.
 
 ---
 
