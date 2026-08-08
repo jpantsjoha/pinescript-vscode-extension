@@ -7,7 +7,7 @@
     "name": "Jaroslav Pantsjoha",
     "url": "https://jpantsjoha.com"
   },
-  "version": "0.6.0",
+  "version": "0.6.1",
   "icon": "images/pinescript-extension.png",
   "repository": {
     "type": "git",
@@ -143,6 +143,6 @@
   },
   "dependencies": {
     "glob": "^11.0.3",
-    "pinescript-v6-validator": "^0.2.0"
+    "pinescript-v6-validator": "^0.2.1"
   }
 }

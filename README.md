@@ -24,7 +24,7 @@ Search for **"Pine Script v6 IDE Tools"** in VS Code Extensions or [install dire
 ### Or Install from VSIX
 Download the latest `.vsix` from [Releases](https://github.com/jpantsjoha/pinescript-vscode-extension/releases) and install:
 ```bash
-code --install-extension pinescript-v6-extension-0.6.0.vsix
+code --install-extension pinescript-v6-extension-0.6.1.vsix
 ```
 
 ---
@@ -114,7 +114,7 @@ The extension works out of the box with zero configuration. All Pine Script v6 f
 
 ---
 
-## 📊 What's New in v0.6.0
+## 📊 What's New in v0.6.1
 
 ### Semantic checks — catches code that compiles and is still wrong
 Repainting `request.security`, `ta.*` inside conditionals, scope errors, platform
@@ -234,4 +234,4 @@ Special thanks to:
 
 **Full Language Coverage**: 6,665 Pine Script v6 constructs
 **Test Coverage**: 169 tests
-**Current Version**: 0.6.0
+**Current Version**: 0.6.1
