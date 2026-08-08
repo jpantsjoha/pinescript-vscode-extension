@@ -41,6 +41,7 @@ code --install-extension pinescript-v6-extension-0.6.1.vsix
 ### 🧠 **Semantic checks — catches code that compiles and is still wrong**
 - **Repainting** — `request.security()` reading the current, forming bar
 - **`ta.*` in a conditional** — silently corrupts the indicator's own history
+- **Accumulator lifetime** — a `var` total a loop re-adds to every bar and never resets, so it grows for the life of the chart
 - **Scope errors** — `plot`/`bgcolor` inside `if`, functions defined in a block
 - **Platform limits** — 64 plots, 40 `request.*()` calls, counted before TradingView rejects you
 - **Unbounded risk** — `strategy.entry` with no exit anywhere

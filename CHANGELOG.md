@@ -7,6 +7,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.2] - 2026-08-08
+
+### ✨ S3 — accumulator lifetime, found in the field
+
+A user validated `examples/test-v6-features.pine`, got a clean-ish report, and then
+spotted by eye what the tool had missed:
+
+```pine
+var float sum = 0.0
+for i = 0 to 9
+    sum := sum + close[i]
+```
+
+`var` persists across bars, so this adds ten more closes on every bar for the life of
+the chart. The author wanted "sum of the last ten closes". A second instance in the
+same file was quieter still — `var int counter = 0` guarding a `while counter < 5`
+loop that, on bar two, can never run again.
+
+The original spec had only the **opposite** shape: an accumulator *missing* `var`,
+which resets each bar. That is the cheaper half — it produces a visibly constant
+series. This half produces a plausible number that drifts, which is the defect that
+survives a backtest.
+
+Now detected as **S3** (warning) in `pinescript-v6-validator@0.3.0`, with two
+exemptions that keep it quiet on correct code: a reset before the loop (a `var`
+reused as a buffer) and a run-once guard (`barstate.isfirst`, `bar_index == 0`) for
+table-building on the first bar. Seven paired tests; fires twice across 24 committed
+`.pine` files and both are real defects.
+
+### 🐛 Four of nine documentation anchors pointed at nothing
+
+Every semantic finding carries a `docAnchor` linking to the prose that explains it.
+The engine owned the anchor, the plugin repo owned the heading, and nothing made them
+agree — so when headings were reworded the links rotted, including **S1's**, the
+most-cited defect in Pine Script.
+
+The test meant to prevent this asserted `docAnchor.includes('#')`, which all four
+dead links passed. Shape is not resolution. Anchors are now resolved against the real
+skill headings by `make anchors` in the plugin repo, and the S8 anchor points at a
+compile-error table that now actually documents S7 and S8.
+
+### 📝 The accumulator guidance was the inverse of the bug
+
+The skills told readers to "declare accumulators `var` so they persist" — precisely
+the advice that produces the defect above. Run the old checklist against the reported
+bug and every item ticks. That guidance now covers both directions, and no skill
+previously mentioned `for` or `while` at all.
+
+Also corrected: three honest omissions added to "What the validator CANNOT see" —
+constant and built-in-variable *names* are never checked (`shape.trianglup` validates
+clean), re-declaring with `=` is not caught, and `ta.*` on the right of `and`/`or`
+escapes S2 because v6 short-circuits.
+
+### 🧪 A regression harness aimed at the published artefact
+
+Every recurring failure in this project has had one shape: correct in `src/`, broken
+in what users receive. Dead doc anchors that resolved against the source and not the
+shipped package. A VSIX whose engine was excluded from the bundle. A scratchpad path
+that leaked into a dependency range mid-session and was caught by eye, not by a gate.
+No suite importing from `packages/validator/dist` can see any of those.
+
+- **`test/regression-corpus.js`** — every defect this validator has ever shipped, as
+  data rather than tests. Each entry carries the date it was found and an account of
+  how it escaped.
+- **`test/npm-package.test.js`** — packs the tarball, installs it into a throwaway
+  project, and drives the same corpus through `require('pinescript-v6-validator')`
+  with no path back into this repo. Also asserts no manifest pins a local path, and
+  that the extension never pins an engine version ahead of what is published.
+
+One table, two environments, so source and published cannot drift. The corpus polices
+itself: every case needs a real date and a reason, and at least 30% must assert
+*silence* on correct code — otherwise it quietly becomes a "find more bugs" suite and
+stops defending working code.
+
+Verified by reintroducing the S2 false positive and confirming both suites fail by
+name, and by staging it and confirming the pre-commit hook refuses the commit.
+
+- **`.githooks/pre-commit`** — typecheck, the full suite including the packed-tarball
+  run, and every file in `examples/`. About five seconds. Chains from the machine-wide
+  secret scanner rather than replacing it. Install with `npm run hooks:install`.
+- **`.claude/skills/validator-gate`** — the release order, how to read a clean run
+  honestly, and why a new false positive is a release blocker where a new miss is not.
+
+### 🔧 `make gate` could pass with its main check disabled
+
+`validate_skill_examples.py` returned 0 when the engine was absent, so a local
+`make gate` printed "Gate passed" over zero validated examples. It now fails unless
+`--allow-skip` is passed deliberately. The same run also revealed that the five
+scaffolds advertised as "validated in CI" were opened by no script at all — true by
+luck, not by enforcement. They are now validated as whole files: 31 examples checked,
+5 of them scaffolds.
+
+---
+
 ## [0.6.1] - 2026-08-08
 
 ### 🐛 Three semantic checks missed common real-world shapes

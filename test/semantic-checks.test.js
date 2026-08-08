@@ -77,6 +77,37 @@ test('S2 is silent when the RESULT of an unconditional call is used in a ternary
     'This is the correct idiom and by far the more common shape — flagging it would be the worst kind of false positive');
 });
 
+// Indentation is not conditionality. A user-defined function body is indented for
+// SCOPE, and `ta.*` inside one is the normal way to write a reusable helper — it
+// runs whenever the function is called. Flagging it fired on real working scripts
+// (examples/global-liquidity.v6.pine:41), which is the false-positive class this
+// project holds to be worse than a miss.
+
+test('S2 is silent for a ta.* call in a user-defined function body', () => {
+  assertSilent(IND + 'f_norm(x, n) =>\n    ma = ta.sma(x, n)\n    na(ma) ? na : x / ma\nplot(f_norm(close, 20))\n',
+    'S2', 'A function body is indented for scope, not for branching');
+});
+
+test('S2 is silent for a ta.* call in a method body', () => {
+  assertSilent(IND + 'method smooth(float x) =>\n    ta.sma(x, 5)\nplot(close.smooth())\n',
+    'S2', 'Methods are function definitions too');
+});
+
+test('S2 is silent for a ta.* call in an exported function body', () => {
+  assertSilent(IND + 'export f(float x) =>\n    ta.rsi(x, 14)\nplot(close)\n',
+    'S2', 'export is a modifier on a definition, not a branch');
+});
+
+test('S2 still flags a ta.* call inside an if NESTED in a function', () => {
+  assertFlags(IND + 'f(x) =>\n    if x > 0\n        ta.sma(x, 5)\nplot(f(close))\n',
+    'S2', 'The nearest enclosing block is the if — the function around it is irrelevant');
+});
+
+test('S2 flags a ta.* call inside a for body', () => {
+  assertFlags(IND + 'var float v = 0.0\nfor i = 0 to 2\n    v := ta.ema(close, 20)\nplot(v)\n',
+    'S2', 'Loop iterations are not bars — calling ta.* n times per bar corrupts its state');
+});
+
 test('S2 is silent for a ta.* call at global scope', () => {
   assertSilent(IND + 'x = ta.sma(close, 14)\nplot(x)\n', 'S2', 'Unconditional is correct');
 });
@@ -144,6 +175,52 @@ test('S8 is silent for a function at root indentation', () => {
 test('S8 is silent for an indented function CALL', () => {
   assertSilent(IND + 'if close > open\n    y = math.max(1, 2)\n    plot(na)\n', 'S8',
     'A call is not a definition — the => arrow is what distinguishes them');
+});
+
+//──────────────────────────────────────────────────────────
+// S3 — accumulator lifetime
+//
+// Found in the field on 2026-08-08: every layer of this system read
+// examples/test-v6-features.pine and none of them noticed that a `var` total was
+// being re-accumulated on every bar. The original S3 spec covered only the opposite
+// shape (an accumulator MISSING `var`), which is the cheaper of the two — it
+// produces a visibly constant series. This one produces a plausible number that
+// drifts, which is the defect that survives a backtest.
+//──────────────────────────────────────────────────────────
+
+test('S3 flags a var total re-accumulated by a for loop every bar', () => {
+  assertFlags(IND + 'var float sum = 0.0\nfor i = 0 to 9\n    sum := sum + close[i]\nplot(sum)\n',
+    'S3', 'var persists across bars, so this adds ten more closes on every bar, forever');
+});
+
+test('S3 flags a var counter whose while loop can never run again', () => {
+  assertFlags(IND + 'var int counter = 0\nwhile counter < 5\n    counter += 1\nplot(counter)\n',
+    'S3', 'On bar 2 counter is already 5 and the loop body is dead');
+});
+
+test('S3 is silent when the per-bar total correctly omits var', () => {
+  assertSilent(IND + 'float sum = 0.0\nfor i = 0 to 9\n    sum += close[i]\nplot(sum)\n',
+    'S3', 'No var means it resets each bar — which is exactly what a per-bar total wants');
+});
+
+test('S3 is silent when the accumulator is reset before the loop', () => {
+  assertSilent(IND + 'var float sum = 0.0\nsum := 0.0\nfor i = 0 to 9\n    sum += close[i]\nplot(sum)\n',
+    'S3', 'A var reused as a buffer is correct provided it is cleared every bar');
+});
+
+test('S3 is silent for run-once initialisation on the first bar', () => {
+  assertSilent(IND + 'var float seed = 0.0\nif barstate.isfirst\n    for i = 0 to 9\n        seed += close[i]\nplot(seed)\n',
+    'S3', 'Building a table on bar one is the legitimate reason to accumulate into a var');
+});
+
+test('S3 is silent for a genuine running total outside any loop', () => {
+  assertSilent(IND + 'var float total = 0.0\ntotal := total + volume\nplot(total)\n',
+    'S3', 'Cumulative volume is the textbook correct use of var — flagging it would be absurd');
+});
+
+test('S3 does not fire merely because a var and a loop coexist', () => {
+  assertSilent(IND + 'var float sum = 0.0\nfor i = 0 to 9\n    x = close[i]\nplot(sum)\n',
+    'S3', 'The loop must actually assign the accumulator to itself');
 });
 
 //──────────────────────────────────────────────────────────

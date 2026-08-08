@@ -218,13 +218,14 @@ priceAction = switch
     close < open => "Bearish"
     => "Neutral"
 
-// For loops
-var float sum = 0.0
+// For loops — a per-bar total must NOT be `var`, or it accumulates forever (S3)
+float sum = 0.0
 for i = 0 to 9
-    sum := sum + close[i]
+    sum += close[i]
 
-// While loops
-var int counter = 0
+// While loops — the counter is per-bar too; with `var` it would already be at the
+// limit on bar 2 and the loop would never run again (S3)
+int counter = 0
 while counter < 5
     counter += 1
 

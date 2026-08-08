@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+#
+# Blocks a commit that breaks the validator.
+#
+# Install with:  npm run hooks:install
+# Bypass with:   git commit --no-verify   (deliberately, and say why in the message)
+#
+# WHAT THIS GUARDS, AND WHY IT IS WORTH THE SECONDS
+#
+# This project's characteristic failure is a check that is correct in src/ and wrong
+# in the artefact users receive, or a check that passes because it is asserting
+# nothing. Both have shipped. So the gate runs the full suite — including the
+# published-package suite, which packs the tarball, installs it into a throwaway
+# project, and drives the regression corpus through `require('pinescript-v6-validator')`
+# with no path back into this repo.
+#
+# The whole thing costs about five seconds. A false positive released to users costs
+# considerably more, because it teaches them to ignore the tool.
+#
+# It also validates every file in examples/, which is where the accumulator defect
+# was found — by a person reading a file the tool had just called clean.
+
+set -uo pipefail
+
+BOLD=$'\033[1m'; RED=$'\033[31m'; GRN=$'\033[32m'; DIM=$'\033[2m'; OFF=$'\033[0m'
+
+REPO_ROOT="$(git rev-parse --show-toplevel)" || exit 0
+cd "$REPO_ROOT" || exit 0
+
+# Nothing staged that can affect behaviour? Don't tax a docs-only commit.
+STAGED="$(git diff --cached --name-only --diff-filter=ACM)"
+if ! printf '%s\n' "$STAGED" | grep -qE '\.(ts|js|json|pine)$'; then
+  printf '%b\n' "${DIM}pre-commit: no code staged, skipping the validator gate${OFF}"
+  exit 0
+fi
+
+fail() {
+  printf '\n%b\n' "${RED}${BOLD}pre-commit: $1${OFF}"
+  printf '%b\n\n' "${DIM}Fix it, or commit with --no-verify and explain why.${OFF}"
+  exit 1
+}
+
+printf '%b\n' "${BOLD}==> Type check${OFF}"
+npm run --silent typecheck || fail "typecheck failed"
+
+printf '%b\n' "${BOLD}==> Repo self-audit${OFF}"
+# Catches what tests cannot: npm scripts pointing at deleted files, the VSIX
+# shipping source or omitting runtime data, a diagnostic source wired into the
+# extension but not the CLI, and lockfile drift.
+#
+# Lockfile drift is the one worth naming. CI installs with `npm ci`, which REFUSES
+# to run when package-lock.json disagrees with package.json. A version bump that
+# forgets the lockfile passes every test locally — node_modules is already
+# populated — and then breaks every CI job at the install step, before a single
+# test runs. It had drifted silently by two releases.
+AUDIT="$(npm run --silent audit 2>&1)" || {
+  printf '%s\n' "$AUDIT" | grep -E "FAIL" | head -10
+  fail "self-audit failed — run: npm run audit"
+}
+printf '%s\n' "$AUDIT" | tail -1
+
+printf '%b\n' "${BOLD}==> Test suite (published-package corpus + examples/)${OFF}"
+# Deliberately NOT SKIP_PACKAGE_TEST. The pack-and-install run is the one that
+# catches source/artefact drift, which is the class of defect that reaches users.
+#
+# examples/ is covered by test/examples.test.js rather than a second pass here. An
+# earlier version of this hook ran validate-cli.js over the whole directory and
+# blocked every commit, because two files are DELIBERATE negative fixtures. The test
+# knows the difference — it reads the `// pine-expect: invalid` marker, and asserts
+# the marked files still fail so the marker cannot hide a regression. Bash did not,
+# and could not without duplicating that logic.
+OUTPUT="$(npm test --silent 2>&1)" || {
+  printf '%s\n' "$OUTPUT" | grep -E "✖|not ok|AssertionError|Expected" | head -20
+  fail "tests failed — run: npm test"
+}
+printf '%s\n' "$OUTPUT" | grep -E "^ℹ (tests|pass|fail|skipped)"
+
+printf '\n%b\n\n' "${GRN}${BOLD}pre-commit: validator gate passed${OFF}"
