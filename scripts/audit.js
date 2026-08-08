@@ -320,7 +320,7 @@ function auditDiagnosticCoverage() {
 
   // Since ADR-0001 the semantic checks live in the published engine rather than
   // src/parser/, so they are named by their package import instead of a local file.
-  if (/from 'pinescript-v6-validator'/.test(extension)) {
+  if (/pinescript-v6-validator|engine\/index\.js/.test(extension)) {
     sources.push('runSemanticChecks');
   }
 

@@ -200,3 +200,47 @@ test('a semantic finding is suppressible; a syntactic one is not', () => {
   assert.ok(validatePineScript(syntactic).some(d => !d.checkId && d.severity === 0),
     'a compile error must survive any suppression directive');
 });
+
+//──────────────────────────────────────────────────────────
+// Coverage gaps found by an adversarial review of the shipped 0.2.0 engine.
+// Each check "worked" on its happy path and missed a common real-world shape.
+//──────────────────────────────────────────────────────────
+
+test('S1 flags a MULTI-LINE request.security', () => {
+  // 0.2.0 bailed on any call whose parens did not close on one line, with a
+  // comment claiming it was "assessed on its own line". Nothing assessed it.
+  // Wrapping is the common formatting for this function, so most real calls
+  // escaped the check entirely.
+  assertFlags(
+    IND + 'd = request.security(syminfo.tickerid,\n     "D",\n     close)\nplot(d)\n',
+    'S1', 'A wrapped call repaints exactly as much as a single-line one');
+});
+
+test('S1 is silent on a multi-line call that uses an offset', () => {
+  assertSilent(
+    IND + 'd = request.security(syminfo.tickerid,\n     "D",\n     close[1])\nplot(d)\n',
+    'S1', 'Joining lines must not lose the [1]');
+});
+
+test('S2 flags a ta.* call in the FALSE branch of a ternary', () => {
+  // 0.2.0 required no ':' between the '?' and the call, so only the true branch
+  // was checked. Both branches are conditional and both corrupt history.
+  assertFlags(IND + 'v = close > open ? na : ta.sma(close, 14)\nplot(v)\n', 'S2',
+    'The false branch is just as conditional as the true one');
+});
+
+test('S9 does not accept strategy.cancel as an exit', () => {
+  // `cancel` withdraws a PENDING ORDER; it does not close an open position.
+  // Treating it as an exit let a strategy with genuinely unbounded risk pass.
+  assertFlags(
+    STR + 'if close > open\n    strategy.entry("L", strategy.long)\n' +
+          'if close < open\n    strategy.cancel("L")\n',
+    'S9', 'Cancelling an order is not closing a position');
+});
+
+test('S9 still accepts close_all as an exit', () => {
+  assertSilent(
+    STR + 'if close > open\n    strategy.entry("L", strategy.long)\n' +
+          'if close < open\n    strategy.close_all()\n',
+    'S9', 'close_all genuinely flattens the position');
+});
