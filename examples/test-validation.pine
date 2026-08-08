@@ -1,4 +1,9 @@
 //@version=6
+// pine-expect: invalid
+// This is a NEGATIVE fixture. It deliberately calls undefined functions so the
+// validator can be proven to catch them. test/examples.test.js asserts it still
+// produces errors — the marker excuses it from the clean sweep, it does not
+// exempt it from being checked.
 indicator("Validation Test")
 
 // ===== VALID CODE (should have NO errors) =====

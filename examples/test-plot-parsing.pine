@@ -1,4 +1,7 @@
 //@version=6
+// pine-expect: invalid
+// NEGATIVE fixture: contains a plot() inside an if block (S7) on purpose, to
+// prove scope detection works. test/examples.test.js asserts it still errors.
 indicator("Test Plot Parsing")
 
 // Variable declarations

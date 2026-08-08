@@ -60,6 +60,36 @@ constant and built-in-variable *names* are never checked (`shape.trianglup` vali
 clean), re-declaring with `=` is not caught, and `ta.*` on the right of `and`/`or`
 escapes S2 because v6 short-circuits.
 
+### 🧪 A regression harness aimed at the published artefact
+
+Every recurring failure in this project has had one shape: correct in `src/`, broken
+in what users receive. Dead doc anchors that resolved against the source and not the
+shipped package. A VSIX whose engine was excluded from the bundle. A scratchpad path
+that leaked into a dependency range mid-session and was caught by eye, not by a gate.
+No suite importing from `packages/validator/dist` can see any of those.
+
+- **`test/regression-corpus.js`** — every defect this validator has ever shipped, as
+  data rather than tests. Each entry carries the date it was found and an account of
+  how it escaped.
+- **`test/npm-package.test.js`** — packs the tarball, installs it into a throwaway
+  project, and drives the same corpus through `require('pinescript-v6-validator')`
+  with no path back into this repo. Also asserts no manifest pins a local path, and
+  that the extension never pins an engine version ahead of what is published.
+
+One table, two environments, so source and published cannot drift. The corpus polices
+itself: every case needs a real date and a reason, and at least 30% must assert
+*silence* on correct code — otherwise it quietly becomes a "find more bugs" suite and
+stops defending working code.
+
+Verified by reintroducing the S2 false positive and confirming both suites fail by
+name, and by staging it and confirming the pre-commit hook refuses the commit.
+
+- **`.githooks/pre-commit`** — typecheck, the full suite including the packed-tarball
+  run, and every file in `examples/`. About five seconds. Chains from the machine-wide
+  secret scanner rather than replacing it. Install with `npm run hooks:install`.
+- **`.claude/skills/validator-gate`** — the release order, how to read a clean run
+  honestly, and why a new false positive is a release blocker where a new miss is not.
+
 ### 🔧 `make gate` could pass with its main check disabled
 
 `validate_skill_examples.py` returned 0 when the engine was absent, so a local

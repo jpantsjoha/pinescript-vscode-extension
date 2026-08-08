@@ -131,7 +131,11 @@
     "typecheck": "tsc --noEmit",
     "lint": "npm run typecheck && node scripts/audit.js",
     "audit": "node scripts/audit.js",
-    "build:engine": "tsc -p packages/validator"
+    "build:engine": "tsc -p packages/validator",
+    "test:package": "node --test test/npm-package.test.js",
+    "test:regression": "node --test test/regression-corpus.test.js",
+    "test:fast": "npm run build && SKIP_PACKAGE_TEST=1 node --test test/*.test.js",
+    "hooks:install": "bash scripts/install-hooks.sh"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.19.1",
