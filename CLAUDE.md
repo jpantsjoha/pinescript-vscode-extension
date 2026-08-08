@@ -41,7 +41,7 @@ build otherwise — that guard is the reason this cannot silently recur.
 ## Before you change validation logic
 
 ```bash
-npm run build && npm test          # 119 tests; golden corpus must stay at 0 errors
+npm run build && npm test          # 169 tests; golden corpus must stay at 0 errors
 npm run audit                      # harness, packaging, version, diagnostic coverage
 node validate-cli.js <file.pine>   # headless single-file check
 node validate-cli.js --both <f>    # diff AccurateValidator vs ComprehensiveValidator
@@ -59,6 +59,7 @@ Four validators exist. **`AccurateValidator` and `documentChecks` ship; the othe
 |---|---|
 | `src/parser/accurateValidator.ts` | The live validator. Regex-over-lines, no AST. |
 | `src/parser/documentChecks.ts` | **Ships.** Whole-document heuristics, runs alongside AccurateValidator. |
+| `pinescript-v6-validator` (npm) | **Ships.** Semantic checks S1-S9. Consumed, never copied — see ADR-0001. |
 | `src/parser/comprehensiveValidator.ts` | Dead. Import removed from `extension.ts`. Crashes: `ast.body is not iterable`. |
 | `src/parser/validator.ts` | Dead. Import removed. |
 | `src/parser/{parser,ast,lexer,typeSystem,symbolTable}.ts` | Feeds only the dead path. |

@@ -1,23 +1,28 @@
 # Project Status
 
 **Updated**: 2026-08-07
-**Working version**: 0.5.1 (tagged, not yet published)
-**Marketplace version**: 0.4.4, published 2025-10-07
-**Installs**: 1,403 · **Rating**: 4.45★
+**Working version**: 0.6.0
+**Marketplace version**: 0.6.0, published 2026-08-07
+**Installs**: 1,404 · **Rating**: 4.45★
+**Engine**: [`pinescript-v6-validator@0.2.0`](https://www.npmjs.com/package/pinescript-v6-validator) on npm
 
 ---
 
 ## Where this stands
 
-The extension works and has real users. Until this release it had been ten months
-since a publish, and the working tree carried a regression that put ten false
-errors on the most common drawing idiom in Pine. That is fixed, proven by tests,
-and the gate that should have caught it now exists.
+The extension works and has real users. Two releases shipped today: 0.5.1 closed a
+ten-month gap and eliminated the false positives, and 0.6.0 added semantic checks —
+detection of code that COMPILES and is still wrong (repainting, `ta.*` history
+gaps, scope errors, platform limits).
+
+The validation engine is now published as `pinescript-v6-validator` and consumed
+by both this extension and the agent plugin, so the two cannot disagree about a
+file.
 
 | Signal | State |
 |---|---|
 | `npx tsc --noEmit` | clean |
-| `npm test` | 117/117 pass |
+| `npm test` | 169/169 pass |
 | `npm run audit` | 17 pass · 1 warn · 0 fail |
 | Golden corpus (synthetic fixtures, both diagnostic paths) | 0 errors |
 | Validation speed, 1,300-line script | ~12ms (budget: 100ms) |
@@ -35,12 +40,12 @@ publish. None of it had reached a user until now.
 |---|---|---|
 | 1. Multi-line continuation | 🔴 CRITICAL | ✅ Shipped in 0.5.0 |
 | 2. Ternary operator | 🟡 MEDIUM | ✅ Shipped in 0.5.0 |
-| 3. Execution model (`var` / `:=`) | 🟡 MEDIUM | ❌ Not started |
+| 3. Execution model (`var` / `:=`) | 🟡 MEDIUM | ⚠️ Partial — S3/S4 specified, deliberately deferred |
 | 4. Type system | 🔴 HIGH | ⛔ **Blocked** — needs the AST path repaired |
 | 5. Control flow syntax | 🟡 MEDIUM | ⛔ Blocked (same) |
 | 6. Expression parsing | 🟢 LOW | ⛔ Blocked (same) |
-| 7. Platform limits | 🟢 LOW | ❌ Not started |
-| 8. Anti-repainting | 🟡 MEDIUM | ❌ Not started |
+| 7. Platform limits | 🟢 LOW | ✅ Shipped in 0.6.0 as checks S5/S6 |
+| 8. Anti-repainting | 🟡 MEDIUM | ✅ Shipped in 0.6.0 as check S1 |
 
 ### The roadmap's accuracy problem
 
@@ -116,14 +121,15 @@ product decision, not a technical one — it should be made deliberately.
 
 ## Next
 
-1. Publish 0.5.1 — ten months of fixes are sitting idle.
-2. Decide the AST question above.
-3. Build the parity measurement harness, so accuracy claims become measurable
+1. ~~Publish 0.5.1~~ ✅ done, plus 0.6.0.
+2. Decide on S3/S4 — the accumulator and lazy-evaluation checks are specified but
+   not built. S3 is a heuristic about intent; if its false-positive rate on real
+   scripts is not clearly zero it should ship as Information or be dropped.
+3. Decide the AST question above.
+4. Build the parity measurement harness, so accuracy claims become measurable
    rather than asserted.
-4. Re-crawl the v6 reference and un-gitignore `v6/scripts/`.
-5. Extract the validation engine so `pinescript-plugin` can consume it. The only
-   coupling to `vscode` is the `DiagnosticSeverity` enum (three references, all
-   plain integers), so this is far cheaper than it looks.
+5. Re-crawl the v6 reference and un-gitignore `v6/scripts/`.
+6. ~~Extract the validation engine~~ ✅ published as `pinescript-v6-validator@0.2.0`.
 
 ---
 

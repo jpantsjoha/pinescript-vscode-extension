@@ -141,8 +141,9 @@ multiline strings (`"""…"""`), `request.footprint()`, `calc_on_every_history_t
 `box.set_xloc()`.
 
 ### A real test gate
-67 → **112 tests**, including a golden corpus of 13 scripts that compile on
-TradingView and must validate with zero errors.
+67 → **169 tests**, including a golden corpus asserted to produce zero errors and
+paired "must still flag" cases for every fix — so a check can never be quietly
+deleted instead of repaired.
 
 See [CHANGELOG](./CHANGELOG.md) for complete version history.
 
