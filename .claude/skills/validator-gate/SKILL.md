@@ -10,11 +10,11 @@ Prove a change to this validator is correct before it leaves the machine.
 ## Run this
 
 ```bash
-npm test                       # 276 tests, ~5s — includes the packed-tarball run
-node validate-cli.js examples/*.pine
+npm test        # ~5s. Includes the packed-tarball corpus and every file in examples/.
+npm run audit   # packaging, versions, diagnostic coverage, lockfile drift
 ```
 
-That is the gate. Everything below is about reading the result honestly.
+The pre-commit hook runs both. Everything below is about reading the result honestly.
 
 For a tight edit loop, `npm run test:fast` skips the pack-and-install step. **Never
 use it as the final check**, and never before a release — see below.
@@ -25,7 +25,18 @@ use it as the final check**, and never before a release — see below.
 | `npm run test:fast` | Same, minus the packed-tarball run. Edit loop only. |
 | `npm run test:regression` | The corpus against the local build |
 | `npm run test:package` | Pack → install → corpus against the published artefact |
-| `npm run lint` | typecheck + `scripts/audit.js` single-source guard |
+| `npm run lint` | typecheck + `scripts/audit.js` |
+| `npm run audit` | packaging, version consistency, diagnostic coverage, lockfile drift |
+
+## The lockfile is a CI tripwire, not a formality
+
+CI installs with `npm ci`, which **refuses to run** when `package-lock.json`
+disagrees with `package.json`. A version bump or changed dependency range that
+forgets the lockfile passes everything locally — `node_modules` is already
+populated — then breaks every CI job at the install step, before a single test runs.
+
+It had drifted silently by two releases before `npm run audit` learned to check it.
+After any version bump or dependency change: `npm install`, and commit the lockfile.
 
 ## Why the packed-tarball run is the one that matters
 

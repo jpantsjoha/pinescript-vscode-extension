@@ -43,6 +43,22 @@ fail() {
 printf '%b\n' "${BOLD}==> Type check${OFF}"
 npm run --silent typecheck || fail "typecheck failed"
 
+printf '%b\n' "${BOLD}==> Repo self-audit${OFF}"
+# Catches what tests cannot: npm scripts pointing at deleted files, the VSIX
+# shipping source or omitting runtime data, a diagnostic source wired into the
+# extension but not the CLI, and lockfile drift.
+#
+# Lockfile drift is the one worth naming. CI installs with `npm ci`, which REFUSES
+# to run when package-lock.json disagrees with package.json. A version bump that
+# forgets the lockfile passes every test locally — node_modules is already
+# populated — and then breaks every CI job at the install step, before a single
+# test runs. It had drifted silently by two releases.
+AUDIT="$(npm run --silent audit 2>&1)" || {
+  printf '%s\n' "$AUDIT" | grep -E "FAIL" | head -10
+  fail "self-audit failed — run: npm run audit"
+}
+printf '%s\n' "$AUDIT" | tail -1
+
 printf '%b\n' "${BOLD}==> Test suite (published-package corpus + examples/)${OFF}"
 # Deliberately NOT SKIP_PACKAGE_TEST. The pack-and-install run is the one that
 # catches source/artefact drift, which is the class of defect that reaches users.

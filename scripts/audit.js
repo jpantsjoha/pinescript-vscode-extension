@@ -397,6 +397,67 @@ function auditCi() {
   }
 }
 
+
+//──────────────────────────────────────────────────────────
+// Lockfile
+//
+// CI installs with `npm ci`, which REFUSES to run when package-lock.json disagrees
+// with package.json. A version bump or a changed dependency range that forgets the
+// lockfile does not fail locally — `npm test` uses whatever is already in
+// node_modules — and then breaks every job in CI at the install step, before a
+// single test runs.
+//
+// It has drifted here silently: the lock sat at 0.6.0 while the released extension
+// was 0.6.1, and the engine range diverged during a release.
+//──────────────────────────────────────────────────────────
+
+function auditLockfile() {
+  if (!exists('package-lock.json')) {
+    fail('lockfile', 'package-lock.json is missing; `npm ci` cannot run in CI');
+    return;
+  }
+
+  const manifest = JSON.parse(read('package.json'));
+  const lock = JSON.parse(read('package-lock.json'));
+
+  if (lock.version !== manifest.version) {
+    fail('lockfile',
+      `package-lock.json is at ${lock.version} but package.json is at ` +
+      `${manifest.version} — run \`npm install\`. CI installs with \`npm ci\`, ` +
+      `which fails outright on this.`);
+    return;
+  }
+
+  const locked = (lock.packages && lock.packages[''] && lock.packages[''].dependencies) || {};
+  const declared = manifest.dependencies || {};
+  const drifted = Object.entries(declared)
+    .filter(([name, range]) => locked[name] !== range)
+    .map(([name, range]) => `${name}: package.json wants ${range}, lock has ${locked[name] || '(absent)'}`);
+
+  if (drifted.length) {
+    fail('lockfile', `dependency ranges disagree — run \`npm install\`:\n         ` +
+      drifted.join('\n         '));
+    return;
+  }
+
+  // The engine is bundled into the VSIX at build time, so a pin ahead of what is
+  // actually resolvable produces an extension whose engine cannot be installed —
+  // discovered at activation, on a user's machine.
+  const enginePin = declared['pinescript-v6-validator'];
+  if (enginePin) {
+    const resolved = lock.packages && lock.packages['node_modules/pinescript-v6-validator'];
+    if (!resolved) {
+      fail('lockfile', 'the engine is declared but absent from the lockfile');
+      return;
+    }
+    pass('lockfile',
+      `in sync at ${lock.version}; engine ${enginePin} resolves to ${resolved.version}`);
+    return;
+  }
+
+  pass('lockfile', `in sync at ${lock.version}`);
+}
+
 //──────────────────────────────────────────────────────────
 
 auditNpmScripts();
@@ -408,6 +469,7 @@ auditDataCurrency();
 auditDiagnosticCoverage();
 auditEnginePortability();
 auditCi();
+auditLockfile();
 
 const ICON = { PASS: '[32m PASS[0m', WARN: '[33m WARN[0m', FAIL: '[31m FAIL[0m' };
 const counts = { PASS: 0, WARN: 0, FAIL: 0 };

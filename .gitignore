@@ -91,3 +91,11 @@ examples/
 
 # npm pack output
 packages/*/*.tgz
+
+# Credentials — never commit. `npm install ./x.tgz`, `npm config set` and `npm login`
+# can all write a repo-local .npmrc containing an auth token, which is how a publish
+# credential ends up in a public repo by accident. Global config lives in ~/.npmrc.
+.npmrc
+.env
+.env.*
+!.env.example
