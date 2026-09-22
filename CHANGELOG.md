@@ -28,7 +28,10 @@ regexes ran over the whole balanced argument region, so a nested
 `request.security(B, "D", close, …, barmerge.lookahead_off)` inside the expression
 argument silenced an outer call that had decided nothing — and the older `close[1]`
 exemption had the same blind spot. Only the outer call's own top-level arguments
-count now; three nested-call cases lock it, one of them the paired negative.
+count now; three nested-call cases lock it, one of them the paired negative. A lane
+probing that fix found an older miss: a wrapped call's arguments were cut at the LAST
+closing paren on the closing line, so an offset on a sibling argument of the enclosing
+call leaked in and exempted it. Fixed, two more paired cases.
 
 The extension picks this up when the engine is published and the dependency bumped
 to `^0.3.1`; until then the VSIX ships 0.3.0.
@@ -47,7 +50,7 @@ every run, and `--local-engine` (or `PINE_ENGINE=local`) runs the working-tree b
 ### 📚 Documentation pruned and reorganised; team operating model adopted
 
 Thirty-one markdown files audited against the code. Sixteen contradictions fixed —
-among them: test count (169 → 306), README install snippet (0.6.1 → 0.6.2), STATUS
+among them: test count (169 → 310), README install snippet (0.6.1 → 0.6.2), STATUS
 header (0.6.0 / engine 0.2.0 → 0.6.2 / 0.3.0), the engine README's semantic-check
 table missing S3, CONTRIBUTING telling people to use pnpm, the MCP guide describing a
 server that runs the dead `ComprehensiveValidator` (it runs `AccurateValidator` plus

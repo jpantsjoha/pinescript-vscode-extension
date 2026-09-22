@@ -131,6 +131,23 @@ const CASES = [
     found: '2026-09-22',
     why: 'Both calls state their lookahead; the paired negative for the nested cases.',
   },
+  {
+    name: 'S1: an offset on a SIBLING argument of the enclosing call does not settle a wrapped request',
+    code: IND + 'f(float a, float b) => a\nd = f(request.security(syminfo.tickerid,\n     "D",\n     close), close[1])\nplot(d)\n',
+    expect: 'S1',
+    found: '2026-09-22',
+    why:
+      'The wrapped-call join cut the arguments at the LAST closing paren on the closing line, ' +
+      'not the one that closes this call, so `, close[1]` from the enclosing f() leaked in and ' +
+      'the offset exemption fired. Found by a council lane probing the nested-call fix.',
+  },
+  {
+    name: 'S1: the same wrapped request with its own offset is still the correct idiom',
+    code: IND + 'f(float a, float b) => a\nd = f(request.security(syminfo.tickerid,\n     "D",\n     close[1]), close)\nplot(d)\n',
+    expect: null,
+    found: '2026-09-22',
+    why: 'Paired negative: the offset sits inside this call, so it must stay silent.',
+  },
 
   //────────────────────────────────────────────────────────
   // S2 — ta.* conditionality

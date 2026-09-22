@@ -155,7 +155,7 @@ multiline strings (`"""…"""`), `request.footprint()`, `calc_on_every_history_t
 `box.set_xloc()`.
 
 ### A real test gate
-67 → **306 tests**, including a golden corpus asserted to produce zero errors and
+67 → **310 tests**, including a golden corpus asserted to produce zero errors and
 paired "must still flag" cases for every fix — so a check can never be quietly
 deleted instead of repaired.
 
@@ -165,7 +165,7 @@ See [CHANGELOG](./CHANGELOG.md) for complete version history.
 
 ## 🧪 Testing
 
-- **305/306 tests passing** (1 intentionally skipped)
+- **309/310 tests passing** (1 intentionally skipped)
 - **Golden corpus**: four committed fixtures asserted to produce zero errors, and
   proven able to fail — reintroducing a fixed bug turns them red
 - **Paired regression tests**: every false-positive fix ships with a "must still
@@ -246,5 +246,5 @@ Special thanks to:
 ---
 
 **Full Language Coverage**: 6,665 Pine Script v6 constructs
-**Test Coverage**: 306 tests
+**Test Coverage**: 310 tests
 **Current Version**: 0.6.2

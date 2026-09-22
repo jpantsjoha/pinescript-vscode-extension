@@ -63,7 +63,7 @@ the golden corpus is what catches those.
 ## Before you change validation logic
 
 ```bash
-npm run build && npm test          # 306 tests; golden corpus must stay at 0 errors
+npm run build && npm test          # 310 tests; golden corpus must stay at 0 errors
 npm run audit                      # harness, packaging, version, diagnostic coverage
 node validate-cli.js <file.pine>   # headless single-file check
 node validate-cli.js --both <f>    # diff AccurateValidator vs ComprehensiveValidator

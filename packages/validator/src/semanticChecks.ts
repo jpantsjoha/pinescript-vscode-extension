@@ -238,21 +238,31 @@ function checkRepainting(lines: string[]): ValidationError[] {
         // but nothing ever did — so every wrapped request.security escaped the
         // check, and wrapping is the COMMON formatting for this function.
         // Join forward until the parens balance.
+        // Stop at the paren that closes THIS call, not the last one on the closing
+        // line: `f(request.security(\n sym,\n "D",\n close), close[1])` used to take
+        // `, close[1]` into the arguments and exempt the call (review probe, 2026-09-22).
         let joined = text.slice(open);
         let depth = 0;
-        for (const ch of joined) {
-          if (ch === '(' || ch === '[') depth++;
-          else if (ch === ')' || ch === ']') depth--;
-        }
-        for (let j = i + 1; j < lines.length && depth > 0; j++) {
-          joined += '\n' + lines[j];
-          for (const ch of lines[j]) {
+        let endIdx = -1;
+        const scan = (chunk: string, offset: number): boolean => {
+          for (let k = 0; k < chunk.length; k++) {
+            const ch = chunk[k];
             if (ch === '(' || ch === '[') depth++;
-            else if (ch === ')' || ch === ']') depth--;
+            else if (ch === ')' || ch === ']') {
+              depth--;
+              if (depth === 0) { endIdx = offset + k; return true; }
+            }
           }
+          return false;
+        };
+        let closed = scan(joined, 0);
+        for (let j = i + 1; j < lines.length && !closed; j++) {
+          const offset = joined.length + 1;
+          joined += '\n' + lines[j];
+          closed = scan(lines[j], offset);
         }
-        if (depth > 0) continue;          // never closes — a syntax error, not ours
-        args = joined.slice(1, joined.lastIndexOf(')'));
+        if (!closed) continue;            // never closes — a syntax error, not ours
+        args = joined.slice(1, endIdx);
       } else {
         args = text.slice(open + 1, close);
       }
