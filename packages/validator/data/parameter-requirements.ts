@@ -498,12 +498,16 @@ export const MODERN_V6_FUNCTIONS: Record<string, FunctionSignatureSpec> = {
     signature: 'matrix.sort(id, column, order, sort_field)'
   },
 
-  // January 2026 — volume footprint data (Premium/Ultimate plans).
+  // January 2026 — volume footprint data (Premium/Ultimate plans). Reads the
+  // chart's own bar: NO symbol, timeframe or ignore_invalid_symbol. The entry
+  // shipped with a guessed `(symbol, timeframe, …)` signature that flagged the
+  // valid `request.footprint(10)` and every named `ticks_per_row=` call
+  // (corrected 2026-09-22 against the v6 reference and release notes).
   'request.footprint': {
     name: 'request.footprint',
-    requiredParams: ['symbol', 'timeframe'],
-    optionalParams: ['row_size', 'ignore_invalid_symbol', 'currency', 'calc_bars_count'],
-    signature: 'request.footprint(symbol, timeframe, row_size, ignore_invalid_symbol, currency, calc_bars_count)'
+    requiredParams: ['ticks_per_row'],
+    optionalParams: ['va_percent', 'imbalance_percent'],
+    signature: 'request.footprint(ticks_per_row, va_percent?, imbalance_percent?) → series footprint'
   },
 };
 

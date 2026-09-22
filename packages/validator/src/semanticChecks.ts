@@ -260,7 +260,7 @@ function balancedArgs(lines: string[], i: number, open: number): { args: string;
 
 /** 0-based slot of `ignore_invalid_symbol` in each request.*() signature. */
 const IGNORE_INVALID_SLOT: Record<string, number> = {
-  security: 5, security_lower_tf: 3, dividends: 4, earnings: 4, splits: 4, financial: 4, footprint: 3,
+  security: 5, security_lower_tf: 3, dividends: 4, earnings: 4, splits: 4, financial: 4,
 };
 
 /**
@@ -279,7 +279,9 @@ const IGNORE_INVALID_SLOT: Record<string, number> = {
  */
 function checkExternalFeed(lines: string[], rawLines: string[]): ValidationError[] {
   const findings: ValidationError[] = [];
-  const pattern = /(?<![a-zA-Z0-9_.])request\.(security_lower_tf|security|dividends|earnings|splits|financial|footprint)\s*\(/g;
+  // request.footprint() is not here: it has no symbol argument and no
+  // ignore_invalid_symbol — it reads the chart's own bar (reference, January 2026).
+  const pattern = /(?<![a-zA-Z0-9_.])request\.(security_lower_tf|security|dividends|earnings|splits|financial)\s*\(/g;
 
   lines.forEach((text, i) => {
     let match;
@@ -292,9 +294,11 @@ function checkExternalFeed(lines: string[], rawLines: string[]): ValidationError
       const top = topLevelArgs(args);
       if (top.length === 0) continue;
 
-      // The first argument must be ONE bare string literal. Strings are blanked in
-      // `lines`, so the literal reads as quotes around spaces.
-      if (!/^(["'])\s*\1$/.test(top[0])) continue;
+      // The first argument must be ONE bare string literal, positional or as
+      // `symbol=`/`ticker=`. Strings are blanked in `lines`, so the literal reads as
+      // quotes around spaces.
+      const first = top[0].replace(/^(?:symbol|ticker)\s*=\s*/, '');
+      if (!/^(["'])\s*\1$/.test(first)) continue;
 
       // Blanking preserves length, so the same offsets index the raw text.
       let rawJoined = rawLines[i].slice(open);
@@ -307,9 +311,19 @@ function checkExternalFeed(lines: string[], rawLines: string[]): ValidationError
       if (!/^[A-Za-z0-9_]+:\S+$/.test(literal)) continue;  // "" or a bare ticker: chart-relative
 
       if (top.some(a => /^ignore_invalid_symbol\s*=/.test(a))) continue;
-      if (top.length > IGNORE_INVALID_SLOT[fn]) continue;    // passed positionally, either value
+      // Positional slot: only positional arguments count. `gaps=…, lookahead=…,
+      // currency=…` after the expression are named and say nothing about the flag.
+      const positional = top.filter(a => !/^[a-zA-Z_][a-zA-Z0-9_]*\s*=/.test(a)).length;
+      if (positional > IGNORE_INVALID_SLOT[fn]) continue;    // passed positionally, either value
 
-      findings.push(makeFinding('S10', i + 1, match.index, match[0].length - 1,
+      // Pin the finding to the literal itself, so `// pine-ignore: S10` on that line
+      // works for a wrapped call too (suppression is per line).
+      const before = args.slice(0, q1);
+      const newlines = (before.match(/\n/g) || []).length;
+      const litLine = i + newlines;
+      const litCol = newlines === 0 ? open + 1 + q1 : q1 - before.lastIndexOf('\n') - 1;
+
+      findings.push(makeFinding('S10', litLine + 1, litCol, q2 - q1 + 1,
         `"${literal}" is read from the viewer's plan at runtime; a feed it cannot read halts the ` +
         `script with "Permission denied for symbol". Pass ignore_invalid_symbol=true to degrade to ` +
         `na, or state the hard stop with // pine-ignore: S10.`));

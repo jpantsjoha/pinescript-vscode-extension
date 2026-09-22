@@ -392,3 +392,25 @@ test('S10 assesses a wrapped call whose symbol sits on the next line', () => {
 test('S10 honours // pine-ignore: S10', () => {
   assertSilent(IND + FEED + ')  // pine-ignore: S10\nplot(d)\n', 'S10', 'A stated hard stop');
 });
+
+test('S10 pins the finding to the literal, so pine-ignore on that line suppresses a wrapped call', () => {
+  assertSilent(IND + 'd = request.security(\n     "FRED:WTREGEN",  // pine-ignore: S10\n     "W",\n     close, barmerge.gaps_off, barmerge.lookahead_off)\nplot(d)\n', 'S10',
+    'The directive belongs next to the feed it is about');
+});
+
+test('S10 reports the literal line and column on a wrapped call', () => {
+  const f = checks(IND + 'd = request.security(\n     "FRED:WTREGEN",\n     "W",\n     close, barmerge.gaps_off, barmerge.lookahead_off)\nplot(d)\n').find(d => d.checkId === 'S10');
+  assert.ok(f, 'S10 expected');
+  assert.strictEqual(f.line, 4);
+  assert.strictEqual(f.column, 5);
+});
+
+test('S10 still fires when named arguments pad the call past the positional slot', () => {
+  assertFlags(IND + 'd = request.security("FRED:WTREGEN", "W", close, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off, currency=currency.USD)\nplot(d)\n', 'S10',
+    'Named arguments are not the sixth positional slot');
+});
+
+test('S10 sees a literal passed as symbol=', () => {
+  assertFlags(IND + 'd = request.security(symbol="FRED:WTREGEN", timeframe="W", expression=close)\nplot(d)\n', 'S10',
+    'A named first argument is still a hard-coded feed');
+});

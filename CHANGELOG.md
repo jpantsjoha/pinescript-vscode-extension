@@ -76,7 +76,7 @@ failing feed, so the author discovers them one at a time — a 26-feed macro das
 went down this way on 2026-09-22.
 
 S10 flags a `request.security` / `security_lower_tf` / `dividends` / `earnings` /
-`splits` / `financial` / `footprint` call whose first argument is one bare string
+`splits` / `financial` call whose first argument is one bare string
 literal with an exchange prefix and whose argument list carries no
 `ignore_invalid_symbol` — named or positional, whichever value. It is an **info**, not
 a warning: the author may want the hard stop, and `// pine-ignore: S10` states so.
@@ -84,6 +84,16 @@ Silent for `syminfo.tickerid`, `""`, a bare ticker, `ticker.new()`, an input var
 and a concatenation. Fourteen paired unit tests, two corpus cases; on the pre-fix
 dashboard it names all 23 literal feeds, on the hardened one none, and it fires
 nowhere across the golden corpus and examples. Engine 0.4.0. Issue #25.
+
+### 🐛 `request.footprint()` carried a guessed signature
+
+The January-2026 entry in `MODERN_V6_FUNCTIONS` said `request.footprint(symbol,
+timeframe, row_size, …)`. The reference says `request.footprint(ticks_per_row,
+va_percent?, imbalance_percent?)`: it reads the chart's own bar and takes no symbol.
+So the valid `request.footprint(10)` raised "missing timeframe" and every named
+`ticks_per_row=` call raised an unknown-parameter error. Corrected in both data copies;
+the independent review of S10 surfaced it. Paired tests: one-, two- and three-argument
+and named forms are silent; zero arguments and four are still flagged.
 
 ### 🐛 `request.security("X")` passed arity (#26)
 
