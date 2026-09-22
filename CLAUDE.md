@@ -3,6 +3,26 @@
 You are working on an **unofficial TradingView Pine Script v6 language extension for
 VS Code**, published to the Marketplace as `jpantsjoha.pinescript-v6-extension`.
 
+<!-- operating-model-contract:start -->
+## Shared operating contract
+
+Read `docs/operating-model/OPERATING-MANUAL.md` and
+`docs/operating-model/PROJECT-OPERATING-PROFILE.md` before planning or mutating work.
+
+- Manual version: `2.1.0`
+- Manual SHA-256: `9b91a46e55fef2291130a0fcc82dc98f017ceb59771706bf0b9da61e37527cf9`
+- The project profile supplies local authority, invariants, commands, and current facts.
+- Classify risk before confirming authority; ambiguity rounds upward.
+- A model, skill, tool, reviewer label, or previous approval supplies no authority.
+- Use one branch/worktree and resource namespace per mutating lane.
+- Bind R2/R3 evidence and independent review to the exact candidate.
+- PASS has zero conditions; delivery, observation, docs, and rollback are part of completion.
+- Baseline team skills live under `.agents/skills/`; route by capability, not provider syntax.
+<!-- operating-model-contract:end -->
+
+The contract above is the join-the-team operating model (`docs/operating-model/`). The
+rest of this file is the project constitution it binds; nothing below weakens it.
+
 ## The one rule that matters
 
 **A false positive is worse than a missed error.** Users see squiggles on correct
@@ -43,7 +63,7 @@ the golden corpus is what catches those.
 ## Before you change validation logic
 
 ```bash
-npm run build && npm test          # 169 tests; golden corpus must stay at 0 errors
+npm run build && npm test          # 300 tests; golden corpus must stay at 0 errors
 npm run audit                      # harness, packaging, version, diagnostic coverage
 node validate-cli.js <file.pine>   # headless single-file check
 node validate-cli.js --both <f>    # diff AccurateValidator vs ComprehensiveValidator

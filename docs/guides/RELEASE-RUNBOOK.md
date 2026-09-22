@@ -1,6 +1,8 @@
 # Release runbook — pinescript-vscode-extension
 
-**Gitignored.** Operational detail, not public documentation.
+Operational detail for the release operator (JP). Despite an earlier "gitignored"
+note here, the file is tracked and public — it names only where credentials live
+(keychain, GitHub secret), never a credential value, so that is safe.
 Last exercised: 2026-08-07, v0.4.4 → v0.5.1.
 
 ---
@@ -46,8 +48,8 @@ This file holds only what is specific to this repo.
 rm -rf dist node_modules/vscode
 npm ci && npm run build
 npx tsc --noEmit
-npm test          # 125 tests
-npm run audit     # 19 pass · 1 warn · 0 fail
+npm test          # all pass, 0 fail — the count itself drifts, don't hardcode it
+npm run audit     # 0 fail; WARNs are advisory (currently: README version mention, v6 data currency)
 ```
 
 `rm -rf node_modules/vscode` is not optional. A stray stub there once made the

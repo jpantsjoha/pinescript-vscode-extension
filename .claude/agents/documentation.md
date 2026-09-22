@@ -49,8 +49,8 @@ Every feature, function, constant, and workflow must be documented with:
 - [x] **CLAUDE.md** - Project directives, architecture, guidelines
 
 #### **Technical Documentation**
-- [x] **docs/CULPRIT.md** - Root cause analysis for bugs
-- [x] **docs/ROADMAP-v0.3.0.md** - Feature roadmap
+- [x] **ROADMAP.md** - Build order with issue numbers and built / gated / shipped state
+- [x] **STATUS.md** - Current state, one entry per session
 - [ ] **docs/ARCHITECTURE.md** - System architecture overview
 - [ ] **docs/VALIDATION.md** - Validation logic explained
 - [ ] **docs/API.md** - Extension API reference
@@ -208,9 +208,10 @@ echo "====================="
 required_docs=(
   "README.md"
   "CHANGELOG.md"
-  "LICENSE.txt"
+  "LICENSE"
   "CLAUDE.md"
-  "docs/CULPRIT.md"
+  "ROADMAP.md"
+  "STATUS.md"
 )
 
 for doc in "${required_docs[@]}"; do

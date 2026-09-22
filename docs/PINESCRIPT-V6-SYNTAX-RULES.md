@@ -1,7 +1,9 @@
 # Pine Script v6 — Syntax & Style Reference
 
 > **Canonical source of truth** for all AI agents, linters, and workflows in this project.
-> Cross-referenced from: `.CLAUDE.md`, `GEMINI.md`, `.agent/rules/pinescript-v6.md`
+> Referenced by `.claude/skills/pinescript-v6/SKILL.md` — do not move this file without
+> updating that skill. See also `CLAUDE.md` (project directives) and
+> `docs/guides/ai-assistant-context.md` (long-form language reference).
 
 **Official Sources:**
 - [Pine Script Docs](https://www.tradingview.com/pine-script-docs/)

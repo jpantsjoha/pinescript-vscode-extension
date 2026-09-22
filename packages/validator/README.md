@@ -43,6 +43,7 @@ Most Pine tooling catches code TradingView will reject. These catch code it
 |---|---|
 | S1 | `request.security()` reading the current, still-forming bar — repainting |
 | S2 | `ta.*` called inside a conditional — its history develops gaps |
+| S3 | Accumulator lifetime does not match its meaning — a `var` total re-added every bar and never reset grows for the life of the chart; the inverse (missing `var`) resets every bar |
 | S5 / S6 | More than 64 plots or 40 `request.*()` calls — TradingView rejects the script |
 | S7 | `plot` / `bgcolor` / `fill` outside global scope — a v6 scope error |
 | S8 | A function defined inside a block — Pine has no nested functions |

@@ -162,7 +162,9 @@ function checkGlobalScopeOnly(lines: string[]): ValidationError[] {
  * cited defect in Pine.
  *
  * Silent when the author has shown they considered it — either `close[1]` or an
- * explicit `lookahead=` argument. Stating the intent is what makes it deliberate.
+ * explicit lookahead argument, named (`lookahead=barmerge.lookahead_off`) or
+ * positional (`barmerge.lookahead_off` as the fifth argument, the form TradingView's
+ * own reference examples use). Stating the intent is what makes it deliberate.
  */
 function checkRepainting(lines: string[]): ValidationError[] {
   const findings: ValidationError[] = [];
@@ -200,7 +202,9 @@ function checkRepainting(lines: string[]): ValidationError[] {
       }
 
       // An explicit lookahead is a deliberate decision, whichever way it goes.
-      if (/\blookahead\s*=/.test(args)) continue;
+      // Recognise both spellings. The named-only test shipped 26 false warnings on
+      // one 1,489-line script whose every call passed it positionally (2026-09-22).
+      if (/\blookahead\s*=/.test(args) || /\bbarmerge\.lookahead_(?:on|off)\b/.test(args)) continue;
 
       // A history offset anywhere in the expression means the author is reading a
       // settled bar: close[1], hlc3[1], ta.sma(close, 14)[1] all qualify.

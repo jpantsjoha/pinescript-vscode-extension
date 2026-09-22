@@ -127,7 +127,7 @@ bgcolor(score >= 70 ? color.new(color.red, 95) :
 
 ### Validation Roadmap to v2.0.0
 
-**Reference Document**: `VALIDATOR-ENHANCEMENT-ROADMAP.md`
+**Reference Document**: `ROADMAP.md` (root; the 2025 plan is archived at `docs/archive/VALIDATOR-ENHANCEMENT-ROADMAP.md`)
 
 **Completed (v1.2.0)**:
 - ✅ Function signature validation (v1.0.0)
@@ -639,7 +639,7 @@ Before approving ANY release:
 
 **For Human Developer:**
 - Check: `test/validation.test.js` results
-- Review: `docs/CULPRIT.md` for known issues
+- Review: open GitHub issues (false-positive reports) and `STATUS.md` for known issues
 - Update: `CHANGELOG.md` with findings
 
 ---
@@ -647,10 +647,9 @@ Before approving ANY release:
 ## Key Reference Documents
 
 ### Validator Enhancement Documentation (NEW)
-- **VALIDATOR-ENHANCEMENT-ROADMAP.md** - Complete 3-phase roadmap to v2.0.0
-- **VALIDATOR-V1.2.0-RELEASE-NOTES.md** - v1.2.0 feature documentation
-- **VALIDATION-GAP-AUDIT.md** - Detailed gap analysis and known limitations
-- **GEMINI.md** - Complete Pine Script v6 expert system (authoritative reference)
+- **ROADMAP.md** - Build order with issue numbers (2025 plan archived at `docs/archive/VALIDATOR-ENHANCEMENT-ROADMAP.md`)
+- **docs/archive/VALIDATOR-V1.2.0-RELEASE-NOTES.md** - v1.2.0 feature documentation (historical)
+- **docs/guides/ai-assistant-context.md** - Pine Script v6 assistant context (formerly root GEMINI.md)
 
 ### Test Files (NEW - v1.2.0)
 - `test-ternary-validation.js` - Ternary operator test suite

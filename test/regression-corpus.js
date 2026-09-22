@@ -73,6 +73,40 @@ const CASES = [
     found: '2026-08-05',
     why: 'S1 is a question about intent; stating the intent answers it.',
   },
+  {
+    name: 'S1: a POSITIONAL lookahead_off is the same decision and must not warn',
+    code: IND + 'd = request.security("FRED:WTREGEN", "W", close, barmerge.gaps_off, barmerge.lookahead_off)\nplot(d)\n',
+    expect: null,
+    found: '2026-09-22',
+    why:
+      'The check recognised only the NAMED form (lookahead=). A 1,489-line macro dashboard ' +
+      'passed lookahead positionally on every one of its 26 request.security calls — the ' +
+      'form TradingView\'s own reference examples use — and got 26 warnings telling it to ' +
+      'do what it had already done.',
+  },
+  {
+    name: 'S1: a positional lookahead_off on a TUPLE request is silent too',
+    code: IND + '[a, b] = request.security("COMEX:GC1!", "W", [close, open], barmerge.gaps_off, barmerge.lookahead_off)\nplot(a - b)\n',
+    expect: null,
+    found: '2026-09-22',
+    why: 'Tuple requests are the idiom for one call per symbol; the fifth argument is still the lookahead.',
+  },
+  {
+    name: 'S1: positional lookahead_on is an explicit decision — S1 asks about intent, not wisdom',
+    code: IND + 'd = request.security(syminfo.tickerid, "D", close, barmerge.gaps_off, barmerge.lookahead_on)\nplot(d)\n',
+    expect: null,
+    found: '2026-09-22',
+    why: 'The named form lookahead=barmerge.lookahead_on has always been silent; the two spellings must agree.',
+  },
+  {
+    name: 'S1: gaps alone is NOT a lookahead decision — still flags',
+    code: IND + 'd = request.security(syminfo.tickerid, "D", close, barmerge.gaps_off)\nplot(d)\n',
+    expect: 'S1',
+    found: '2026-09-22',
+    why:
+      'The paired "still flags" case for the positional fix: a fourth argument says nothing ' +
+      'about lookahead, so widening the exemption to any barmerge.* token would silence real repainting.',
+  },
 
   //────────────────────────────────────────────────────────
   // S2 — ta.* conditionality

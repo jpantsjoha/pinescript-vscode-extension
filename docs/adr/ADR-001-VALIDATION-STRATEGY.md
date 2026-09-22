@@ -206,7 +206,7 @@ Return errors
 ## References
 
 - [Pine Script v6 Reference](https://www.tradingview.com/pine-script-reference/v6/)
-- [Project Directives](../CLAUDE.md)
+- [Project Directives](../../CLAUDE.md)
 - [Test Strategy](./ADR-002-TEST-STRATEGY.md)
 
 ---

@@ -516,14 +516,14 @@ The grammar uses **semantic scopes** that work with all VS Code themes:
 
 1. **Open the Extension Dev Host**:
    ```bash
-   cd Pine-Script-Extension
+   cd pinescript-vscode-extension
    code .
    # Press F5
    ```
 
 2. **Open a Pine file**:
-   - `examples/test-v6-features.pine`
-   - OR your existing: `point-click-unified-v2.pine`
+   - Any `.pine` file under `test/fixtures/corpus/`
+   - OR your own existing indicator/strategy file
 
 3. **Observe the colors**:
    - **Blue**: Types, namespaces

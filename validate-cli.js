@@ -11,6 +11,7 @@
  *   node validate-cli.js <file.pine> [more.pine ...]
  *   node validate-cli.js --comprehensive <file.pine>
  *   node validate-cli.js --both <file.pine>
+ *   node validate-cli.js --local-engine <file.pine>   # working-tree engine, not the published one
  *
  * Exit code: 0 if no severity-0 errors in any file, else 1. (Built for CI / agents.)
  */
@@ -36,8 +37,19 @@ function loadValidators() {
   catch (e) { out.documentChecksErr = e.message; }
   // Semantic checks — the third diagnostic source, from the published engine.
   // ADR-0001: written once, consumed here and by the extension.
+  //
+  // By default this is the PUBLISHED package in node_modules, i.e. what the VSIX
+  // ships — so a fix in packages/validator/src is invisible here until the engine
+  // is published and the dependency bumped. That bit once: S1's positional-lookahead
+  // fix was green in `npm test` (which runs the local build) while this CLI kept
+  // printing the old warnings. Pass --local-engine (or PINE_ENGINE=local) to run
+  // the working-tree build instead; the banner always says which one ran.
   try {
-    const eng = require('pinescript-v6-validator');
+    const useLocal = process.argv.includes('--local-engine') || process.env.PINE_ENGINE === 'local';
+    const engPath = useLocal ? './packages/validator/dist/index.js' : 'pinescript-v6-validator';
+    const eng = require(engPath);
+    const pkg = require(useLocal ? './packages/validator/package.json' : 'pinescript-v6-validator/package.json');
+    out.engineLabel = `engine ${pkg.version} (${useLocal ? 'local build: packages/validator/dist' : 'published: node_modules'})`;
     out.semanticChecks = {
       validate: (code) => eng.applySuppressions(eng.runSemanticChecks(code), eng.extractSuppressions(code))
     };
@@ -78,10 +90,12 @@ function main() {
     : args.includes('--both') ? 'both' : 'accurate';
   const files = args.filter(a => !a.startsWith('--'));
   if (files.length === 0) {
-    console.error('Usage: node validate-cli.js [--comprehensive|--both] <file.pine> ...');
+    console.error('Usage: node validate-cli.js [--comprehensive|--both] [--local-engine] <file.pine> ...');
     process.exit(2);
   }
   const v = loadValidators();
+  if (v.engineLabel) console.log(paint(`semantic checks: ${v.engineLabel}`, c.dim));
+  else if (v.semanticChecksErr) console.log(paint(`semantic checks unavailable: ${v.semanticChecksErr}`, c.yellow));
   if (mode !== 'comprehensive' && !v.accurate) { console.error('AccurateValidator load failed:', v.accurateErr, '\nRun: npm run build'); process.exit(2); }
   if (mode !== 'accurate' && !v.comprehensive) { console.error('ComprehensiveValidator load failed:', v.comprehensiveErr, '\nRun: npm run build'); process.exit(2); }
 

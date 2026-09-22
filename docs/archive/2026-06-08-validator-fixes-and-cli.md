@@ -1,5 +1,8 @@
 # Validator fixes + headless CLI — 2026-06-08
 
+**Archived 2026-09-22.** Dated dev-log entry, kept for history. Content verified
+still accurate (the `validate-cli.js` flags it documents still exist).
+
 Ground-truthed against a **known-good** Pine v6 script that compiles and runs live on
 TradingView. Before these fixes `AccurateValidator` reported **4 false-positive
 errors** on it; after, it reports **0**. The equivalent constructs are now covered by
