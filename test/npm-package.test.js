@@ -238,7 +238,7 @@ describe('Published npm package', { skip: SKIP && 'SKIP_PACKAGE_TEST=1' }, () =>
   test('every semantic check reaches consumers with its metadata intact', () => {
     const registry = installed.SEMANTIC_CHECKS;
     assert.deepStrictEqual(Object.keys(registry).sort(),
-      ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9']);
+      ['S1', 'S10', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9']);
 
     for (const [id, check] of Object.entries(registry)) {
       assert.strictEqual(check.id, id);

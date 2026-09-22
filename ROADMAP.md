@@ -54,8 +54,8 @@ This is a product decision, not a technical one. It has not been made.
 Grouped by area. Numbers are GitHub issue numbers.
 
 **Engine / semantic checks**
-- [#25](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/25) S10 proposal: `request.*` with an external symbol and no `ignore_invalid_symbol` halts on "Permission denied"
-- [#26](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/26) Data gap: `request.security` timeframe and expression marked optional, so `request.security("X")` is not flagged
+- [#25](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/25) S10 proposal: `request.*` with an external symbol and no `ignore_invalid_symbol` — **built** on `feat/s10-external-feed-hint` (engine 0.4.0), PR pending halts on "Permission denied"
+- [#26](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/26) Data gap: `request.security` timeframe and expression marked optional, so `request.security("X")` is not flagged — **built** on `feat/s10-external-feed-hint`, paired arity tests, PR pending
 - [#9](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/9) Overloaded methods not considered
 - [#10](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/10) Enums not supported
 - [#14](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/14) `timestamp()` incorrectly flagged for too many arguments

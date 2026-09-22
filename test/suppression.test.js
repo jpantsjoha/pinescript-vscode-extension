@@ -21,10 +21,10 @@ const { blankComments } = require('../packages/validator/dist/src/documentChecks
 // Registry
 //──────────────────────────────────────────────────────────
 
-test('registry defines all nine checks from SPEC.md', () => {
+test('registry defines the nine checks from SPEC.md plus S10', () => {
   assert.deepStrictEqual(
     Object.keys(SEMANTIC_CHECKS).sort(),
-    ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9']
+    ['S1', 'S10', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9']
   );
 });
 

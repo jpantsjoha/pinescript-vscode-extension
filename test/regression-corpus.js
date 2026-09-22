@@ -75,7 +75,7 @@ const CASES = [
   },
   {
     name: 'S1: a POSITIONAL lookahead_off is the same decision and must not warn',
-    code: IND + 'd = request.security("FRED:WTREGEN", "W", close, barmerge.gaps_off, barmerge.lookahead_off)\nplot(d)\n',
+    code: IND + 'd = request.security(syminfo.tickerid, "W", close, barmerge.gaps_off, barmerge.lookahead_off)\nplot(d)\n',
     expect: null,
     found: '2026-09-22',
     why:
@@ -86,7 +86,7 @@ const CASES = [
   },
   {
     name: 'S1: a positional lookahead_off on a TUPLE request is silent too',
-    code: IND + '[a, b] = request.security("COMEX:GC1!", "W", [close, open], barmerge.gaps_off, barmerge.lookahead_off)\nplot(a - b)\n',
+    code: IND + '[a, b] = request.security(syminfo.tickerid, "W", [close, open], barmerge.gaps_off, barmerge.lookahead_off)\nplot(a - b)\n',
     expect: null,
     found: '2026-09-22',
     why: 'Tuple requests are the idiom for one call per symbol; the fifth argument is still the lookahead.',
@@ -126,7 +126,7 @@ const CASES = [
   },
   {
     name: 'S1: a nested request inside a call that DID decide stays silent',
-    code: IND + 'd = request.security("NASDAQ:AAPL", "W", request.security("NASDAQ:MSFT", "D", close, barmerge.gaps_off, barmerge.lookahead_off), barmerge.gaps_off, barmerge.lookahead_off)\nplot(d)\n',
+    code: IND + 'd = request.security(syminfo.tickerid, "W", request.security(syminfo.tickerid, "D", close, barmerge.gaps_off, barmerge.lookahead_off), barmerge.gaps_off, barmerge.lookahead_off)\nplot(d)\n',
     expect: null,
     found: '2026-09-22',
     why: 'Both calls state their lookahead; the paired negative for the nested cases.',
@@ -147,6 +147,26 @@ const CASES = [
     expect: null,
     found: '2026-09-22',
     why: 'Paired negative: the offset sits inside this call, so it must stay silent.',
+  },
+
+  //────────────────────────────────────────────────────────
+  // S10 — hard-coded external feed without ignore_invalid_symbol
+  //────────────────────────────────────────────────────────
+  {
+    name: 'S10: a hard-coded external feed with no ignore_invalid_symbol halts on a plan that cannot read it',
+    code: IND + 'd = request.security("FRED:WTREGEN", "W", close, barmerge.gaps_off, barmerge.lookahead_off)\nplot(d)\n',
+    expect: 'S10',
+    found: '2026-09-22',
+    why:
+      'A 26-feed macro dashboard compiled clean and died on the chart with "Permission denied for ' +
+      'symbol: FRED:WTREGEN". Nothing in the tool could have said so; this hint can.',
+  },
+  {
+    name: 'S10: ignore_invalid_symbol=true is the stated decision and must not fire',
+    code: IND + 'd = request.security("FRED:WTREGEN", "W", close, barmerge.gaps_off, barmerge.lookahead_off, ignore_invalid_symbol=true)\nplot(d)\n',
+    expect: null,
+    found: '2026-09-22',
+    why: 'The fix the hint recommends must be silent, or it trains people to ignore S10.',
   },
 
   //────────────────────────────────────────────────────────

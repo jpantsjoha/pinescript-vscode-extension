@@ -321,3 +321,74 @@ test('S9 still accepts close_all as an exit', () => {
           'if close < open\n    strategy.close_all()\n',
     'S9', 'close_all genuinely flattens the position');
 });
+
+//──────────────────────────────────────────────────────────
+// S10 — hard-coded external feed without ignore_invalid_symbol
+//──────────────────────────────────────────────────────────
+
+const FEED = 'd = request.security("FRED:WTREGEN", "W", close, barmerge.gaps_off, barmerge.lookahead_off';
+
+test('S10 flags a hard-coded external feed with no ignore_invalid_symbol', () => {
+  assertFlags(IND + FEED + ')\nplot(d)\n', 'S10',
+    "The viewer's plan decides at runtime whether the feed is readable; an unreadable one halts the whole script");
+});
+
+test('S10 is silent when ignore_invalid_symbol is named', () => {
+  assertSilent(IND + FEED + ', ignore_invalid_symbol=true)\nplot(d)\n', 'S10', 'The decision is stated');
+});
+
+test('S10 is silent when the author chose the hard stop explicitly', () => {
+  assertSilent(IND + FEED + ', ignore_invalid_symbol=false)\nplot(d)\n', 'S10',
+    'S10 asks whether the author decided, not which way');
+});
+
+test('S10 is silent when ignore_invalid_symbol is passed positionally (sixth argument)', () => {
+  assertSilent(IND + FEED + ', true)\nplot(d)\n', 'S10', 'Positional is still a decision');
+});
+
+test('S10 is silent for the chart symbol', () => {
+  assertSilent(IND + 'd = request.security(syminfo.tickerid, "D", close[1])\nplot(d)\n', 'S10',
+    'The chart symbol is always readable');
+});
+
+test('S10 is silent for an empty string (chart-relative)', () => {
+  assertSilent(IND + 'd = request.security("", "D", close[1])\nplot(d)\n', 'S10', 'Empty means the chart symbol');
+});
+
+test('S10 is silent for a bare ticker without an exchange prefix', () => {
+  assertSilent(IND + 'd = request.security("AAPL", "D", close[1])\nplot(d)\n', 'S10',
+    'No exchange prefix — TradingView resolves it against the chart, not a plan-gated feed');
+});
+
+test('S10 is silent for ticker.new()', () => {
+  assertSilent(IND + 'd = request.security(ticker.new("NASDAQ", "AAPL"), "D", close[1])\nplot(d)\n', 'S10',
+    'A constructed ticker is not a bare literal');
+});
+
+test('S10 is silent for an input variable', () => {
+  assertSilent(IND + 'sym = input.symbol("FRED:WTREGEN", "s")\nd = request.security(sym, "W", close[1])\nplot(d)\n', 'S10',
+    'The user picks the feed; the author has delegated the decision');
+});
+
+test('S10 is silent for a concatenated symbol', () => {
+  assertSilent(IND + 't = "AAPL"\nd = request.security("NASDAQ:" + t, "D", close[1])\nplot(d)\n', 'S10',
+    'Only a single bare literal counts as hard-coded');
+});
+
+test('S10 flags request.dividends with a literal ticker and no flag', () => {
+  assertFlags(IND + 'v = request.dividends("NASDAQ:AAPL")\nplot(v)\n', 'S10', 'Same runtime contract as security');
+});
+
+test('S10 is silent for request.dividends with the flag in its fifth slot', () => {
+  assertSilent(IND + 'v = request.dividends("NASDAQ:AAPL", dividends.gross, barmerge.gaps_off, barmerge.lookahead_off, true)\nplot(v)\n', 'S10',
+    'dividends() carries ignore_invalid_symbol fifth, not sixth');
+});
+
+test('S10 assesses a wrapped call whose symbol sits on the next line', () => {
+  assertFlags(IND + 'd = request.security(\n     "FRED:WTREGEN",\n     "W",\n     close, barmerge.gaps_off, barmerge.lookahead_off)\nplot(d)\n', 'S10',
+    'Wrapping is the common formatting for this function');
+});
+
+test('S10 honours // pine-ignore: S10', () => {
+  assertSilent(IND + FEED + ')  // pine-ignore: S10\nplot(d)\n', 'S10', 'A stated hard stop');
+});
