@@ -313,7 +313,8 @@ function checkExternalFeed(lines: string[], rawLines: string[]): ValidationError
       if (top.some(a => /^ignore_invalid_symbol\s*=/.test(a))) continue;
       // Positional slot: only positional arguments count. `gaps=…, lookahead=…,
       // currency=…` after the expression are named and say nothing about the flag.
-      const positional = top.filter(a => !/^[a-zA-Z_][a-zA-Z0-9_]*\s*=/.test(a)).length;
+      // `(?!=)`: `x == y` passed positionally is a comparison, not a named argument.
+      const positional = top.filter(a => !/^[a-zA-Z_][a-zA-Z0-9_]*\s*=(?!=)/.test(a)).length;
       if (positional > IGNORE_INVALID_SLOT[fn]) continue;    // passed positionally, either value
 
       // Pin the finding to the literal itself, so `// pine-ignore: S10` on that line

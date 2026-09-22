@@ -414,3 +414,8 @@ test('S10 sees a literal passed as symbol=', () => {
   assertFlags(IND + 'd = request.security(symbol="FRED:WTREGEN", timeframe="W", expression=close)\nplot(d)\n', 'S10',
     'A named first argument is still a hard-coded feed');
 });
+
+test('S10 treats a comparison in the flag slot as positional, not as a named argument', () => {
+  assertSilent(IND + 'd = request.security("FRED:WTREGEN", "W", close, barmerge.gaps_off, barmerge.lookahead_off, close == close[1])\nplot(d)\n', 'S10',
+    'The sixth slot is occupied; `==` is not `=`');
+});
