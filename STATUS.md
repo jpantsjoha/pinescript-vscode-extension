@@ -92,8 +92,9 @@ clean · operating-model validator PASS (3 seed warnings by design).
 | join-the-team operating model 2.1.0 seeded and grounded (`docs/operating-model/`) | validator PASS; 9 inferred fields flagged for JP |
 | Filed #25 (S10 `ignore_invalid_symbol` hint), #26 (`request.security` arity gap) | issues carry scope, DoD, proof |
 | Independent review of the engine change: Codex REJECT → two fixes → Kimi delta PASS; push-time Gemini CLEAN ×3 | record on PR #27 |
-| S10 built (#25): info hint for a hard-coded external feed with no `ignore_invalid_symbol`; engine 0.4.0 on `feat/s10-external-feed-hint` | 14 paired unit tests, 2 corpus cases; 23 hits on the pre-fix dashboard, 0 on the hardened one, 0 across corpus and examples |
+| S10 built (#25): info hint for a hard-coded external feed with no `ignore_invalid_symbol`; engine 0.4.0 on `feat/s10-external-feed-hint` | 18 paired unit tests, 2 corpus cases; 23 hits on the pre-fix dashboard, 0 on the hardened one, 0 across corpus and examples |
 | `request.security` arity override (#26): symbol, timeframe, expression required | 5 paired tests; corpus 0 errors |
+| `request.footprint()` manual entry corrected to `(ticks_per_row, va_percent?, imbalance_percent?)`; the guessed `(symbol, timeframe, …)` flagged valid calls | paired tests both ways; surfaced by the S10 review |
 | FRED TGA alternatives proved: `FRED:WDTGAL` and `FRED:D2WLTGAL` (Wednesday level) resolve in TradingView symbol search and are live on FRED to 2026-09-16 | script now falls back to WDTGAL and labels the source |
 
 ### Operator decision board
