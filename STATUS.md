@@ -91,6 +91,7 @@ clean · operating-model validator PASS (3 seed warnings by design).
 | Docs pruned and reorganised; 16 contradictions fixed; root ROADMAP.md created | link check 0 broken; audit README-version WARN cleared |
 | join-the-team operating model 2.1.0 seeded and grounded (`docs/operating-model/`) | validator PASS; 9 inferred fields flagged for JP |
 | Filed #25 (S10 `ignore_invalid_symbol` hint), #26 (`request.security` arity gap) | issues carry scope, DoD, proof |
+| Independent review of the engine change: Codex REJECT → two fixes → Kimi delta PASS; push-time Gemini CLEAN ×3 | record on PR #27 |
 
 ### Operator decision board
 
