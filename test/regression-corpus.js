@@ -107,6 +107,30 @@ const CASES = [
       'The paired "still flags" case for the positional fix: a fourth argument says nothing ' +
       'about lookahead, so widening the exemption to any barmerge.* token would silence real repainting.',
   },
+  {
+    name: 'S1: a nested request.security decides only for itself — the OUTER call still flags',
+    code: IND + 'd = request.security("NASDAQ:AAPL", "W", request.security("NASDAQ:MSFT", "D", close, barmerge.gaps_off, barmerge.lookahead_off))\nplot(d)\n',
+    expect: 'S1',
+    found: '2026-09-22',
+    why:
+      'Review finding on the positional fix: the exemption regexes ran over the whole balanced ' +
+      'argument region, so an inner call\'s lookahead_off silenced an outer call that had decided ' +
+      'nothing. Only the outer call\'s own top-level arguments count now.',
+  },
+  {
+    name: 'S1: an offset inside a nested request does not settle the outer call either',
+    code: IND + 'd = request.security("NASDAQ:AAPL", "W", request.security("NASDAQ:MSFT", "D", close[1], barmerge.gaps_off, barmerge.lookahead_off))\nplot(d)\n',
+    expect: 'S1',
+    found: '2026-09-22',
+    why: 'The same blind spot for the offset exemption, which predates the positional fix.',
+  },
+  {
+    name: 'S1: a nested request inside a call that DID decide stays silent',
+    code: IND + 'd = request.security("NASDAQ:AAPL", "W", request.security("NASDAQ:MSFT", "D", close, barmerge.gaps_off, barmerge.lookahead_off), barmerge.gaps_off, barmerge.lookahead_off)\nplot(d)\n',
+    expect: null,
+    found: '2026-09-22',
+    why: 'Both calls state their lookahead; the paired negative for the nested cases.',
+  },
 
   //────────────────────────────────────────────────────────
   // S2 — ta.* conditionality

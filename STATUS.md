@@ -11,7 +11,7 @@
 
 | Signal | State |
 |---|---|
-| `npm test` | 300 tests — 299 pass, 1 skip, 0 fail |
+| `npm test` | 306 tests — 305 pass, 1 skip, 0 fail |
 | `npm run audit` | 19 pass · 2 warn · 0 fail |
 | Golden corpus | 4 tracked fixtures (`test/fixtures/corpus/`) + 7 gitignored `examples/*.pine`, all 0 errors. CI sees only the 4 tracked ones. |
 | Semantic checks shipped | S1, S2, S3, S5, S6, S7, S8, S9. S4 (assignment inside `and`/`or`) is registered in `checkRegistry.ts` but never implemented. |
@@ -81,12 +81,12 @@ Never move a file from `examples/` into the committed corpus list —
 ## Session 2026-09-22
 
 Branch `feat/audit-s1-lookahead-docs-operating-model`, gates at the last commit: `npm test`
-300 / 299 pass / 1 skip / 0 fail · `npm run audit` 20 pass · 1 warn · 0 fail · `tsc --noEmit`
+306 / 305 pass / 1 skip / 0 fail · `npm run audit` 20 pass · 1 warn · 0 fail · `tsc --noEmit`
 clean · operating-model validator PASS (3 seed warnings by design).
 
 | Delivered | Proof |
 |---|---|
-| S1 recognises a positional `lookahead` argument (#24); engine 0.3.1 built, not yet published | four paired regression cases; a 26-call real script goes 26 → 0 warnings on `--local-engine` |
+| S1 recognises a positional `lookahead` argument (#24); engine 0.3.1 built, not yet published | seven paired regression cases (including nested-call cases from the council review); a 26-call real script goes 26 → 0 warnings on `--local-engine` |
 | `validate-cli.js` prints which engine ran; `--local-engine` runs the working tree | banner line; hook pipe-tested |
 | Docs pruned and reorganised; 16 contradictions fixed; root ROADMAP.md created | link check 0 broken; audit README-version WARN cleared |
 | join-the-team operating model 2.1.0 seeded and grounded (`docs/operating-model/`) | validator PASS; 9 inferred fields flagged for JP |

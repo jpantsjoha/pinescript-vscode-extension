@@ -94,7 +94,7 @@ function main() {
     process.exit(2);
   }
   const v = loadValidators();
-  if (v.engineLabel) console.log(paint(`semantic checks: ${v.engineLabel}`, c.dim));
+  if (v.engineLabel && mode !== 'comprehensive') console.log(paint(`semantic checks: ${v.engineLabel}`, c.dim));
   else if (v.semanticChecksErr) console.log(paint(`semantic checks unavailable: ${v.semanticChecksErr}`, c.yellow));
   if (mode !== 'comprehensive' && !v.accurate) { console.error('AccurateValidator load failed:', v.accurateErr, '\nRun: npm run build'); process.exit(2); }
   if (mode !== 'accurate' && !v.comprehensive) { console.error('ComprehensiveValidator load failed:', v.comprehensiveErr, '\nRun: npm run build'); process.exit(2); }
