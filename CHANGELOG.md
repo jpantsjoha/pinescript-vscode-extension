@@ -7,148 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.6.3] - 2026-09-23
 
-### 🐛 S1 warned on every `request.security()` that passed `lookahead` positionally
+Fewer false positives, two new checks for scripts that compile but still fail on the
+chart, and a leaner package.
 
-`request.security(sym, "W", expr, barmerge.gaps_off, barmerge.lookahead_off)` — the
-fifth argument *is* the lookahead, and it is the form TradingView's own reference
-examples use. S1 recognised only the named spelling `lookahead=`, so a 1,489-line
-macro dashboard that stated its intent on all 26 of its calls got 26 warnings telling
-it to do what it had already done.
+### 🐛 False positives fixed
 
-Fixed in `pinescript-v6-validator@0.4.0` (0.3.1 was never published): both spellings count as a decision. Four
-regression-corpus cases: positional `lookahead_off`, the same on a tuple request,
-positional `lookahead_on` (an explicit if unwise decision, matching the named form),
-and the paired "still flags" case — `barmerge.gaps_off` alone says nothing about
-lookahead and must keep warning. Issue #24.
+- **Positional `lookahead` in `request.security()`** (#24). A call such as
+  `request.security(sym, "W", close, barmerge.gaps_off, barmerge.lookahead_off)`
+  was warned as repainting although it states its lookahead. Both the positional and
+  the named form now count.
+- **`timestamp()` with date and time components** (#9, #14). Every form in the v6
+  reference is accepted: a date string, `year, month, day[, hour, minute, second]`,
+  and the same with a leading timezone.
+- **Function parameters reported as undefined** (#16). `st.a` inside
+  `update(State st, float v) =>` no longer shows "Undefined namespace or variable".
+  Typed, generic (`map<string, float>`) and defaulted parameters all work.
+- **`request.footprint()`** now matches the reference:
+  `request.footprint(ticks_per_row, va_percent?, imbalance_percent?)`.
 
-The independent review (Codex lane) caught a hole in the first cut: the exemption
-regexes ran over the whole balanced argument region, so a nested
-`request.security(B, "D", close, …, barmerge.lookahead_off)` inside the expression
-argument silenced an outer call that had decided nothing — and the older `close[1]`
-exemption had the same blind spot. Only the outer call's own top-level arguments
-count now; three nested-call cases lock it, one of them the paired negative. A lane
-probing that fix found an older miss: a wrapped call's arguments were cut at the LAST
-closing paren on the closing line, so an offset on a sibling argument of the enclosing
-call leaked in and exempted it. Fixed, two more paired cases.
+### ✨ New checks
 
-The extension picks this up when the engine is published and the dependency bumped
-to `^0.4.0`; until then the VSIX ships 0.3.0.
+- **S10 — unguarded external feed** (hint, #25). A hard-coded `"FRED:…"`,
+  `"ECONOMICS:…"` or other exchange-prefixed symbol with no `ignore_invalid_symbol`
+  compiles, then halts the whole script with `Permission denied for symbol` when the
+  viewer's plan cannot read it. The hint points at the one-argument fix. Silence it
+  with `// pine-ignore: S10` if you want the hard stop.
+- **`request.security("X")` missing arguments** (#26). A call without timeframe and
+  expression is now flagged, as TradingView rejects it.
+- **`barcolor()` inside an `if`** (#11) is flagged as a scope error, like `bgcolor()`.
 
-### 🔧 `validate-cli.js` says which engine it ran, and can run the local one
+### 🎨 Editor
 
-The CLI, the pre-commit hook and the VSIX all load the *published* engine from
-`node_modules` — deliberately, because "correct in the source tree, broken in the
-published artefact" is this project's recurring failure. The cost: a fix in
-`packages/validator/src` is invisible to the CLI until the engine ships. `npm test`
-was green on the S1 fix while the CLI still printed 26 warnings.
+- `enum` is highlighted (#10), along with the `footprint` and `volume_row` types.
 
-The CLI now prints `semantic checks: engine 0.3.0 (published: node_modules)` before
-every run, and `--local-engine` (or `PINE_ENGINE=local`) runs the working-tree build.
+### 🔧 Tooling
 
-### 📚 Documentation pruned and reorganised; team operating model adopted
+- The MCP server now runs the same semantic checks as the editor.
+- `validate-cli.js` prints which engine it used, and `--local-engine` runs the
+  working-tree build.
 
-Thirty-one markdown files audited against the code. Sixteen contradictions fixed —
-among them: test count (169 → 310), README install snippet (0.6.1 → 0.6.2), STATUS
-header (0.6.0 / engine 0.2.0 → 0.6.2 / 0.3.0), the engine README's semantic-check
-table missing S3, CONTRIBUTING telling people to use pnpm, the MCP guide describing a
-server that runs the dead `ComprehensiveValidator` (it runs `AccurateValidator` plus
-`documentChecks`), and eight links to files that no longer exist.
+### ⚡ Leaner and cleaner
 
-Root now holds only README, CHANGELOG, STATUS, ROADMAP (new — build order with issue
-numbers and built/gated/shipped state), CLAUDE.md, AGENTS.md, GEMINI.md and LICENSE.
-ADRs live in `docs/adr/`, guides in `docs/guides/`, point-in-time release notes and
-the 2025 roadmap went to `docs/archive/` and were then deleted on 2026-09-23 (git
-history keeps them). Moves are `git mv`, so history follows.
-
-`docs/operating-model/` carries the join-the-team operating manual 2.1.0 and a
-grounded project profile (adoption status `seed`; nine inferred fields await JP's
-confirmation before `active`). `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` carry the
-shared contract block; `docs/VISION.md` states the product intent.
-
-### ✨ S10 — a hard-coded external feed with no `ignore_invalid_symbol` (info)
-
-A script that compiles can still die on the chart. `request.security("FRED:WTREGEN", …)`
-is read from the *viewer's* plan at runtime, and a feed that plan cannot read halts the
-whole script with `Permission denied for symbol`. TradingView names only the first
-failing feed, so the author discovers them one at a time — a 26-feed macro dashboard
-went down this way on 2026-09-22.
-
-S10 flags a `request.security` / `security_lower_tf` / `dividends` / `earnings` /
-`splits` / `financial` call whose first argument is one bare string
-literal with an exchange prefix and whose argument list carries no
-`ignore_invalid_symbol` — named or positional, whichever value. It is an **info**, not
-a warning: the author may want the hard stop, and `// pine-ignore: S10` states so.
-Silent for `syminfo.tickerid`, `""`, a bare ticker, `ticker.new()`, an input variable
-and a concatenation. Fourteen paired unit tests, two corpus cases; on the pre-fix
-dashboard it names all 23 literal feeds, on the hardened one none, and it fires
-nowhere across the golden corpus and examples. Engine 0.4.0. Issue #25.
-
-### 🐛 `request.footprint()` carried a guessed signature
-
-The January-2026 entry in `MODERN_V6_FUNCTIONS` said `request.footprint(symbol,
-timeframe, row_size, …)`. The reference says `request.footprint(ticks_per_row,
-va_percent?, imbalance_percent?)`: it reads the chart's own bar and takes no symbol.
-So the valid `request.footprint(10)` raised "missing timeframe" and every named
-`ticks_per_row=` call raised an unknown-parameter error. Corrected in both data copies;
-the independent review of S10 surfaced it. Paired tests: one-, two- and three-argument
-and named forms are silent; zero arguments and four are still flagged.
-
-### 🐛 `request.security("X")` passed arity (#26)
-
-The 2025-10-03 scrape marked only `symbol` required. A manual override in
-`v6/parameter-requirements.ts` (mirrored in the engine's data) now requires `symbol`,
-`timeframe` and `expression` for `request.security` and `request.security_lower_tf`,
-keeping the generated parameter list for hover and named-argument checks. Proved both
-ways: one- and two-argument calls raise the arity error; the minimal, full positional,
-named, tuple and wrapped forms stay silent; nine arguments is one too many.
-
-### 🐛 Four user-reported false positives and a scope miss
-
-- **`timestamp()` overloads (#9, #14).** The scrape kept only `timestamp(dateString)`,
-  so every component call reported "Expected max 1". The three shapes in the v6
-  reference (dateString; year, month, day, hour?, minute?, second?; the same with a
-  leading timezone) are now explicit overloads. Eight arguments is still flagged.
-- **Function parameters (#16).** Only the function name was collected from
-  `f(params) =>`, so `st.a` inside `update(State st, float v) =>` reported "Undefined
-  namespace or variable 'st'". Parameters are now declared, including generic
-  (`map<string, float> m`) and defaulted (`int n = 3`) ones. An undefined name in a
-  body is still flagged.
-- **`barcolor` in local scope (#11).** TradingView rejects it inside an `if`; S7 listed
-  `bgcolor` but not `barcolor`. Added. The ternary-at-global-scope fix stays silent.
-- **`enum` highlighting (#10).** The grammar highlighted `type` and `method` but not
-  `enum`; the January-2026 `footprint` and `volume_row` types are highlighted too.
-- Verified already fixed and closed: #7 (nested call arity), #8 (comment read as
-  code), #15 (UDT `.new()`).
-
-Each fix has its regression-corpus case added before the fix, with its paired
-"still flags" case.
-
-### 🔧 The MCP server runs the semantic checks
-
-`mcp/pinescript-mcp-server.js` ran two of the editor's three diagnostic sources, so
-an MCP client never saw S1-S10. It now loads the engine from `dist/engine/`, the copy
-the VSIX ships, and honours `// pine-ignore`. Its tool description no longer claims
-type checking.
-
-### 🧹 Legacy code pruned
-
-Deleted: the AST validator stack (`comprehensiveValidator`, `validator`, `parser`,
-`ast`, `lexer`, `typeSystem`, `symbolTable`; about 3,500 lines that crashed on valid
-input and were never wired into the editor), `dev-tools/` (28 debugging scripts for
-that stack), five dead test scripts and metrics files, `mcp/validator-server.js`
-(required a file that does not exist), `mcp/Dockerfile`, a root `settings.json` with a
-hard-coded local path, and four orphaned `v6/` data files. `validate-cli.js` loses
-`--comprehensive` and `--both`. Type inference is out of scope until an AST path is
-rebuilt; see `ROADMAP.md`.
-
-`npm run build` now clears `dist/` first. Five dead compiled modules from the deleted
-stack had been shipping in every VSIX because nothing removed them.
-
-### 📋 Filed, not built
-
-- #25 and #26 were filed here first and built the same day (above).
+- Removed an unused, crashing validator and its tooling (about 3,500 lines), plus
+  five stale compiled files that had been shipping inside every package.
+- Documentation cut by a third and brought in line with the code.
+- Engine: `pinescript-v6-validator@0.4.0`.
 
 ## [0.6.2] - 2026-08-08
 
