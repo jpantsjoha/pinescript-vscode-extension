@@ -266,7 +266,7 @@ export class AccurateValidator {
       else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
       // Pine's only generic type templates are array<>, matrix<> and map<> (plus
       // the `.new<type>()` constructors). Any other `<` is a comparison.
-      else if (ch === '<' && /\b(?:array|matrix|map|new)$/.test(list.slice(0, i))) angle++;
+      else if (ch === '<' && /(?:\b(?:array|matrix|map)|\.new)$/.test(list.slice(0, i))) angle++;
       else if (ch === '>' && angle > 0) angle--;
       if (ch === ',' && depth === 0 && angle === 0) { out.push(cur); cur = ''; continue; }
       cur += ch;
