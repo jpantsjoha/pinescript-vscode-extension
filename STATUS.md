@@ -15,11 +15,22 @@
 | Diagnostic sources | AccurateValidator, documentChecks, engine semantic checks; the editor, `validate-cli.js` and the MCP server all run all three |
 | VSIX | packaged, extracted and executed on 2026-09-23: entry resolves, engine loads |
 
-## Open pull requests (stacked, merge in order)
+## Merged 2026-09-23
 
-1. **#27** — S1 positional lookahead (#24); docs reorganised; operating model seeded. Reviewed: Kimi PASS.
-2. **#28** — S10 external-feed hint (#25); `request.security` arity (#26); `request.footprint` signature. Reviewed: Kimi PASS.
-3. **`chore/prune-legacy-repair`** — see below.
+#27 (`e698807`), #28 (`d34d828`) and #29 (`aa057cf`) merged to `main`, each after the
+full CI run (6/6 checks). Issues #9 #10 #11 #14 #16 #24 #25 #26 closed. Stale PRs #18 and
+#2 closed. Branch protection on `main`: 5 required checks, no force pushes, admins exempt.
+
+**Release blocked on one credential step.** `npm whoami` returns 401: the token in
+`~/.npmrc` is dead. Engine 0.4.0 must be on npm before the extension can depend on it.
+
+```bash
+npm login                                   # JP, interactive
+cd packages/validator && npm publish         # pinescript-v6-validator@0.4.0
+cd ../.. && npm install pinescript-v6-validator@^0.4.0
+# bump package.json to 0.6.3, CHANGELOG [Unreleased] -> [0.6.3] - <date>, README version
+# PR, merge, then: git tag v0.6.3 && git push origin v0.6.3  (publish.yml ships it)
+```
 
 ## 2026-09-23 — repair and prune
 
@@ -36,27 +47,31 @@ Operator instruction: repair what is useful, prune legacy, dated and irrelevant 
 | `npm run build` cleans `dist/` first | five dead compiled modules had been shipping in the VSIX |
 | Closed as already fixed: #7, #8, #15 | each repro validated clean on 2026-09-23 |
 
-## Sitrep 2026-09-23 — findings the tables above do not show
+## Coherence review — Gemini 3.8 flash high, 2026-09-23 (judgement, not measurement)
 
-| Finding | Evidence |
+| Dimension | Score |
 |---|---|
-| `main` has not moved since 2026-08-08; every change since sits in three stacked PRs | `git log -1 origin/main -- STATUS.md` → 2026-08-08; #27 → main, #28 → #27, #29 → #28 |
-| Full CI runs only on PRs targeting `main`: #28 and #29 have run PR Validation only | `gh pr checks 28/29`; `ci.yml` `pull_request.branches: [main]`. Each gets the full run when retargeted; local gates (363 tests, audit, VSIX) cover the gap meanwhile |
-| `main` has no branch protection | `gh api …/branches/main/protection` → "Branch not protected" |
-| `npm audit` in CI is advisory (`\|\| true`) | `ci.yml:175` |
-| Two stale PRs: #18 (secret-ignore rules, conflicting; its missing patterns now folded into #29) and #2 (2025-10-06 analysis-only, 1,648 lines of docs about the deleted AST path) | `gh pr view 18/2` |
-| Users run 0.6.2 / engine 0.3.0; 1,532 installs | Marketplace gallery API; `npm view pinescript-v6-validator` |
+| Vision coherence | 8/10 |
+| Requirements delivery | 8/10 |
+| Consistency across docs | 6/10 |
+| Quality of proof | 7/10 |
+
+Seven contradictions reported. Fixed in `docs/coherence-fixes`: engine 0.3.1 references
+(never published; it is 0.4.0), README's "310 tests", README missing S10 and `barcolor`,
+VISION overstating the CI corpus (4 synthetic fixtures in CI; 7 private scripts local
+only), a dead metrics reference in the profile. Standing design debt, not doc errors:
+the syntactic validator is copied between `src/` and the engine, and the build ships the
+published engine rather than the local one. Its top recommendations match ROADMAP:
+publish 0.4.0, unify the engine, re-crawl the reference, overload-aware signature help
+(#13), and CI hardening (PRs to `develop` untested; `npm audit` advisory).
 
 ## Operator decision board
 
 | Decision | Cost | Reversible | Recommendation |
 |---|---|---|---|
-| Merge #27, #28, then #29 (retarget each to `main` as the one below lands, so full CI runs) | cheap | yes | do it in that order |
-| Publish `pinescript-v6-validator@0.4.0`, bump the dependency, release 0.6.3 | cheap | one-way (npm, Marketplace) | do it after the merges; users still see the S1, footprint and timestamp false positives until then |
-| Confirm the six inferred fields in `docs/operating-model/PROJECT-OPERATING-PROFILE.md` | cheap | yes | needed before the profile can be `active` |
-| Re-crawl the v6 reference (#6) | costly | yes | next; two of today's bugs came from the stale scrape |
-| Close stale PRs #18 (superseded) and #2 (describes deleted code) | cheap | yes | close both |
-| Turn on branch protection for `main` (require CI) | cheap | yes | do it; green checks are advisory without it |
+| `npm login`, publish engine 0.4.0, release 0.6.3 (commands above) | cheap | one-way | do it; eight fixed issues wait on it |
+| Confirm the six inferred fields in the operating profile | cheap | yes | 10 minutes; unlocks `active` |
+| Re-crawl the v6 reference (#6) | costly | yes | next engineering item |
 
 ## Related projects
 

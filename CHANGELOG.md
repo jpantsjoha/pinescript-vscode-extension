@@ -17,7 +17,7 @@ examples use. S1 recognised only the named spelling `lookahead=`, so a 1,489-lin
 macro dashboard that stated its intent on all 26 of its calls got 26 warnings telling
 it to do what it had already done.
 
-Fixed in `pinescript-v6-validator@0.3.1`: both spellings count as a decision. Four
+Fixed in `pinescript-v6-validator@0.4.0` (0.3.1 was never published): both spellings count as a decision. Four
 regression-corpus cases: positional `lookahead_off`, the same on a tuple request,
 positional `lookahead_on` (an explicit if unwise decision, matching the named form),
 and the paired "still flags" case — `barmerge.gaps_off` alone says nothing about
@@ -34,7 +34,7 @@ closing paren on the closing line, so an offset on a sibling argument of the enc
 call leaked in and exempted it. Fixed, two more paired cases.
 
 The extension picks this up when the engine is published and the dependency bumped
-to `^0.3.1`; until then the VSIX ships 0.3.0.
+to `^0.4.0`; until then the VSIX ships 0.3.0.
 
 ### 🔧 `validate-cli.js` says which engine it ran, and can run the local one
 
