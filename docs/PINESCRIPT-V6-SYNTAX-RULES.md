@@ -302,10 +302,10 @@ highestPrice := math.max(nz(highestPrice), high)
 npm run build
 
 # Validate all example .pine files
-node dev-tools/testing/validate-all-examples.js
+npm run qa:pinescript
 
 # Validate a specific file
-node dev-tools/testing/qa-validate-pinescript.js examples/myfile.pine
+node validate-cli.js examples/myfile.pine
 
 # Full QA pass
 npm test

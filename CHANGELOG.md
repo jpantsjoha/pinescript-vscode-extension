@@ -59,8 +59,8 @@ server that runs the dead `ComprehensiveValidator` (it runs `AccurateValidator` 
 Root now holds only README, CHANGELOG, STATUS, ROADMAP (new — build order with issue
 numbers and built/gated/shipped state), CLAUDE.md, AGENTS.md, GEMINI.md and LICENSE.
 ADRs live in `docs/adr/`, guides in `docs/guides/`, point-in-time release notes and
-the 2025 roadmap in `docs/archive/` with a superseded-by header. Moves are `git mv`,
-so history follows.
+the 2025 roadmap went to `docs/archive/` and were then deleted on 2026-09-23 (git
+history keeps them). Moves are `git mv`, so history follows.
 
 `docs/operating-model/` carries the join-the-team operating manual 2.1.0 and a
 grounded project profile (adoption status `seed`; nine inferred fields await JP's
@@ -103,6 +103,48 @@ The 2025-10-03 scrape marked only `symbol` required. A manual override in
 keeping the generated parameter list for hover and named-argument checks. Proved both
 ways: one- and two-argument calls raise the arity error; the minimal, full positional,
 named, tuple and wrapped forms stay silent; nine arguments is one too many.
+
+### 🐛 Four user-reported false positives and a scope miss
+
+- **`timestamp()` overloads (#9, #14).** The scrape kept only `timestamp(dateString)`,
+  so every component call reported "Expected max 1". The three shapes in the v6
+  reference (dateString; year, month, day, hour?, minute?, second?; the same with a
+  leading timezone) are now explicit overloads. Eight arguments is still flagged.
+- **Function parameters (#16).** Only the function name was collected from
+  `f(params) =>`, so `st.a` inside `update(State st, float v) =>` reported "Undefined
+  namespace or variable 'st'". Parameters are now declared, including generic
+  (`map<string, float> m`) and defaulted (`int n = 3`) ones. An undefined name in a
+  body is still flagged.
+- **`barcolor` in local scope (#11).** TradingView rejects it inside an `if`; S7 listed
+  `bgcolor` but not `barcolor`. Added. The ternary-at-global-scope fix stays silent.
+- **`enum` highlighting (#10).** The grammar highlighted `type` and `method` but not
+  `enum`; the January-2026 `footprint` and `volume_row` types are highlighted too.
+- Verified already fixed and closed: #7 (nested call arity), #8 (comment read as
+  code), #15 (UDT `.new()`).
+
+Each fix has its regression-corpus case added before the fix, with its paired
+"still flags" case.
+
+### 🔧 The MCP server runs the semantic checks
+
+`mcp/pinescript-mcp-server.js` ran two of the editor's three diagnostic sources, so
+an MCP client never saw S1-S10. It now loads the engine from `dist/engine/`, the copy
+the VSIX ships, and honours `// pine-ignore`. Its tool description no longer claims
+type checking.
+
+### 🧹 Legacy code pruned
+
+Deleted: the AST validator stack (`comprehensiveValidator`, `validator`, `parser`,
+`ast`, `lexer`, `typeSystem`, `symbolTable`; about 3,500 lines that crashed on valid
+input and were never wired into the editor), `dev-tools/` (28 debugging scripts for
+that stack), five dead test scripts and metrics files, `mcp/validator-server.js`
+(required a file that does not exist), `mcp/Dockerfile`, a root `settings.json` with a
+hard-coded local path, and four orphaned `v6/` data files. `validate-cli.js` loses
+`--comprehensive` and `--both`. Type inference is out of scope until an AST path is
+rebuilt; see `ROADMAP.md`.
+
+`npm run build` now clears `dist/` first. Five dead compiled modules from the deleted
+stack had been shipping in every VSIX because nothing removed them.
 
 ### 📋 Filed, not built
 

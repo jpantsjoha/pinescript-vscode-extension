@@ -230,14 +230,38 @@ export class AccurateValidator {
       }
     }
 
-    // Match function parameters: funcName(..., paramName, ...)
-    const paramDeclarations = line.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)\s*=>/g);
-    for (const match of paramDeclarations) {
-      const funcName = match[1];
-      if (funcName) {
-        this.declaredVariables.add(funcName);
+    // Function and method definitions: `f(params) =>`. Both the NAME and every
+    // PARAMETER are declared. Collecting only the name made `st.a` inside
+    // `update(State st, float v) =>` report "Undefined namespace or variable 'st'"
+    // (issue #16). Parameters land in the file-wide set, so a parameter name used
+    // outside its function is not flagged: a missed error, the safe direction.
+    const fnDef = line.match(/^\s*(?:export\s+)?(?:method\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)\s*=>/);
+    if (fnDef) {
+      this.declaredVariables.add(fnDef[1]);
+      for (const param of this.splitParameterList(fnDef[2])) {
+        // `int n = 3` -> `int n`; `array<float> xs` -> `xs`; `series float x` -> `x`
+        const decl = param.split('=')[0].trim();
+        const name = decl.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*$/);
+        if (name && !this.isReservedKeyword(name[1])) {
+          this.declaredVariables.add(name[1]);
+        }
       }
     }
+  }
+
+  /** Split a parameter list on top-level commas; `map<string, float> m` is ONE parameter. */
+  private splitParameterList(list: string): string[] {
+    const out: string[] = [];
+    let depth = 0;
+    let cur = '';
+    for (const ch of list) {
+      if (ch === '<' || ch === '(' || ch === '[') depth++;
+      else if (ch === '>' || ch === ')' || ch === ']') depth--;
+      if (ch === ',' && depth === 0) { out.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    if (cur.trim()) out.push(cur);
+    return out;
   }
 
   private checkUndefinedNamespaces(line: string, lineNum: number): void {

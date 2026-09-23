@@ -5,6 +5,13 @@
 **Decision Makers**: Development Team
 **Version**: 0.3.0
 
+> **Status as of 2026-09-23:** "Alternative 1: AST-Based Validation" below was
+> rejected as the validation strategy but its code stayed in the tree as dead
+> weight for almost a year (`comprehensiveValidator.ts`, `parser.ts`, `ast.ts`,
+> `lexer.ts`, `typeSystem.ts`, `symbolTable.ts`, ~3,465 lines). That code has now
+> been deleted outright, not merely disconnected — git history keeps it if it's
+> ever needed. The regex/hybrid strategy this ADR chose is still what ships.
+
 ---
 
 ## Context

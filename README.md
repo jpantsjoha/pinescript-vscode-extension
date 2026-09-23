@@ -165,7 +165,7 @@ See [CHANGELOG](./CHANGELOG.md) for complete version history.
 
 ## 🧪 Testing
 
-- **309/310 tests passing** (1 intentionally skipped)
+- **A regression suite and golden corpus**, run on every commit: `npm test`
 - **Golden corpus**: four committed fixtures asserted to produce zero errors, and
   proven able to fail — reintroducing a fixed bug turns them red
 - **Paired regression tests**: every false-positive fix ships with a "must still
@@ -184,7 +184,6 @@ node validate-cli.js file.pine    # headless single-file validation
 - [docs/PINESCRIPT-V6-SYNTAX-RULES.md](./docs/PINESCRIPT-V6-SYNTAX-RULES.md) — canonical syntax/style reference
 - [docs/adr/](./docs/adr/) — architecture decision records
 - [docs/guides/](./docs/guides/) — contributor, testing, release and AI-assistant guides
-- [docs/archive/](./docs/archive/) — superseded, point-in-time documents kept for history
 
 ## 🤝 Contributing
 
@@ -246,5 +245,5 @@ Special thanks to:
 ---
 
 **Full Language Coverage**: 6,665 Pine Script v6 constructs
-**Test Coverage**: 310 tests
+**Test Coverage**: a regression suite and golden corpus — run `npm test`
 **Current Version**: 0.6.2

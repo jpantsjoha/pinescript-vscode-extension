@@ -549,9 +549,29 @@ export const REQUEST_FUNCTIONS: Record<string, FunctionSignatureSpec> = {
   'request.security_lower_tf': requestSpec('request.security_lower_tf', ['symbol', 'timeframe', 'expression']),
 };
 
+/**
+ * timestamp() — the 2025-10-03 scrape kept only `timestamp(dateString)`, so every
+ * component call reported "Expected max 1" (issues #9, #14). Three shapes in the v6
+ * reference; each also has const/simple/series variants, which do not change arity.
+ */
+export const TIME_FUNCTIONS: Record<string, FunctionSignatureSpec> = {
+  'timestamp': {
+    name: 'timestamp',
+    requiredParams: ['dateString'],
+    optionalParams: [],
+    signature: 'timestamp(dateString) | timestamp(year, month, day, hour?, minute?, second?) | timestamp(timezone, year, month, day, hour?, minute?, second?)',
+    overloads: [
+      { requiredParams: ['dateString'], optionalParams: [], signature: 'timestamp(dateString)' },
+      { requiredParams: ['year', 'month', 'day'], optionalParams: ['hour', 'minute', 'second'], signature: 'timestamp(year, month, day, hour?, minute?, second?)' },
+      { requiredParams: ['timezone', 'year', 'month', 'day'], optionalParams: ['hour', 'minute', 'second'], signature: 'timestamp(timezone, year, month, day, hour?, minute?, second?)' },
+    ],
+  },
+};
+
 export const ALL_FUNCTION_SIGNATURES: Record<string, FunctionSignatureSpec> = {
   ...CORE_FUNCTIONS,
   ...REQUEST_FUNCTIONS,
+  ...TIME_FUNCTIONS,
   ...PLOT_FUNCTIONS,
   ...ALERT_FUNCTIONS,
   ...INPUT_FUNCTIONS_WITH_ACTIVE,

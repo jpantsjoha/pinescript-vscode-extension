@@ -5,13 +5,17 @@
 **Related**: ADR-001 (Validation Strategy)
 **Version**: 0.3.0
 
-> **2026-09-22 note:** "Layer 2" below, `test/comprehensive-validation-test.js`, was
-> never built under that name and does not exist in the current tree. Its role — a
-> standalone, VS-Code-free check against known good/bad code — is filled today by
-> `test/golden-corpus.test.js` and `test/benchmark.test.js`. The "41 tests" figures
-> throughout this ADR describe the suite as it stood in October 2025; run `npm test`
-> for the current count. Left as originally written below — this is a decision
-> record, not a live spec.
+> **2026-09-22 note (superseded below):** claimed `test/comprehensive-validation-test.js`
+> was never built and did not exist in the tree. That was wrong: it existed from the
+> project's initial commit through 2026-09-23, when it was deleted as part of a
+> broader dead-code and doc prune. Its role — a standalone, VS-Code-free check
+> against known good/bad code with a hard zero-false-positive gate — is filled today
+> by `test/golden-corpus.test.js`, with `test/benchmark.test.js` and
+> `test/regression-corpus.test.js` covering the unit and regression ground "Layer 1"
+> and "Layer 4" describe below. The "41 tests" figures throughout this ADR describe
+> the suite as it stood in October 2025; run `npm test` for the current count — do
+> not hard-code it here or anywhere else. Left as originally written below — this is
+> a decision record, not a live spec.
 
 ---
 
@@ -80,7 +84,7 @@ describe('Invalid Code Detection', () => {
 
 ---
 
-### Layer 2: Comprehensive Validation Test (`test/comprehensive-validation-test.js`)
+### Layer 2: Comprehensive Validation Test (`test/comprehensive-validation-test.js`, deleted 2026-09-23 — see note at top)
 
 **Purpose**: Programmatic validation against known good/bad code
 
@@ -342,7 +346,9 @@ jobs:
 }
 ```
 
-**Storage**: `test/metrics-v0.3.0.json`
+**Storage**: `test/metrics-v0.3.0.json` (deleted 2026-09-23 along with the script
+that wrote it; no replacement metrics file exists — release evidence today is the
+`npm test` and `npm run audit` exit codes)
 
 **Review**: Before each release
 
@@ -371,8 +377,9 @@ jobs:
 - [ADR-001: Validation Strategy](./ADR-001-VALIDATION-STRATEGY.md)
 - [CLAUDE.md Project Directives](../../CLAUDE.md)
 - [Benchmark Tests](../../test/benchmark.test.js)
-- `test/comprehensive-validation-test.js` no longer exists — superseded by
-  [Golden Corpus Tests](../../test/golden-corpus.test.js)
+- `test/comprehensive-validation-test.js` no longer exists (deleted 2026-09-23) —
+  superseded by [Golden Corpus Tests](../../test/golden-corpus.test.js) and
+  `test/regression-corpus.test.js`
 
 ---
 

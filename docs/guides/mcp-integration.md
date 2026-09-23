@@ -2,7 +2,7 @@
 
 **Status:** ✅ Fully Operational — development tool, not part of the published extension
 **Protocol:** Model Context Protocol (MCP)
-**Last Updated:** 2026-09-22
+**Last Updated:** 2026-09-23
 
 ---
 
@@ -33,15 +33,18 @@ MCP (Model Context Protocol) is an open protocol that enables AI assistants to i
 └─────────────────┘                                └──────────────────┘
                                                             │
                                                             ▼
-                                                   ┌──────────────────┐
-                                                   │ AccurateValidator│
-                                                   │ + documentChecks │
-                                                   └──────────────────┘
+                                                   ┌───────────────────────┐
+                                                   │ AccurateValidator      │
+                                                   │ + documentChecks       │
+                                                   │ + engine semantic      │
+                                                   │   checks (S1-S10)      │
+                                                   └───────────────────────┘
 ```
 
-Same two diagnostic sources the VS Code extension runs (`src/parser/accurateValidator.ts` and
-`src/parser/documentChecks.ts`), so an MCP client and the editor cannot disagree about a file.
-This was not always true — see Troubleshooting below.
+Same three diagnostic sources the VS Code extension runs (`src/parser/accurateValidator.ts`,
+`src/parser/documentChecks.ts`, and the engine's `runSemanticChecks` from the published
+`pinescript-v6-validator` package), so an MCP client and the editor cannot disagree about a
+file. This was not always true — see Troubleshooting below.
 
 ---
 
@@ -111,8 +114,9 @@ Then send JSON-RPC requests via stdin.
 ### Description
 
 Validates a Pine Script v6 file and returns syntax errors and warnings, using the same
-`AccurateValidator` + `documentChecks` pair the VS Code extension runs. No type inference —
-see "What it does not do" in `packages/validator/README.md`.
+`AccurateValidator` + `documentChecks` + engine semantic checks (S1-S10) the VS Code extension
+runs. A `// pine-ignore: S1` comment in the source suppresses that semantic finding, the same
+as in the editor. No type inference. See "What it does not do" in `packages/validator/README.md`.
 
 ### Input Schema
 
@@ -187,8 +191,7 @@ No environment variables required. The server uses relative paths to the workspa
 
 ```
 mcp/
-├── pinescript-mcp-server.js    # Main MCP server (MCP SDK)
-└── validator-server.js         # Legacy Gemini CLI server (see below)
+└── pinescript-mcp-server.js    # The MCP server (MCP SDK). Only one ships.
 
 .vscode/
 └── mcp.json                    # VS Code MCP configuration
@@ -227,11 +230,12 @@ To add more MCP tools:
 **Symptom:** Server returns errors for valid code
 
 **Explanation:** the server used to front `ComprehensiveValidator` through a wrapper file that
-did not exist at the expected path, so it failed to load; the validator itself also throws
-`ast.body is not iterable` on valid input (it is dead — import removed from `extension.ts`, see
-`CLAUDE.md`). The server now runs `AccurateValidator` + `documentChecks`, the same pair the
-extension runs, so a report here should match what you see in the editor. If it still does not,
-treat it as a false positive — golden-corpus fixtures are the proof, not this server.
+did not exist at the expected path, so it failed to load. That validator threw
+`ast.body is not iterable` on valid input and is now deleted entirely (see `CLAUDE.md`). The
+server runs `AccurateValidator` + `documentChecks` + the engine's semantic checks (S1-S10), the
+same three sources the extension runs, so a report here should match what you see in the editor.
+If it still does not, treat it as a false positive. Golden-corpus fixtures are the proof, not
+this server.
 
 **Note:** TradingView is the source of truth. If code works there, validator errors are false positives.
 
@@ -294,7 +298,7 @@ Verify with `.vscodeignore`, which excludes `mcp/**` from the packaged VSIX.
 | Feature | MCP Server | VSCode Extension |
 |---------|------------|------------------|
 | **Target Users** | AI assistants | Human developers |
-| **Validator** | AccurateValidator + documentChecks | AccurateValidator + documentChecks |
+| **Validator** | AccurateValidator + documentChecks + semantic checks (S1-S10) | AccurateValidator + documentChecks + semantic checks (S1-S10) |
 | **Transport** | stdio (JSON-RPC) | VSCode Language Server |
 | **Real-time** | On-demand | Live diagnostics |
 | **Scope** | Workspace | Global VSCode |
@@ -304,7 +308,7 @@ Verify with `.vscodeignore`, which excludes `mcp/**` from the packaged VSIX.
 
 ## Roadmap
 
-- ✅ Validation via `AccurateValidator` + `documentChecks` (matches the extension)
+- ✅ Validation via `AccurateValidator` + `documentChecks` + semantic checks (S1-S10) (matches the extension)
 - ✅ File and code string support
 - ✅ JSON-RPC 2.0 protocol
 - ⏳ Batch validation of multiple files
@@ -423,49 +427,6 @@ Call a tool.
   }
 }
 ```
-
----
-
-## Gemini CLI setup
-
-Gemini uses a different, legacy MCP format from the SDK format Claude Code speaks, so it needs
-its own server file and its own config.
-
-**Server file:** `mcp/validator-server.js` (separate from `mcp/pinescript-mcp-server.js`)
-
-```bash
-# Start Gemini with the validator server
-gemini --server mcp/validator-server.js
-```
-
-Or add it to `~/.gemini/config.json`:
-
-```json
-{
-  "servers": {
-    "pinescript-validator": {
-      "command": "node",
-      "args": ["mcp/validator-server.js"],
-      "cwd": "/absolute/path/to/pinescript-vscode-extension"
-    }
-  }
-}
-```
-
-| | Claude Code | Gemini |
-|---|---|---|
-| Protocol | MCP SDK (JSON-RPC 2.0) | Gemini CLI format |
-| Server file | `mcp/pinescript-mcp-server.js` | `mcp/validator-server.js` |
-| Config file | `.mcp.json` or `~/.claude.json` | `~/.gemini/config.json` |
-
-Test directly:
-
-```bash
-node mcp/validator-server.js
-echo '{"tool_code":{"name":"validate_pine_script","args":{"file_path":"examples/global-liquidity.v6.pine"}}}' | node mcp/validator-server.js
-```
-
-Both servers front the same validator, just different protocols.
 
 ---
 

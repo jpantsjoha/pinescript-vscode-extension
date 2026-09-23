@@ -56,7 +56,7 @@ Validate against the official Pine Script v6 reference:
 **Test Coverage**:
 ```bash
 node test-ternary-validation.js
-# Expected: 4/4 tests passing (100%)
+# Expected: 0 failures
 ```
 
 **Example Caught**:
@@ -80,7 +80,7 @@ bgcolor(smoothedScore >= 70 ? color.new(color.red, 95) ;
 **Test Coverage**:
 ```bash
 node test-multiline-validation.js
-# Expected: 5/5 tests passing (100%)
+# Expected: 0 failures
 ```
 
 **Common Errors Caught**:
@@ -127,7 +127,7 @@ bgcolor(score >= 70 ? color.new(color.red, 95) :
 
 ### Validation Roadmap to v2.0.0
 
-**Reference Document**: `ROADMAP.md` (root; the 2025 plan is archived at `docs/archive/VALIDATOR-ENHANCEMENT-ROADMAP.md`)
+**Reference Document**: `ROADMAP.md` (root; earlier plans live in git history)
 
 **Completed (v1.2.0)**:
 - ✅ Function signature validation (v1.0.0)
@@ -223,7 +223,7 @@ barstate.isfirst, syminfo.ticker, timeframe.period, strategy.equity, etc.
 
 #### 2.1 Test Suite Completeness
 **Required Tests:**
-- [ ] **Parameter validation** (67 tests minimum)
+- [ ] **Parameter validation** (paired tests both directions)
 - [ ] **Namespace functions** (input.*, ta.*, math.*, str.*, etc.)
 - [ ] **Type blacklist** (bool, int, float, string, color not validated as functions)
 - [ ] **String literal exclusion** (no validation inside quotes)
@@ -327,7 +327,7 @@ const regressionTests = {
 - [ ] All 22 function namespaces validated
 
 #### Test Coverage
-- [ ] 67+ tests passing (current baseline)
+- [ ] `npm test`: 0 failures
 - [ ] Added tests for all 20 missing namespaces
 - [ ] Added tests for 14 missing built-ins
 - [ ] Added tests for 5 missing keywords
@@ -369,11 +369,11 @@ npm test
 ```bash
 # Test ternary operator validation
 node test-ternary-validation.js
-# Expected: 4/4 tests passing (100%)
+# Expected: 0 failures
 
 # Test multi-line statement validation
 node test-multiline-validation.js
-# Expected: 5/5 tests passing (100%)
+# Expected: 0 failures
 
 # Test against a corpus fixture (indicator)
 node test-flashcrash-comprehensive.js
@@ -497,7 +497,7 @@ const completeness = {
 - ✅ Zero false positives on valid v6 code
 - ✅ All official examples validate correctly
 - ✅ < 100ms validation for typical scripts
-- ✅ 90+ tests passing
+- ✅ `npm test`: 0 failures
 - ✅ Comprehensive documentation
 - ✅ Quality score: 95+
 
@@ -647,8 +647,7 @@ Before approving ANY release:
 ## Key Reference Documents
 
 ### Validator Enhancement Documentation (NEW)
-- **ROADMAP.md** - Build order with issue numbers (2025 plan archived at `docs/archive/VALIDATOR-ENHANCEMENT-ROADMAP.md`)
-- **docs/archive/VALIDATOR-V1.2.0-RELEASE-NOTES.md** - v1.2.0 feature documentation (historical)
+- **ROADMAP.md** - Build order with issue numbers (earlier plans live in git history)
 - **docs/guides/ai-assistant-context.md** - Pine Script v6 assistant context (formerly root GEMINI.md)
 
 ### Test Files (NEW - v1.2.0)

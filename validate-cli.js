@@ -2,18 +2,15 @@
 /**
  * Pine v6 validation CLI — single entrypoint for headless / agent use.
  *
- * Uses AccurateValidator by default (the SAME validator the VS Code extension
- * runs, so CLI output matches what the operator sees in-editor). Pass
- * --comprehensive to run ComprehensiveValidator instead (the MCP-server path),
- * or --both to diff the two.
+ * Runs the same three diagnostic sources the VS Code extension runs, so CLI output
+ * matches what the operator sees in-editor: AccurateValidator, the whole-document
+ * checks, and the engine's semantic checks (S1-S10).
  *
  * Usage:
  *   node validate-cli.js <file.pine> [more.pine ...]
- *   node validate-cli.js --comprehensive <file.pine>
- *   node validate-cli.js --both <file.pine>
  *   node validate-cli.js --local-engine <file.pine>   # working-tree engine, not the published one
  *
- * Exit code: 0 if no severity-0 errors in any file, else 1. (Built for CI / agents.)
+ * Exit code: 0 if no severity-0 errors in any file, 1 if any, 2 on a tooling failure.
  */
 'use strict';
 const fs = require('fs');
@@ -28,8 +25,6 @@ function loadValidators() {
   const out = {};
   try { out.accurate = new (require('./dist/src/parser/accurateValidator').AccurateValidator)(); }
   catch (e) { out.accurateErr = e.message; }
-  try { out.comprehensive = new (require('./dist/src/parser/comprehensiveValidator').ComprehensiveValidator)(); }
-  catch (e) { out.comprehensiveErr = e.message; }
   // The editor emits diagnostics from TWO sources: AccurateValidator plus the
   // whole-document heuristics. A CLI that ran only the first reported "0 errors"
   // on files the editor covered in squiggles, so both run here by default.
@@ -59,7 +54,7 @@ function loadValidators() {
 
 function run(validator, code) {
   // Both validators expose .validate(code) -> [{line, column?, message, severity}]
-  // Guard: a validator that throws (e.g. comprehensiveValidator on some ASTs)
+  // Guard: a validator that throws
   // must not abort the whole CLI — surface it as a single synthetic error.
   try {
     const errs = validator.validate(code);
@@ -86,18 +81,15 @@ function printErrors(label, errors) {
 
 function main() {
   const args = process.argv.slice(2);
-  const mode = args.includes('--comprehensive') ? 'comprehensive'
-    : args.includes('--both') ? 'both' : 'accurate';
   const files = args.filter(a => !a.startsWith('--'));
   if (files.length === 0) {
-    console.error('Usage: node validate-cli.js [--comprehensive|--both] [--local-engine] <file.pine> ...');
+    console.error('Usage: node validate-cli.js [--local-engine] <file.pine> ...');
     process.exit(2);
   }
   const v = loadValidators();
-  if (v.engineLabel && mode !== 'comprehensive') console.log(paint(`semantic checks: ${v.engineLabel}`, c.dim));
+  if (v.engineLabel) console.log(paint(`semantic checks: ${v.engineLabel}`, c.dim));
   else if (v.semanticChecksErr) console.log(paint(`semantic checks unavailable: ${v.semanticChecksErr}`, c.yellow));
-  if (mode !== 'comprehensive' && !v.accurate) { console.error('AccurateValidator load failed:', v.accurateErr, '\nRun: npm run build'); process.exit(2); }
-  if (mode !== 'accurate' && !v.comprehensive) { console.error('ComprehensiveValidator load failed:', v.comprehensiveErr, '\nRun: npm run build'); process.exit(2); }
+  if (!v.accurate) { console.error('AccurateValidator load failed:', v.accurateErr, '\nRun: npm run build'); process.exit(2); }
 
   let totalErrors = 0;
   for (const file of files) {
@@ -105,10 +97,9 @@ function main() {
     try { code = fs.readFileSync(file, 'utf8'); }
     catch (e) { console.error(paint(`Cannot read ${file}: ${e.message}`, c.red)); totalErrors++; continue; }
     console.log(`\n${paint('▸ ' + file, c.bold)}  ${paint('(' + code.split('\n').length + ' lines)', c.dim)}`);
-    if (mode === 'accurate' || mode === 'both') totalErrors += printErrors('AccurateValidator', run(v.accurate, code));
-    if ((mode === 'accurate' || mode === 'both') && v.documentChecks) totalErrors += printErrors('DocumentChecks', run(v.documentChecks, code));
-    if ((mode === 'accurate' || mode === 'both') && v.semanticChecks) totalErrors += printErrors('SemanticChecks', run(v.semanticChecks, code));
-    if (mode === 'comprehensive' || mode === 'both') totalErrors += printErrors('ComprehensiveValidator', run(v.comprehensive, code));
+    totalErrors += printErrors('AccurateValidator', run(v.accurate, code));
+    if (v.documentChecks) totalErrors += printErrors('DocumentChecks', run(v.documentChecks, code));
+    if (v.semanticChecks) totalErrors += printErrors('SemanticChecks', run(v.semanticChecks, code));
   }
   console.log('');
   console.log(totalErrors === 0

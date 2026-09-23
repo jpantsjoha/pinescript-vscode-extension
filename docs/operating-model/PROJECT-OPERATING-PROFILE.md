@@ -223,11 +223,11 @@ session, 2026-09-22):
 
 ```bash
 npm run typecheck                  # npx tsc --noEmit — exit 0, clean (verified 2026-09-22)
-npm run audit                      # scripts/audit.js — 19 pass · 2 warn · 0 fail (verified 2026-09-22)
-npm test                           # build + node --test test/*.test.js — 300 tests, 299 pass, 0 fail, 1 skipped (verified 2026-09-22)
-npm run build                      # tsc (root + packages/validator) + copy engine dist into dist/engine
+npm run audit                      # scripts/audit.js — 20 pass · 1 warn · 0 fail (verified 2026-09-23)
+npm test                           # clean build + node --test test/*.test.js — 359 tests, 358 pass, 0 fail, 1 skipped (verified 2026-09-23)
+npm run build                      # rm -rf dist, tsc (root + packages/validator), copy engine dist into dist/engine
 node validate-cli.js <file.pine>          # headless single-file check
-node validate-cli.js --both <file.pine>   # diff AccurateValidator vs ComprehensiveValidator
+node validate-cli.js --local-engine <file.pine>   # run the working-tree engine instead of the published one
 npm audit --audit-level=moderate   # dependency security scan (also run in CI: .github/workflows/ci.yml "security" job, non-blocking there — "|| true")
 python3 /Users/jp/.claude/plugins/marketplaces/join-the-team-marketplace/skills/operating-model-bootstrap/scripts/validate_operating_model.py --target .   # profile drift check (verified script exists, 2026-09-22)
 ```

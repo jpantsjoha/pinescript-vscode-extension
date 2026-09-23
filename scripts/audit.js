@@ -236,8 +236,12 @@ function auditPackaging() {
     warn('packaging', 'v6/ TypeScript sources are shipped in the VSIX; only dist/v6/ is needed at runtime');
   }
 
-  if (!/dev-tools/.test(ignore)) {
-    warn('packaging', 'dev-tools/ is not excluded — development files ship to users');
+  // Development tooling that exists in the tree must stay out of the VSIX.
+  const devOnly = [['mcp/**', 'mcp'], ['scripts/**', 'scripts'], ['validate-cli.js', 'validate-cli.js'], ['examples/**', 'examples']]
+    .filter(([, p]) => exists(p))
+    .filter(([pattern]) => !ignore.split('\n').some(l => l.trim() === pattern));
+  if (devOnly.length) {
+    warn('packaging', `development files not excluded from the VSIX: ${devOnly.map(([p]) => p).join(', ')}`);
   } else {
     pass('packaging', 'development tooling excluded from the VSIX');
   }

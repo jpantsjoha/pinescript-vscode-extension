@@ -1,18 +1,23 @@
-# MCP Integration - Pine Script Validator
+# MCP Integration: Pine Script Validator
 
-**Model Context Protocol (MCP) servers for Pine Script v6 validation**
+**Model Context Protocol (MCP) server for Pine Script v6 validation**
 
-This directory contains MCP server implementations that enable AI assistants (Claude Code, Gemini, GitHub Copilot) to validate Pine Script files directly.
+This directory holds the MCP server that lets an AI assistant validate Pine
+Script files directly, using the same checks the VS Code extension runs. It is
+a development tool: `.vscodeignore` excludes `mcp/**` from the packaged VSIX,
+so none of this reaches a published-extension user.
+
+For the full architecture, JSON-RPC reference and troubleshooting guide, see
+[`docs/guides/mcp-integration.md`](../docs/guides/mcp-integration.md). This
+file is the quick start.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-Choose your AI assistant:
+### 1. Claude Code (already set up)
 
-### 1. **Claude Code** (Recommended - Already Set Up! ✅)
-
-The MCP server is already registered for this workspace!
+The server is registered for this workspace via `.mcp.json`.
 
 **Verify:**
 ```bash
@@ -20,35 +25,11 @@ claude mcp list
 # Should show: pinescript-validator - ✓ Connected
 ```
 
-**Use it:**
-Just ask Claude in this session:
-> "Validate examples/global-liquidity.v6.pine"
+**Use it:** ask Claude in this session, for example "Validate
+examples/global-liquidity.v6.pine".
 
-### 2. **Gemini CLI**
+### 2. VS Code Copilot (GitHub Copilot, Agent mode)
 
-**Setup:**
-```bash
-gemini config edit
-```
-
-Add to `settings.json`:
-```json
-{
-  "mcpServers": {
-    "pinescript-validator": {
-      "command": "node",
-      "args": ["mcp/validator-server.js"],
-      "trust": true
-    }
-  }
-}
-```
-
-**Full guide:** [GEMINI-SETUP.md](./GEMINI-SETUP.md)
-
-### 3. **VS Code Copilot (GitHub Copilot)**
-
-**Setup:**
 Create `.vscode/mcp.json`:
 ```json
 {
@@ -64,45 +45,49 @@ Create `.vscode/mcp.json`:
 
 **Full guide:** [VSCODE-COPILOT-SETUP.md](./VSCODE-COPILOT-SETUP.md)
 
----
+### 3. Any other MCP client
 
-## 📁 Files in this Directory
-
-### MCP Servers
-
-| File | For | Protocol | Status |
-|------|-----|----------|--------|
-| **pinescript-mcp-server.js** | Claude Code, VS Code Copilot | MCP SDK (JSON-RPC 2.0) | ✅ Working |
-| **validator-server.js** | Gemini CLI | Gemini MCP (legacy) | ✅ Working |
-
-### Documentation
-
-| File | Description |
-|------|-------------|
-| **README.md** | This file - Quick start guide |
-| **GEMINI-SETUP.md** | Complete Gemini CLI setup guide |
-| **VSCODE-COPILOT-SETUP.md** | Complete VS Code Copilot setup guide |
-| **Dockerfile** | Containerized validator for CI/CD |
+`pinescript-mcp-server.js` speaks standard MCP over stdio (JSON-RPC 2.0), so
+any client that supports a stdio MCP server can point its config at
+`node mcp/pinescript-mcp-server.js`. The request and response shapes are in
+the [JSON-RPC reference](../docs/guides/mcp-integration.md#api-reference).
 
 ---
 
-## 🔧 Available Tool
+## Files in This Directory
+
+| File | Purpose |
+|------|---------|
+| **pinescript-mcp-server.js** | The MCP server. Only one ships. |
+| **README.md** | This file. |
+| **VSCODE-COPILOT-SETUP.md** | Full VS Code Copilot setup guide. |
+
+`mcp/pinescript-mcp-server/` and `mcp/tradingview-mcp/` are vendored,
+gitignored, third-party servers, not part of a clean checkout and not
+covered by this documentation.
+
+---
+
+## Available Tool
 
 ### `validate_pine_script`
 
-**What it does:**
-- Validates Pine Script v6 files
-- Returns errors with line numbers
-- Includes severity levels (error/warning)
-- Comprehensive semantic analysis
+Runs every diagnostic source the VS Code extension runs, in the same order:
+`AccurateValidator` (signatures, arity, undefined names), the whole-document
+checks, and the engine's semantic checks S1-S10 (repainting, `ta.*` in a
+conditional, accumulator lifetime, platform limits, scope, unbounded strategy
+risk, unguarded external feeds; S4 is registered but not implemented). No
+type inference. `// pine-ignore: S1` in the source suppresses a specific
+semantic finding the same way it does in the editor.
 
 **Input:**
 ```json
 {
-  "file_path": "/path/to/script.pine"  // OR
-  "code": "indicator('Test')..."       // inline code
+  "file_path": "/path/to/script.pine",
+  "code": "indicator('Test')..."
 }
 ```
+Provide either `file_path` or `code`.
 
 **Output:**
 ```json
@@ -123,107 +108,39 @@ Create `.vscode/mcp.json`:
 
 ---
 
-## 📊 Comparison Matrix
+## Testing
 
-| Feature | Claude Code | Gemini CLI | VS Code Copilot |
-|---------|-------------|------------|-----------------|
-| **Protocol** | MCP SDK | Gemini MCP | MCP SDK |
-| **Server file** | pinescript-mcp-server.js | validator-server.js | pinescript-mcp-server.js |
-| **Config file** | .mcp.json | settings.json | .vscode/mcp.json |
-| **Config location** | ~/.claude.json | ~/.gemini/ | Workspace or user |
-| **Setup difficulty** | ✅ Easy | ✅ Easy | 🟡 Medium |
-| **UI** | Terminal | Terminal | VS Code Chat |
-| **Status** | ✅ Working | ✅ Working | ✅ Working |
+**Claude Code:** already registered. Just ask Claude to validate a file.
 
----
-
-## 🧪 Testing
-
-### Test Claude Code MCP
-
+**Manual (any client):**
 ```bash
-# Already registered! Just ask Claude:
-"Validate examples/global-liquidity.v6.pine"
-```
-
-### Test Gemini MCP
-
-```bash
-# Start server
-node mcp/validator-server.js
-
-# Send test request
-echo '{"tool_code":{"name":"validate_pine_script","args":{"file_path":"examples/global-liquidity.v6.pine"}}}' | node mcp/validator-server.js
-```
-
-### Test VS Code Copilot MCP
-
-```bash
-# Start server
 node mcp/pinescript-mcp-server.js
-
-# Send JSON-RPC request
+# In another terminal, send a JSON-RPC request via stdin:
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | node mcp/pinescript-mcp-server.js
 ```
 
-### Run Automated Tests
-
-```bash
-# From project root
-npm run test:mcp
-```
+**Headless, without MCP:** `node validate-cli.js <file.pine>` runs the same
+validators directly. Useful for a quick check or a CI step that does not need
+the MCP protocol.
 
 ---
 
-## 🐳 Docker Support
+## Security & Privacy
 
-### Build Container
+**What the server does:**
+- Reads the Pine Script file you specify
+- Parses and validates it locally
+- Returns an error report
 
-```bash
-docker build -t pinescript-validator .
-```
-
-### Run Validator
-
-```bash
-docker run -v $(pwd)/examples:/examples pinescript-validator \
-  node /app/test-comprehensive-validator.js /examples/global-liquidity.v6.pine
-```
+**What it doesn't do:**
+- Access the network: everything runs locally
+- Send data to an external server
+- Modify your files
+- Access files outside what you pass it
 
 ---
 
-## 🔒 Security & Privacy
-
-### What the MCP servers do:
-- ✅ Read Pine Script files you specify
-- ✅ Parse and validate code locally
-- ✅ Return error reports
-
-### What they DON'T do:
-- ❌ Access network (100% local)
-- ❌ Send data to external servers
-- ❌ Modify your files
-- ❌ Access files outside project
-
-### Trust Settings
-
-**Gemini:**
-```json
-{
-  "mcpServers": {
-    "pinescript-validator": {
-      "trust": true  // Skip confirmation prompts
-    }
-  }
-}
-```
-
-**VS Code Copilot:**
-MCP servers in `.vscode/mcp.json` are trusted by workspace.
-
----
-
-## ⚙️ Configuration Examples
+## Configuration Examples
 
 ### Minimal (Claude Code)
 
@@ -239,28 +156,7 @@ MCP servers in `.vscode/mcp.json` are trusted by workspace.
 }
 ```
 
-### Full-Featured (Gemini)
-
-**File:** `~/.gemini/settings.json`
-```json
-{
-  "mcpServers": {
-    "pinescript-validator": {
-      "command": "node",
-      "args": ["${PINESCRIPT_PATH}/mcp/validator-server.js"],
-      "env": {
-        "PINESCRIPT_PATH": "/path/to/extension",
-        "NODE_ENV": "production"
-      },
-      "timeout": 30000,
-      "trust": true,
-      "includeTools": ["validate_pine_script"]
-    }
-  }
-}
-```
-
-### Multi-Environment (VS Code)
+### Multi-environment (VS Code)
 
 **File:** `.vscode/mcp.json`
 ```json
@@ -270,17 +166,7 @@ MCP servers in `.vscode/mcp.json` are trusted by workspace.
       "type": "stdio",
       "command": "node",
       "args": ["${workspaceFolder}/mcp/pinescript-mcp-server.js"],
-      "env": {
-        "DEBUG": "true"
-      }
-    },
-    "pinescript-prod": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["${workspaceFolder}/mcp/pinescript-mcp-server.js"],
-      "env": {
-        "NODE_ENV": "production"
-      }
+      "env": { "DEBUG": "true" }
     }
   }
 }
@@ -288,155 +174,73 @@ MCP servers in `.vscode/mcp.json` are trusted by workspace.
 
 ---
 
-## 📚 Documentation
+## Documentation
 
-### Full Guides
-- **[GEMINI-SETUP.md](./GEMINI-SETUP.md)** - Complete Gemini CLI guide
-- **[VSCODE-COPILOT-SETUP.md](./VSCODE-COPILOT-SETUP.md)** - Complete VS Code Copilot guide
-- **[../MCP-INTEGRATION.md](../MCP-INTEGRATION.md)** - Technical architecture
-- **[../MCP-VERIFICATION.md](../MCP-VERIFICATION.md)** - Verification checklist
-
-### Reference Docs
-- **Gemini MCP:** https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md
-- **VS Code MCP:** https://code.visualstudio.com/docs/copilot/customization/mcp-servers
+- **[VSCODE-COPILOT-SETUP.md](./VSCODE-COPILOT-SETUP.md)**: full VS Code Copilot guide
+- **[../docs/guides/mcp-integration.md](../docs/guides/mcp-integration.md)**: architecture, JSON-RPC reference, troubleshooting
 - **Claude Code MCP:** https://docs.claude.com/en/docs/claude-code/mcp
+- **VS Code MCP:** https://code.visualstudio.com/docs/copilot/customization/mcp-servers
 
 ---
 
-## 🐛 Troubleshooting
-
-### Common Issues
+## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| "Server not found" | Check file paths in config |
-| "Tool not available" | Restart AI assistant |
-| "Permission denied" | `chmod +x mcp/*.js` |
+| "Server not found" | Check the file path in your config |
+| "Tool not available" | Restart the AI assistant / reload the window |
+| "Permission denied" | `chmod +x mcp/pinescript-mcp-server.js` |
 | "Node not found" | Install Node.js v16+ |
-| "Validation errors wrong" | See errors-fix.md (known limitations) |
+| Validation looks wrong | TradingView is the source of truth. If the script compiles there, it's a false positive. Check the golden corpus in `test/` before assuming the server is right |
 
-### Debug Commands
-
+**Debug commands:**
 ```bash
-# Check Node.js
 node --version
-
-# Test server directly
 node mcp/pinescript-mcp-server.js
-
-# Verify MCP registration (Claude)
 claude mcp list
-
-# Verify MCP registration (Gemini)
-gemini config get mcpServers
-
-# Check file permissions
 ls -la mcp/
 ```
 
-### Get Help
-
-- **Issues:** https://github.com/jpantsjoha/pinescript-vscode-extension/issues
-- **Docs:** See guides in this directory
-- **Production Safety:** [../PRODUCTION-IMPACT-AUDIT.md](../PRODUCTION-IMPACT-AUDIT.md)
+**Get help:** https://github.com/jpantsjoha/pinescript-vscode-extension/issues
 
 ---
 
-## 🎯 Use Cases
+## Use Cases
 
-### 1. AI-Assisted Development
+### AI-assisted development
 
-**Before:**
-```
-Developer: Write me a Pine Script RSI indicator
-AI: [Writes code]
-Developer: *copies to TradingView to test*
-Developer: *finds errors*
-Developer: *fixes and repeats*
-```
+Without validation, an AI assistant writes Pine Script, the developer copies
+it to TradingView, finds errors, and reports them back. With the MCP server
+wired in, the assistant validates its own output before handing it over.
 
-**After with MCP:**
-```
-Developer: Write me a Pine Script RSI indicator
-AI: [Writes code]
-AI: [Validates code with MCP]
-AI: [Fixes any errors found]
-AI: [Returns validated, working code]
-Developer: ✅ Done!
-```
-
-### 2. Code Review
+### Code review
 
 ```
-"Review this Pine Script file and validate it:
-examples/global-liquidity.v6.pine"
+"Review this Pine Script file and validate it: examples/global-liquidity.v6.pine"
 ```
 
-AI uses MCP validator + code review skills.
-
-### 3. CI/CD Integration
+### CI, without Docker
 
 ```yaml
 # .github/workflows/validate.yml
 - name: Validate Pine Scripts
-  run: |
-    docker run -v $(pwd):/workspace \
-      pinescript-validator \
-      npm run qa:pinescript
+  run: node validate-cli.js examples/*.pine
 ```
 
-### 4. Batch Validation
-
-```
-"Validate all .pine files in the examples directory"
-```
-
-AI uses MCP to check each file.
+This runs the same validators as the MCP server, without needing the MCP
+protocol at all. It is the right choice for CI, where there is no assistant
+on the other end of stdio.
 
 ---
 
-## 🚦 Status
+## Contributing
 
-| Component | Status | Last Tested |
-|-----------|--------|-------------|
-| **Claude Code MCP** | ✅ Operational | 2025-10-06 |
-| **Gemini MCP** | ✅ Operational | 2025-10-06 |
-| **VS Code Copilot MCP** | ✅ Operational | 2025-10-06 |
-| **Docker Container** | ✅ Operational | 2025-10-06 |
-| **Automated Tests** | ✅ Passing | 2025-10-06 |
+To add MCP support for a new AI assistant that already speaks standard MCP,
+point its config at `mcp/pinescript-mcp-server.js` as shown above. No new
+server file is needed. Only build a new server file if the client speaks a
+non-standard protocol.
 
 ---
 
-## 📈 Roadmap
-
-### Current (v1.0.0) ✅
-- Claude Code integration
-- Gemini CLI integration
-- VS Code Copilot integration
-- Comprehensive validation
-- Docker support
-
-### Future (v1.1.0+)
-- Batch validation tool
-- Validation caching
-- Custom rule configuration
-- Improved type inference (Phase 2)
-- Advanced syntax support (Phase 3)
-
----
-
-## 🤝 Contributing
-
-**Add new AI assistant support:**
-1. Check the AI's MCP protocol
-2. Create new server or adapt existing
-3. Document setup in new guide
-4. Add to comparison matrix
-5. Test and submit PR
-
----
-
-**Last Updated:** 2025-10-06
-**Version:** 1.0.0
+**Last Updated:** 2026-09-23
 **License:** MIT
-**Maintainer:** Pine Script VSCode Extension Team
