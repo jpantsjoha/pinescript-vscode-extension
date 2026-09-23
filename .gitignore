@@ -99,3 +99,7 @@ packages/*/*.tgz
 .env
 .env.*
 !.env.example
+# From PR #18 (2026-08-07), the part not yet on main: token files.
+*.pat
+*.token
+secrets.json

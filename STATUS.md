@@ -36,14 +36,27 @@ Operator instruction: repair what is useful, prune legacy, dated and irrelevant 
 | `npm run build` cleans `dist/` first | five dead compiled modules had been shipping in the VSIX |
 | Closed as already fixed: #7, #8, #15 | each repro validated clean on 2026-09-23 |
 
+## Sitrep 2026-09-23 — findings the tables above do not show
+
+| Finding | Evidence |
+|---|---|
+| `main` has not moved since 2026-08-08; every change since sits in three stacked PRs | `git log -1 origin/main -- STATUS.md` → 2026-08-08; #27 → main, #28 → #27, #29 → #28 |
+| Full CI runs only on PRs targeting `main`: #28 and #29 have run PR Validation only | `gh pr checks 28/29`; `ci.yml` `pull_request.branches: [main]`. Each gets the full run when retargeted; local gates (363 tests, audit, VSIX) cover the gap meanwhile |
+| `main` has no branch protection | `gh api …/branches/main/protection` → "Branch not protected" |
+| `npm audit` in CI is advisory (`\|\| true`) | `ci.yml:175` |
+| Two stale PRs: #18 (secret-ignore rules, conflicting; its missing patterns now folded into #29) and #2 (2025-10-06 analysis-only, 1,648 lines of docs about the deleted AST path) | `gh pr view 18/2` |
+| Users run 0.6.2 / engine 0.3.0; 1,532 installs | Marketplace gallery API; `npm view pinescript-v6-validator` |
+
 ## Operator decision board
 
 | Decision | Cost | Reversible | Recommendation |
 |---|---|---|---|
-| Merge #27, #28, then the prune branch | cheap | yes | do it in that order |
+| Merge #27, #28, then #29 (retarget each to `main` as the one below lands, so full CI runs) | cheap | yes | do it in that order |
 | Publish `pinescript-v6-validator@0.4.0`, bump the dependency, release 0.6.3 | cheap | one-way (npm, Marketplace) | do it after the merges; users still see the S1, footprint and timestamp false positives until then |
 | Confirm the six inferred fields in `docs/operating-model/PROJECT-OPERATING-PROFILE.md` | cheap | yes | needed before the profile can be `active` |
 | Re-crawl the v6 reference (#6) | costly | yes | next; two of today's bugs came from the stale scrape |
+| Close stale PRs #18 (superseded) and #2 (describes deleted code) | cheap | yes | close both |
+| Turn on branch protection for `main` (require CI) | cheap | yes | do it; green checks are advisory without it |
 
 ## Related projects
 
