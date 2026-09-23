@@ -317,8 +317,8 @@ substitute a weaker gate silently.
   `.github/workflows/release.yml` (same tag trigger). npm registry for the engine package
   `pinescript-v6-validator` — no automated publish workflow found for it (verified:
   `grep -rn "npm publish" .github/ packages/validator/package.json scripts/` returns
-  nothing); inferred — source: `packages/validator/package.json` is bumped to 0.3.1 in
-  this branch while `npm view pinescript-v6-validator version` still returns 0.3.0,
+  nothing); inferred — source: `packages/validator/package.json` is at 0.4.0 on main
+  (2026-09-23) while `npm view pinescript-v6-validator version` still returns 0.3.0,
   implying a manual `npm publish` from `packages/validator/` is the current path; confirm:
   JP.
 - Pre-delivery gates: `.github/workflows/ci.yml` (typecheck, `npm run audit`, build,
@@ -374,8 +374,8 @@ substitute a weaker gate silently.
 ## Artifact retention
 
 - Permanent evidence: ADRs (`docs/ADR-001..003-*.md`, may move to `docs/adr/`),
-  `CHANGELOG.md`, `test/metrics-v0.3.0.json` and `test/metrics-v0.3.1.json` (verified
-  present 2026-09-22), and PR reviews on GitHub.
+  `CHANGELOG.md`, the regression corpus (`test/regression-corpus.js`), and PR reviews
+  on GitHub. (The `test/metrics-v0.3.*.json` snapshots were deleted 2026-09-23.)
 - Generated/local evidence: `build/*.vsix` — untracked (verified: `.gitignore` lines 4
   and 8, `build/` and `*.vsix`).
 - Sensitive evidence: `examples/` — proprietary and gitignored, though 4 tracked corpus

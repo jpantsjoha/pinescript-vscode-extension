@@ -146,7 +146,7 @@ test('Golden corpus: validation stays within the 100ms performance budget', () =
 //
 // Corpus files compile on TradingView, so ANY semantic finding against them is a
 // false positive by definition. This gate is what makes it safe to add checks
-// S1-S9 incrementally: each one must arrive silent on known-good code.
+// S1-S10 incrementally: each one must arrive silent on known-good code.
 //──────────────────────────────────────────────────────────
 
 const {

@@ -24,7 +24,7 @@
  * date and a one-line account of how it escaped. A case with no `why` is a case
  * nobody will understand in six months.
  *
- * `expect` is the checkId that must appear ('S1'…'S9'), the string 'error' for a
+ * `expect` is the checkId that must appear ('S1'…'S10'), the string 'error' for a
  * syntactic diagnostic, or null meaning the code is CORRECT and nothing may fire.
  * A null case is not filler — a false positive on working code is worse here than
  * a miss, because it teaches people to ignore the tool.

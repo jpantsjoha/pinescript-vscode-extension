@@ -42,9 +42,10 @@ code --install-extension pinescript-v6-extension-0.6.2.vsix
 - **Repainting** — `request.security()` reading the current, forming bar
 - **`ta.*` in a conditional** — silently corrupts the indicator's own history
 - **Accumulator lifetime** — a `var` total a loop re-adds to every bar and never resets, so it grows for the life of the chart
-- **Scope errors** — `plot`/`bgcolor` inside `if`, functions defined in a block
+- **Scope errors** — `plot`/`bgcolor`/`barcolor` inside `if`, functions defined in a block
 - **Platform limits** — 64 plots, 40 `request.*()` calls, counted before TradingView rejects you
 - **Unbounded risk** — `strategy.entry` with no exit anywhere
+- **Unguarded external feeds** (hint, from 0.6.3) — a hard-coded `"FRED:…"` or `"ECONOMICS:…"` request with no `ignore_invalid_symbol`, which halts on the chart with `Permission denied for symbol` when the viewer's plan cannot read it
 
 Suppress one you have considered: `// pine-ignore: S1`
 
@@ -155,7 +156,7 @@ multiline strings (`"""…"""`), `request.footprint()`, `calc_on_every_history_t
 `box.set_xloc()`.
 
 ### A real test gate
-67 → **310 tests**, including a golden corpus asserted to produce zero errors and
+From 67 tests to a regression suite and golden corpus asserted to produce zero errors, with
 paired "must still flag" cases for every fix — so a check can never be quietly
 deleted instead of repaired.
 

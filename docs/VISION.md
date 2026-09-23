@@ -54,8 +54,9 @@ The project succeeds when it makes these behaviours routine:
   Pine Script compiles; no repo text states this problem sentence verbatim; confirm: JP.
 - First measurable outcome: zero false positives on the golden corpus while still
   catching real errors (verified: CLAUDE.md, "The one rule that matters"; golden corpus,
-  `test/golden-corpus.test.js`, holds at 0 errors — re-verified in this session's
-  `npm test` run, 2026-09-22).
+  `test/golden-corpus.test.js`, holds at 0 errors, re-verified 2026-09-23). Scope: CI
+  sees the 4 synthetic fixtures in `test/fixtures/corpus/`; the 7 real scripts in
+  `examples/` are gitignored (proprietary) and gate only local runs and the pre-commit hook.
 - Explicitly out of scope: type inference and AST-based validation, until an AST path is
   rebuilt — the previous one was deleted 2026-09-23 (verified: CLAUDE.md, "`AccurateValidator`
   has no AST, so it cannot do type inference... Type inference is out of scope until an AST
