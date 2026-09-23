@@ -128,7 +128,8 @@ function checkGlobalScopeOnly(lines: string[]): ValidationError[] {
 
     // S7 — plot() and friends must be called at global scope. To plot
     // conditionally, pass `na` as the series rather than wrapping in `if`.
-    for (const fn of ['plot', 'plotshape', 'plotchar', 'plotcandle', 'plotbar', 'hline', 'bgcolor', 'fill']) {
+    // barcolor added 2026-09-23 (issue #11): TradingView rejects it in local scope too.
+    for (const fn of ['plot', 'plotshape', 'plotchar', 'plotcandle', 'plotbar', 'hline', 'bgcolor', 'barcolor', 'fill']) {
       const match = new RegExp(`^\\s*${fn}\\s*\\(`).exec(text);
       if (match) {
         findings.push(makeFinding('S7', index + 1, indent, fn.length,

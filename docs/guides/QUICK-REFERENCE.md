@@ -20,7 +20,7 @@ code .
 | **Signature Help** | Type function + `(` | Automatic |
 | **Hover Docs** | Hover over symbol | Mouse hover |
 | **Format Code** | Format document | `Shift+Alt+F` |
-| **Show Docs Panel** | Command palette | `Cmd+Shift+P` → "Pine: Show docs" |
+| **Show Docs Panel** | Command palette | `Cmd+Shift+P` → "Pine: Show docs for symbol" |
 
 ---
 

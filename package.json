@@ -116,7 +116,7 @@
   },
   "scripts": {
     "clean": "rm -rf dist && rm -f build/*.vsix",
-    "build": "tsc -p . && tsc -p packages/validator && rm -rf dist/engine && mkdir -p dist/engine && cp -R node_modules/pinescript-v6-validator/dist/* dist/engine/",
+    "build": "rm -rf dist && tsc -p . && tsc -p packages/validator && rm -rf dist/engine && mkdir -p dist/engine && cp -R node_modules/pinescript-v6-validator/dist/* dist/engine/",
     "watch": "tsc -w -p .",
     "test": "npm run build && node --test test/*.test.js",
     "test:validation": "npm run build && node --test test/validation.test.js",

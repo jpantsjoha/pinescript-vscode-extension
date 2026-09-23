@@ -150,6 +150,88 @@ const CASES = [
   },
 
   //────────────────────────────────────────────────────────
+  // User reports #9, #14, #16, #11 — reproduced 2026-09-23 on 0.6.2
+  //────────────────────────────────────────────────────────
+  {
+    name: '#9/#14: timestamp() with timezone and six components is valid',
+    code: IND + 't = timestamp("UTC", 2024, 1, 2, 9, 30, 0)\nplot(t)\n',
+    expect: null,
+    found: '2026-09-23',
+    why:
+      'The scrape kept only timestamp(dateString), so every component call reported ' +
+      '"Expected max 1". Two users filed it; session-time scripts cannot avoid it.',
+  },
+  {
+    name: '#9: timestamp() without a timezone, with and without hour/minute/second, is valid',
+    code: IND + 't1 = timestamp(2024, 1, 2, 9, 30)\nt2 = timestamp(2024, 1, 2)\nt3 = timestamp("UTC", 2024, 1, 2, 9, 30)\nt4 = timestamp("2024-01-02T09:30:00")\nplot(t1 + t2 + t3 + t4)\n',
+    expect: null,
+    found: '2026-09-23',
+    why: 'Every overload in the v6 reference must pass: dateString, components, timezone + components.',
+  },
+  {
+    name: '#14: timestamp() with eight arguments is still too many',
+    code: IND + 't = timestamp("UTC", 2024, 1, 2, 9, 30, 0, 1)\nplot(t)\n',
+    expect: 'error',
+    found: '2026-09-23',
+    why: 'The paired "still flags" case: the widest overload takes seven.',
+  },
+  {
+    name: '#16: a typed function parameter used with field access is not undefined',
+    code: IND + 'type State\n    float a\n\nupdate(State st, float v) =>\n    st.a := v\n    st\n\nvar State s = State.new(na)\nupdate(s, close)\nplot(close)\n',
+    expect: null,
+    found: '2026-09-23',
+    why:
+      'Only the function NAME was collected from `f(params) =>`, so `st.a` inside the body ' +
+      'reported "Undefined namespace or variable \'st\'" on every UDT-passing function.',
+  },
+  {
+    name: '#16: generic and defaulted parameters are collected too',
+    code: IND + 'f(array<float> xs, map<string, float> m, int n = 3) =>\n    xs.size() + m.size() + n\n\nplot(f(array.new<float>(), map.new<string, float>()))\n',
+    expect: null,
+    found: '2026-09-23',
+    why: 'A comma inside map<string, float> must not split the parameter list.',
+  },
+  {
+    name: '#16: a comparison in a parameter default does not swallow the next parameter',
+    code: IND + 'type State\n    float a\n\nf(bool up = close > open, State st) =>\n    st.a\n\ng(int n = bar_index < 10 ? 1 : 2, State st2) =>\n    st2.a\n\nvar State s = State.new(na)\nplot(f(true, s) + g(1, s))\n',
+    expect: null,
+    found: '2026-09-23',
+    why:
+      'Review finding on the #16 fix: the splitter counted every < and > as a bracket, so ' +
+      '`close > open` in a default left the depth unbalanced and the next parameter was never declared.',
+  },
+  {
+    name: '#16: a TIGHT comparison (no spaces) in a default does not swallow the next parameter',
+    code: IND + 'type State\n    float a\n\nf(int n = bar_index<10 ? 1 : 2, State st) =>\n    st.a\n\ng(bool b = bar_index<=10, State st2, map<string, array<float>> m = na) =>\n    st2.a\n\nvar State s = State.new(na)\nplot(f(1, s) + g(true, s))\n',
+    expect: null,
+    found: '2026-09-23',
+    why:
+      'Delta review on the first splitter fix: `<` still opened a generic after any identifier, ' +
+      'so `bar_index<10` swallowed the next parameter. Only array, matrix, map and .new open one now.',
+  },
+  {
+    name: '#16: an undefined namespace inside a function body still flags',
+    code: IND + 'g(float v) =>\n    nosuch.a + v\n\nplot(g(close))\n',
+    expect: 'error',
+    found: '2026-09-23',
+    why: 'The paired case: collecting parameters must not blanket-accept every name in the body.',
+  },
+  {
+    name: '#11: barcolor inside an if is a scope error',
+    code: IND + 'if close > open\n    barcolor(color.white)\n',
+    expect: 'S7',
+    found: '2026-09-23',
+    why: 'TradingView: "Cannot use \'barcolor\' in local scope". S7 listed bgcolor but not barcolor.',
+  },
+  {
+    name: '#11: barcolor at global scope with a ternary is the correct idiom',
+    code: IND + 'barcolor(close > open ? color.white : na)\n',
+    expect: null,
+    found: '2026-09-23',
+    why: 'The paired negative for adding barcolor to S7: the fix TradingView documents (a ternary at global scope) must stay silent.',
+  },
+
+  //────────────────────────────────────────────────────────
   // S10 — hard-coded external feed without ignore_invalid_symbol
   //────────────────────────────────────────────────────────
   {

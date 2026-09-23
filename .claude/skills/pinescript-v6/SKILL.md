@@ -14,10 +14,10 @@ A `.pine` file edited by Claude is validated automatically by the PostToolUse ho
 npm run build                       # required once after any TypeScript change
 node validate-cli.js <file.pine>    # AccurateValidator — same engine the editor runs
 node validate-cli.js examples/*.pine
+node validate-cli.js --local-engine <f>   # working-tree engine, after an engine edit
 ```
 
-Exit code 0 means no severity-0 errors. `--comprehensive` and `--both` exist but
-`ComprehensiveValidator` currently throws on valid input — do not trust its output.
+Exit code 0 means no severity-0 errors.
 
 ## The one rule that matters
 
@@ -67,20 +67,24 @@ Never edit the generated file — a re-crawl erases it.
    array; do not flatten overloads into one parameter list.
 5. **Add a paired test** in `test/false-positive-regression.test.js`: one case that
    must be clean, one that must still flag.
-6. `npm test` — 112 tests must pass.
+6. `npm test` — all tests must pass.
 
 ## Architecture constraint
 
-Four validators exist; **only `AccurateValidator` ships**. It is regex-over-lines
-with no AST, so type inference cannot be added to it. `ComprehensiveValidator`,
-`validator.ts` and the whole parser/lexer/typeSystem stack feed a dead path that
-crashes. Do not add a fifth validator, and do not attempt type-system work without
-first repairing the AST path. See `STATUS.md`.
+Three diagnostic sources ship: `AccurateValidator` (signatures, arity, namespaces),
+`documentChecks` (whole-document heuristics), and the engine's semantic checks
+S1-S3, S5-S10 (S4 specified, not built). `AccurateValidator` is regex-over-lines
+with no AST, so type inference cannot be added to it. An earlier AST-based path
+was deleted on 2026-09-23 after it crashed on valid input; git history keeps it.
+Do not add a fourth validator, and do not attempt type-system work without first
+rebuilding an AST path. See `STATUS.md`.
 
 ## MCP
 
 `mcp/pinescript-mcp-server.js` exposes one tool, `validate_pine_script`, backed by
-`AccurateValidator` — the same engine as the editor, so the two cannot disagree.
+all three diagnostic sources the editor runs — `AccurateValidator`, `documentChecks`,
+and the engine's semantic checks (S1-S10) — so an MCP client and the editor never
+disagree about a file.
 
 ## References
 

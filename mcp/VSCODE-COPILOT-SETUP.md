@@ -156,7 +156,13 @@ For access across all workspaces, create `mcp.json` in VS Code user profile:
 
 ### `validate_pine_script`
 
-**Description:** Validates Pine Script v6 files with comprehensive error reporting
+**Description:** Validates a Pine Script v6 file with the same checks the VS
+Code extension runs: function signatures and arity, undefined names and
+constants, whole-document checks, and the engine's semantic checks S1-S10
+(repainting, `ta.*` in a conditional, accumulator lifetime, platform limits,
+scope, unbounded strategy risk, unguarded external feeds; S4 is registered
+but not implemented). No type inference. A `// pine-ignore: S1` comment in
+the source suppresses that finding, the same as in the editor.
 
 **Input Schema:**
 ```json
@@ -435,11 +441,10 @@ git push
 
 ### "Validation errors seem wrong"
 
-**Important:** Validator has known limitations (see `../errors-fix.md`)
-
-**TradingView is the source of truth:**
-- Works on TradingView → validator errors are false positives
-- Current accuracy: ~60-70% (improving)
+**TradingView is the source of truth.** If a script compiles there and this
+tool flags it, that's a false positive. File it against the golden corpus in
+`test/golden-corpus.test.js`, which is what the extension's own accuracy is
+measured against.
 
 ---
 
@@ -539,17 +544,18 @@ git push
 
 ---
 
-## Comparison: VS Code Copilot vs Claude Code vs Gemini
+## Comparison: VS Code Copilot vs Claude Code
 
-| Feature | VS Code Copilot | Claude Code | Gemini CLI |
-|---------|-----------------|-------------|------------|
-| **Protocol** | MCP SDK | MCP SDK | Gemini MCP |
-| **Server file** | `pinescript-mcp-server.js` | `pinescript-mcp-server.js` | `validator-server.js` |
-| **Config file** | `.vscode/mcp.json` | `.mcp.json` | `settings.json` |
-| **Config location** | Workspace or user profile | Project root | `~/.gemini/` |
-| **UI** | Copilot Chat | Terminal | Terminal |
-| **Agent mode** | Required | Built-in | Built-in |
-| **Status** | ✅ Working | ✅ Working | ✅ Working |
+Both point at the same server file, so they see identical validation results.
+
+| Feature | VS Code Copilot | Claude Code |
+|---------|-----------------|--------------|
+| **Protocol** | MCP SDK (JSON-RPC 2.0) | MCP SDK (JSON-RPC 2.0) |
+| **Server file** | `pinescript-mcp-server.js` | `pinescript-mcp-server.js` |
+| **Config file** | `.vscode/mcp.json` | `.mcp.json` |
+| **Config location** | Workspace or user profile | Project root |
+| **UI** | Copilot Chat | Terminal |
+| **Agent mode** | Required | Built-in |
 
 ---
 
@@ -557,8 +563,8 @@ git push
 
 - **VS Code MCP Docs:** https://code.visualstudio.com/docs/copilot/customization/mcp-servers
 - **MCP Server Browser:** https://code.visualstudio.com/mcp
-- **Validator Implementation:** `../src/parser/comprehensiveValidator.ts`
-- **Production Safety:** `../PRODUCTION-IMPACT-AUDIT.md`
+- **Validator implementation:** `../src/parser/accurateValidator.ts` and `../src/parser/documentChecks.ts`
+- **Architecture and JSON-RPC reference:** `../docs/guides/mcp-integration.md`
 
 ---
 
@@ -570,7 +576,7 @@ git push
 
 ### Q: Can I use this without Copilot?
 
-**A:** Yes! Use Claude Code or Gemini CLI (see other guides).
+**A:** Yes. Claude Code has the server registered already (see `mcp/README.md`). Any other MCP client that speaks stdio JSON-RPC 2.0 can point at the same server file.
 
 ### Q: How many MCP servers can I add?
 
@@ -598,6 +604,5 @@ git push
 
 ---
 
-**Last Updated:** 2025-10-06
-**Status:** ✅ Fully Operational
+**Last Updated:** 2026-09-23
 **Tested With:** VS Code 1.95+, GitHub Copilot

@@ -16,25 +16,24 @@ const {
 const fs = require('fs');
 const path = require('path');
 
-// Import the validator
-// Uses AccurateValidator — the SAME engine the VS Code extension runs, so an MCP
-// client and the editor never disagree about a file.
-//
-// This previously required `../test-comprehensive-validator.js`, which does not
-// exist at the repo root (and the dev-tools copy is a zero-byte file), so the
-// server failed at load. That wrapper fronted ComprehensiveValidator, which still
-// throws `ast.body is not iterable` on valid input — reconciling on the shipping
-// validator fixes the crash and the divergence in one move.
+// The same three diagnostic sources the VS Code extension runs, loaded from the
+// same build output, so an MCP client and the editor never disagree about a file:
+// AccurateValidator, the whole-document checks, and the engine's semantic checks
+// (S1-S10, from dist/engine — the copy the VSIX ships). Semantic findings honour
+// `// pine-ignore` directives exactly as the editor does.
 const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
 const { runDocumentChecks } = require('../dist/src/parser/documentChecks.js');
+const engine = require('../dist/engine/index.js');
 
 function validatePineScript(code) {
-  // BOTH diagnostic sources, because extension.ts runs both. Running only the
-  // validator gave MCP clients a clean bill of health on files the editor marked
-  // with errors — the exact divergence the comment above promises to prevent.
+  const semantic = engine.applySuppressions(
+    engine.runSemanticChecks(code),
+    engine.extractSuppressions(code)
+  );
   return [
     ...new AccurateValidator().validate(code),
-    ...runDocumentChecks(code)
+    ...runDocumentChecks(code),
+    ...semantic
   ].sort((a, b) => a.line - b.line || a.column - b.column);
 }
 
@@ -57,7 +56,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: 'validate_pine_script',
-        description: 'Validates a Pine Script v6 file and returns syntax errors, type mismatches, and warnings. Uses the comprehensive validator with full semantic analysis.',
+        description: 'Validates a Pine Script v6 file with the same checks as the VS Code extension: function signatures and arity, undefined names and constants, whole-document checks, and semantic checks S1-S10 (repainting, ta.* in conditionals, accumulator lifetime, platform limits, scope, unbounded strategy risk, unguarded external feeds). No type inference.',
         inputSchema: {
           type: 'object',
           properties: {

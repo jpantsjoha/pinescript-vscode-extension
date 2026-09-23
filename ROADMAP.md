@@ -1,7 +1,7 @@
 # Roadmap
 
 Build order for the extension and its engine, `pinescript-v6-validator`. Derived from
-`docs/archive/VALIDATOR-ENHANCEMENT-ROADMAP.md` (2025-10-15, retired — its 70%/95%
+the retired 2025-10-15 validator roadmap (deleted 2026-09-23; git history keeps it — its 70%/95%
 parity figures were never measured; treat percentages there as unsupported), the
 roadmap-reconciliation work that used to live in `STATUS.md`, and the open GitHub
 issues as of 2026-09-22. Status words: **not started** · **blocked** · **in
@@ -22,78 +22,58 @@ progress** · **shipped**.
 | 9 | Accumulator lifetime — S3 (`var` total never reset, or missing `var` reset every bar) | 0.6.2 |
 | 10 | Engine extracted to its own npm package (`pinescript-v6-validator`), shared with the agent plugin | 0.6.1 |
 
-## In progress
+## Built, awaiting merge and release (engine 0.4.0, extension 0.6.3)
 
-| # | Item | Issue | Note |
-|---|---|---|---|
-| 11 | S1 false positive: positional `lookahead` argument not recognised | [#24](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/24) | Fix underway on this branch (uncommitted): `checkRepainting` now also matches `barmerge.lookahead_off/on` passed positionally, not just `lookahead=`. |
-
-## Blocked — needs the AST path repaired first
-
-`AccurateValidator` is regex-over-lines with no AST, so type inference cannot be
-bolted onto it. Two honest options, unchanged since the last reconciliation:
-
-1. **Repair the AST path.** Fix `parse()` in `src/parser/parser.ts` so it always
-   returns an iterable `body`, get `ComprehensiveValidator` passing the golden
-   corpus, then migrate. Unlocks items 12-14 below.
-2. **Delete it.** Remove `comprehensiveValidator.ts`, `validator.ts`, and the unused
-   parser stack (`parser.ts`, `ast.ts`, `lexer.ts`, `typeSystem.ts`,
-   `symbolTable.ts`); accept a permanent ceiling on detection; market the extension
-   on signatures, namespaces, arity and the semantic checks it does well.
-
-This is a product decision, not a technical one. It has not been made.
-
-| # | Item | Depends on |
+| Item | Issue | Branch / PR |
 |---|---|---|
-| 12 | Type system validation (series/simple/const mismatches) | AST decision above |
-| 13 | Control flow syntax validation (if/for/while structure) | AST decision above |
-| 14 | Expression parsing beyond ternary | AST decision above |
+| S1 recognises a positional `lookahead` argument | [#24](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/24) | PR #27 |
+| S10 info hint: hard-coded external feed with no `ignore_invalid_symbol` | [#25](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/25) | PR #28 |
+| `request.security` / `security_lower_tf` require symbol, timeframe, expression | [#26](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/26) | PR #28 |
+| `request.footprint()` signature corrected | — | PR #28 |
+| `timestamp()` overloads | [#9](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/9), [#14](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/14) | `chore/prune-legacy-repair` |
+| Function parameters no longer "undefined" | [#16](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/16) | `chore/prune-legacy-repair` |
+| `barcolor` in local scope flagged by S7 | [#11](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/11) | `chore/prune-legacy-repair` |
+| `enum` highlighted by the grammar | [#10](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/10) | `chore/prune-legacy-repair` |
+| MCP server runs the semantic checks too | — | `chore/prune-legacy-repair` |
+
+Verified already fixed and closed 2026-09-23: #7 (nested call arity), #8 (comment
+parsed as code), #15 (UDT `.new()`).
+
+## Decided — the AST path
+
+Deleted on 2026-09-23 (operator instruction: repair what is useful, prune the rest).
+The AST validator crashed on valid input and was never wired into the editor. The
+consequence is a ceiling: no type inference. Series/simple/const mismatches, invalid
+casts (#12) and control-flow structure stay out of scope until an AST path is rebuilt
+from scratch. Git history keeps the old code.
 
 ## Not started — open issues
 
-Grouped by area. Numbers are GitHub issue numbers.
-
-**Engine / semantic checks**
-- [#25](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/25) S10 proposal: `request.*` with an external symbol and no `ignore_invalid_symbol` — **built** on `feat/s10-external-feed-hint` (engine 0.4.0), PR pending halts on "Permission denied"
-- [#26](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/26) Data gap: `request.security` timeframe and expression marked optional, so `request.security("X")` is not flagged — **built** on `feat/s10-external-feed-hint`, paired arity tests, PR pending
-- [#9](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/9) Overloaded methods not considered
-- [#10](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/10) Enums not supported
-- [#14](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/14) `timestamp()` incorrectly flagged for too many arguments
-- [#15](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/15) False positive: user-defined types (UDT)
-- [#16](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/16) False positive: function parameters read as undefined namespace/variable
-- [#7](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/7) Wrongly thinks a parameter is missing
-- [#8](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/8) Parses a comment as code
-
-**Needs the AST path (see Blocked, above)**
-- [#11](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/11) No error on invalid scope
-- [#12](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/12) No warning/error on invalid cast
+**Validator**
+- [#12](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/12) No error on an invalid cast (`int x = input.float(...)`). Needs types; a narrow declared-type vs `input.*` return-type rule is possible without an AST.
+- Wrapped one-argument calls skip arity (pinned by a test in `test/request-arity.test.js`).
+- A function signature wrapped across lines (`f(int a,` / `int b) =>`) does not declare its parameters, so #16 can recur there (missed fix, found by review 2026-09-23).
+- Remove the duplicated syntactic validator: `src/parser/{accurateValidator,documentChecks}.ts` and `v6/` copy the engine package; import them from it instead.
 
 **Editor / IntelliSense**
 - [#13](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/13) No IntelliSense on named parameters
 - [#5](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/5) Variable refactor support wanted
 
 **Data / tooling**
-- [#6](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/6) `v6/scripts` fold missing (the crawler is gitignored — re-crawl of the 2025-10-03 reference is also overdue, see `STATUS.md`)
+- [#6](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/6) `v6/scripts` is gitignored; the 2025-10-03 reference re-crawl is overdue.
 
 **Out of scope until asked for**
-- [#1](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/1) Support for Pine Script v5 — the extension targets v6 only by design; revisit only if user demand is explicit
+- [#1](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/1) Pine Script v5. The extension targets v6 by design.
 
 ## Next up (recommended order)
 
-1. Land #24 (in progress) and re-crawl the v6 reference (#6) — both are data-currency
-   fixes with clear, provable "still flags" tests.
-2. Triage #25/#26 (`request.*` symbol/timeframe gaps) — same shape as #24: a real
-   TradingView error the corpus should have caught.
-3. Clear the small false-positive backlog (#7, #8, #9, #10, #14, #15, #16) — each is
-   independently scoped and testable against the golden corpus.
-4. Decide the AST question (Blocked, above) before touching #11 or #12 — building
-   either on the current regex validator would be the same mistake the 2025-10-15
-   roadmap made.
-5. #13 (named-parameter IntelliSense) and #5 (variable refactor) are editor-UX work,
-   independent of the validator; schedule opportunistically.
+1. Merge #27, #28 and the prune branch; publish engine 0.4.0; release 0.6.3.
+2. Re-crawl the v6 reference (#6). The `request.footprint` and `timestamp` bugs both
+   came from the stale dataset.
+3. Remove the duplicated syntactic validator (import it from the engine).
+4. #13 named-parameter IntelliSense, then the narrow #12 cast rule.
 
 ## Related
 
-- [STATUS.md](./STATUS.md) — current session state
-- [CHANGELOG.md](./CHANGELOG.md) — what actually shipped, by version
-- `docs/archive/VALIDATOR-ENHANCEMENT-ROADMAP.md` — the retired 2025-10-15 plan this supersedes
+- [STATUS.md](./STATUS.md) — current state
+- [CHANGELOG.md](./CHANGELOG.md) — what shipped, by version

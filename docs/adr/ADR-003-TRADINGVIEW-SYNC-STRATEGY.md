@@ -5,6 +5,20 @@
 **Related**: ADR-001 (Validation Strategy), ADR-002 (Test Strategy)
 **Version**: 0.3.0
 
+> **Status as of 2026-09-23:** `test/comprehensive-validation-test.js`, used below
+> as the validation gate for a re-sync, was deleted in this session; every step
+> that names it now runs `npm test` instead (the zero-false-positive gate lives in
+> `test/golden-corpus.test.js`). `test/metrics-v0.X.0.json` was deleted with it and
+> has no replacement file — treat `npm test` / `npm run audit` exit codes as the
+> evidence instead. Separately, and not part of this prune: `v6/scripts/parse-main-page.js`
+> and `v6/scripts/merge-requirements.js` (Steps 2 and the rescrape loop) are real
+> and still present, but `scrape-v6-reference.sh`, `diff-function-database.js` and
+> `check-updates.js` were never built under those names — nothing in `v6/scripts/`
+> or the repo root matches them. Read Steps 1 and 3 and "Version Detection
+> Strategy" below as the aspirational design they always were, not a working
+> pipeline. The quarterly/weekly automation this ADR proposed was never wired up
+> either — no scheduled GitHub Actions workflow does this today.
+
 ---
 
 ## Context
@@ -255,7 +269,7 @@ npm test
 # 3. Update test fixtures
 #    - test/fixtures/valid.pine
 #    - test/fixtures/invalid.pine
-#    - test/comprehensive-validation-test.js
+#    - test/fixtures/corpus/ (golden corpus — any error here is a false positive)
 
 # 4. Re-run tests
 npm test
@@ -267,13 +281,12 @@ npm test
 
 ### Step 5: Validation
 
-**Run comprehensive validation**:
+**Run the full test suite** (the zero-false-positive gate is
+`test/golden-corpus.test.js`, run as part of `npm test` — there is no separate
+comprehensive-validation script or metrics file to run/check as of 2026-09-23):
 ```bash
-# Test against real Pine Script examples
-node test/comprehensive-validation-test.js
-
-# Check metrics
-cat test/metrics-v0.X.0.json
+npm test
+npm run audit
 ```
 
 **Quality Gates**:
@@ -391,8 +404,8 @@ jobs:
 - [ ] Verify removed functions (confirm deprecation in release notes)
 - [ ] Test modified functions manually
 - [ ] Update CHANGELOG.md with TradingView version
-- [ ] Run full test suite: `npm test`
-- [ ] Run comprehensive validation: `node test/comprehensive-validation-test.js`
+- [ ] Run full test suite: `npm test` (includes the golden-corpus zero-false-positive gate)
+- [ ] Run `npm run audit`
 - [ ] Test on real examples: `examples/demo/*.pine`
 - [ ] Update version number if breaking changes
 - [ ] Document in ADR if major changes
@@ -485,8 +498,7 @@ const constants = await api.getConstants('v6');
 
 1. **Identify Issue**:
    ```bash
-   npm test # Failing tests?
-   node test/comprehensive-validation-test.js # Increased false positives?
+   npm test # Failing tests? Golden corpus (test/golden-corpus.test.js) catches increased false positives.
    ```
 
 2. **Revert Generated Files**:

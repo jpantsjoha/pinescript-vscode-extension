@@ -56,10 +56,11 @@ The project succeeds when it makes these behaviours routine:
   catching real errors (verified: CLAUDE.md, "The one rule that matters"; golden corpus,
   `test/golden-corpus.test.js`, holds at 0 errors — re-verified in this session's
   `npm test` run, 2026-09-22).
-- Explicitly out of scope: type inference and AST-based validation, until the AST path is
-  repaired (verified: CLAUDE.md, "`AccurateValidator` has no AST, so it cannot do type
-  inference. Do not attempt type-system work inside it"); Pine Script v5 support
-  (verified: open issue #1, "Support for v5 Pine script," unresolved).
+- Explicitly out of scope: type inference and AST-based validation, until an AST path is
+  rebuilt — the previous one was deleted 2026-09-23 (verified: CLAUDE.md, "`AccurateValidator`
+  has no AST, so it cannot do type inference... Type inference is out of scope until an AST
+  path is rebuilt"); Pine Script v5 support (verified: open issue #1, "Support for v5 Pine
+  script," unresolved).
 - Product Owner: JP (Jaroslav Pantsjoha) — verified: CLAUDE.md footer, "Maintainer: Pine
   Script Extension Team: JP"; solo project.
 - Requirement or discovery record: GitHub issues,

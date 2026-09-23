@@ -8,12 +8,11 @@ import {
   createCompletionItem
 } from './completions';
 import { createSignatureHelpProvider } from './signatureHelp';
-// NOTE: the extension deliberately imports ONLY the validators it runs.
-// parser.ts / validator.ts / comprehensiveValidator.ts were imported here but never
-// called; ComprehensiveValidator additionally throws `ast.body is not iterable` on
-// valid input. Importing a dead diagnostic source makes it look gated when it is
-// not — scripts/audit.js now fails the build if a source reaches extension.ts
-// without also being covered by validate-cli.js and the golden corpus. See STATUS.md.
+// NOTE: the extension imports ONLY the validators it runs. A dead AST validator
+// (parser/lexer/ComprehensiveValidator) was imported here but never called; it was
+// deleted on 2026-09-23. scripts/audit.js fails the build if a diagnostic source
+// reaches extension.ts without also being covered by validate-cli.js and the
+// golden corpus.
 import { AccurateValidator } from './parser/accurateValidator';
 import { runDocumentChecks } from './parser/documentChecks';
 // Semantic checks come from the published engine rather than a local copy.

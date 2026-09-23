@@ -48,7 +48,8 @@ run it before claiming completion.
 
 There are **three**: `AccurateValidator` (signatures, arity, namespaces),
 `documentChecks` (whole-document heuristics) and the engine's `runSemanticChecks`
-(S1-S9). All three are wired into `validate-cli.js` and `test/golden-corpus.test.js`.
+(S1-S3, S5-S10 — S4 is specified but not built; S10 is an info-level hint, not a
+warning). All three are wired into `validate-cli.js` and `test/golden-corpus.test.js`.
 
 This matters because it already went wrong: the document checks lived inline in
 `extension.ts`, untested and invisible to the CLI, and shipped **28 false
@@ -63,10 +64,10 @@ the golden corpus is what catches those.
 ## Before you change validation logic
 
 ```bash
-npm run build && npm test          # 310 tests; golden corpus must stay at 0 errors
+npm run build && npm test          # all tests; golden corpus must stay at 0 errors
 npm run audit                      # harness, packaging, version, diagnostic coverage
-node validate-cli.js <file.pine>   # headless single-file check
-node validate-cli.js --both <f>    # diff AccurateValidator vs ComprehensiveValidator
+node validate-cli.js <file.pine>   # headless single-file check, published engine
+node validate-cli.js --local-engine <f>   # run the working-tree engine, not the published one
 ```
 
 `test/golden-corpus.test.js` validates real scripts that compile on TradingView.
@@ -75,7 +76,11 @@ add their reduced script to the corpus *before* fixing it.
 
 ## Architecture — read this before adding a validator
 
-Three diagnostic sources ship; two older validators are dead.
+Three diagnostic sources ship. A fourth, AST-based path
+(`comprehensiveValidator.ts`, `validator.ts`, `parser.ts`, `ast.ts`, `lexer.ts`,
+`typeSystem.ts`, `symbolTable.ts`) was deleted on 2026-09-23 — it crashed on valid
+input (`ast.body is not iterable`) and its import had already been removed from
+`extension.ts`. Git history keeps it if it is ever worth repairing.
 
 **Caveat on ADR-0001.** Semantic checks are genuinely consumed from the engine. The
 SYNTACTIC validator is not: `src/parser/accurateValidator.ts` and
@@ -88,14 +93,12 @@ problem — do not repeat the claim that nothing is copied.
 |---|---|
 | `src/parser/accurateValidator.ts` | The live validator. Regex-over-lines, no AST. |
 | `src/parser/documentChecks.ts` | **Ships.** Whole-document heuristics, runs alongside AccurateValidator. |
-| `pinescript-v6-validator` (npm) | **Ships.** Semantic checks S1, S2, S3, S5-S9 (only S4 specified but not built). Genuinely consumed — `dist/engine/`, never copied into `src/`. |
-| `src/parser/comprehensiveValidator.ts` | Dead. Import removed from `extension.ts`. Crashes: `ast.body is not iterable`. |
-| `src/parser/validator.ts` | Dead. Import removed. |
-| `src/parser/{parser,ast,lexer,typeSystem,symbolTable}.ts` | Feeds only the dead path. |
+| `pinescript-v6-validator` (npm) | **Ships.** Semantic checks S1-S3, S5-S10 (S4 specified, not built). Genuinely consumed — `dist/engine/`, never copied into `src/`. |
 
 Consequence: `AccurateValidator` has no AST, so it cannot do type inference.
-Do not attempt type-system work inside it — that needs the AST path repaired first.
-Do not add a fifth validator.
+Type inference is out of scope until an AST path is rebuilt from scratch — do not
+attempt type-system work inside the regex validator, and do not add a fifth
+validator.
 
 ## Data layer
 
@@ -130,262 +133,23 @@ one before that kind of work.
 ## Git
 
 Feature branches only, never commit to `main`. Do **not** add AI/Claude
-co-author trailers to commits (see `.claude/COMMIT-GUIDELINES.md`).
+co-author trailers to commits — see the "No AI attribution" section in
+`.claude/COMMIT-GUIDELINES.md`.
 
----
+## References
 
-# Pine Script v6 VSCode Extension - Project Directives
+**Official Pine Script v6 docs**
+- Main docs: https://www.tradingview.com/pine-script-docs/
+- Language reference: https://www.tradingview.com/pine-script-reference/v6/
+- Writing guide: https://www.tradingview.com/pine-script-docs/writing/
+- Style guide: https://www.tradingview.com/pine-script-docs/writing/style-guide/
+- Limitations: https://www.tradingview.com/pine-script-docs/writing/limitations/
+- Release notes: https://www.tradingview.com/pine-script-docs/release-notes/
 
-## 🎯 Project Mission
-
-Build a **professional-grade Pine Script v6 IDE extension** for VS Code that provides:
-- **100% accurate** parameter validation based on official TradingView documentation
-- **Intelligent IntelliSense** with 457+ built-in functions
-- **Real-time diagnostics** catching undefined variables, functions, and invalid constants
-- **Zero false positives on the golden corpus** - never flag valid v6 syntax
-
----
-
-## 📚 Official Pine Script v6 References
-
-### Core Documentation
-- **Main Docs**: https://www.tradingview.com/pine-script-docs/
-- **Language Reference**: https://www.tradingview.com/pine-script-reference/v6/
-- **Writing Guide**: https://www.tradingview.com/pine-script-docs/writing/
-- **Style Guide**: https://www.tradingview.com/pine-script-docs/writing/style-guide/
-- **Limitations**: https://www.tradingview.com/pine-script-docs/writing/limitations/
-
-### Visual Elements
-- **Plots**: https://www.tradingview.com/pine-script-docs/visuals/plots/
-- **Colors**: https://www.tradingview.com/pine-script-docs/visuals/colors/
-- **Shapes & Locations**: Referenced in plotshape/plotchar documentation
-
----
-
-## 🏗️ Architecture Principles
-
-### 1. Validation Strategy: **Hybrid Approach**
-**Why**: Balance between accuracy and performance
-
-- ✅ **Regex-based validation** (AccurateValidator)
-  - Fast parameter count checking
-  - Official TradingView parameter requirements
-  - Undefined variable/function/namespace detection
-  - Pine Script v6 constant validation
-
-- ❌ **NOT AST-based** (ComprehensiveValidator dead)
-  - Produces false positives on valid v6 code, and throws `ast.body is not
-    iterable` on some valid input. Its import was removed from extension.ts.
-  - Consequence: no type inference is possible without repairing the AST path.
-
-### 2. Data Sources (Accuracy Priority)
-
-**Manual Overrides (100% Accuracy)**
-- File: `v6/parameter-requirements.ts`
-- Functions: 32 critical functions (indicator, strategy, plot, input.*, ta.*)
-- Source: Hand-verified against official docs
-
-**Auto-Generated (95% Accuracy)**
-- File: `v6/parameter-requirements-generated.ts`
-- Functions: 457 functions from TradingView main page
-- Source: Parsed from https://www.tradingview.com/pine-script-reference/v6/
-
-**Merged Strategy**
-- File: `v6/parameter-requirements-merged.ts`
-- Manual takes precedence over generated
-- Overall accuracy: ~98%
-
-### 3. Constants Recognition
-
-**Pine Script v6 Constants** (`v6/pine-constants.ts`)
-- plot.style_* (10 constants): line, linebr, stepline, area, histogram, etc.
-- color.* (17 built-ins + 7 functions): red, blue, new(), rgb(), etc.
-- shape.* (12 constants): circle, triangleup, triangledown, etc.
-- location.* (5 constants): abovebar, belowbar, top, bottom, absolute
-- size.* (6 constants): tiny, small, normal, large, huge, auto
-- line.style_*, label.style_*, table.*, barstate.*
-
-**Critical**: The validator MUST recognize these as valid:
-```pine
-plot(close, style=plot.style_line)  // ✅ Valid
-color.new(color.red, 50)            // ✅ Valid
-plotshape(cond, location=location.abovebar, shape=shape.triangleup)  // ✅ Valid
-```
-
----
-
-## ⚠️ Known Limitations & Constraints
-
-### Compilation Limits (From Official Docs)
-- **Max script size**: 80,000 tokens
-- **Max variables per scope**: 1,000
-- **Max plots**: 64 per script
-- **Max security calls**: 40 (64 for Pro)
-- **Compilation timeout**: 2 minutes
-
-### Runtime Limits
-- **Script execution**: 20s (basic) / 40s (other accounts)
-- **Loop execution**: 500ms per bar
-- **Historical buffer**: 5,000 bars (10,000 for built-ins)
-- **Array/matrix/map size**: 100,000 elements
-
-### Extension Validation Scope
-**What We Validate** ✅
-- Parameter count (too few/too many)
-- Undefined functions and namespaces
-- Undefined variables
-- Invalid constants (plot.style_*, color.*, etc.)
-- Wrong parameter names (shape= vs style= in plotshape)
-
-
----
-
-
-### Script Organization (Recommended Order)
-1. License
-2. `//@version=6`
-3. Declaration statement (indicator/strategy)
-4. Import statements
-5. Constant declarations
-6. Inputs
-7. Function declarations
-8. Calculations
-9. Strategy calls
-10. Visuals (plot, plotshape, etc.)
-11. Alerts
-
-### Code Style
-- **Spacing**: Spaces around operators, after commas
-- **Line wrapping**: Non-four-space indentation for readability
-- **Typing**: Explicit types recommended (but not required)
-- **Comments**: Document complex logic
-
----
-
-## 🔧 Development Guidelines
-
-### Testing Strategy
-1. **Unit Tests** (`test/validation.test.js`)
-   - Parameter requirements accuracy
-   - Manual vs generated function specs
-   - No duplicate parameters
-
-2. **Benchmark Tests** (`test/benchmark.test.js`)
-   - Real Pine Script code validation
-   - Valid code should NOT produce errors
-   - Invalid code MUST produce errors
-
-3. **Fixtures** (`test/fixtures/`)
-   - `valid.pine`: All valid v6 syntax (should pass)
-   - `invalid.pine`: Known errors (should fail)
-
-### Adding New Validation Rules
-1. Check official docs first
-2. Add to `v6/parameter-requirements.ts` (manual) if critical
-3. Update tests in `test/fixtures/invalid.pine`
-4. Add test case in `test/benchmark.test.js`
-5. Run `npm test` - must pass 100%
-
-### Handling False Positives
-**DO NOT** mark valid v6 code as errors!
-
-**Examples of Valid Code (Must Pass)**:
-```pine
-var float cumPV = na                    // ✅ Valid - can assign na to typed var
-plot(close, style=plot.style_linebr)   // ✅ Valid - plot.style_linebr exists
-color.rgb(255, 0, 0)                    // ✅ Valid - color.rgb() function
-someVar.tostring()                      // ✅ Valid - if someVar declared
-```
-
----
-
-## 📦 Build & Release Process
-
-### Build Commands
-```bash
-npm run clean           # Remove dist/ and build/*.vsix
-npm run build           # TypeScript compilation
-npm test                # Run all tests (must pass)
-npm run package         # Create VSIX in build/
-npm run rebuild         # Full rebuild with tests
-```
-
-### Installation Scripts
-```bash
-./scripts/install-dev.sh    # Symlink for development
-./scripts/install-vsix.sh   # Install from VSIX (auto-detects latest)
-./scripts/reload.sh         # Quick rebuild
-./scripts/uninstall.sh      # Clean removal
-```
-
-### Version Bump Process
-1. Update `package.json` version
-2. Run `npm run rebuild` (build + test + package)
-3. Test VSIX with real Pine Script files
-4. Check: No false positives on valid v6 code
-5. Install and reload VSCode
-6. Verify validation works on examples/
-
----
-
-## 🐛 Common Issues & Solutions
-
-### Issue: "plot.style_line is undefined"
-**Cause**: Constants not recognized by validator
-**Fix**: Ensure `v6/pine-constants.ts` imported in validator
-**Check**: `isValidNamespaceMember('plot', 'style_line')` returns true
-
-### Issue: "Valid code shows errors"
-**Cause**: False positive from validator
-**Fix**:
-1. Add to `test/fixtures/valid.pine`
-2. Update validator logic to skip this case
-3. Ensure tests pass
-
-### Issue: "Undefined function not caught"
-**Cause**: Function in ALL_FUNCTION_SIGNATURES
-**Fix**: Check `v6/parameter-requirements-merged.ts`
-
----
-
-
-## 📝 Critical Reminders
-
-1. **ALWAYS** test with real Pine Script v6 examples before release
-2. **NEVER** mark official v6 syntax as errors (check docs first!)
-3. **UPDATE** tests when adding new validation rules
-4. **VERIFY** constants exist in official docs before flagging as invalid
-5. **MAINTAIN** 100% test pass rate before packaging VSIX
-6. **REFERENCE** official TradingView docs for all validation decisions
-
----
-
-## 📞 Support & Resources
-
-- **Extension Issues**: GitHub Issues (when published)
-- **Pine Script Questions**: TradingView Community
-- **Official Docs**: https://www.tradingview.com/pine-script-docs/
-- **Test Examples**: `examples/` directory
-
----
-
-**Last Updated**: 2025-10-04 (v0.2.5)
-**Maintainer**: Pine Script Extension Team: JP
-**License**: MIT
-
-// Marketplace publishing
-Task({
-  subagent_type: "general-purpose",
-  description: "Publish extension v0.X.Y",
-  prompt: `You are the VSCode Extension Publisher Agent. Read .claude/agents/publisher.md for your complete publishing workflow.
-
-Publish extension version 0.X.Y:
-1. Verify quality gates (tests, build, self-tests)
-2. Bump version in package.json
-3. Update CHANGELOG.md
-4. Create git tag vX.Y.Z
-5. Trigger GitHub Actions publish workflow
-6. Monitor and verify marketplace publication
-
-Return publish status and verification results.`
-});
+**TradingView compile/runtime limits** (verify against Limitations above before
+relying on a figure — TradingView changes these)
+- Max script size: 80,000 tokens · max variables per scope: 1,000
+- Max plots: 64 per script · max `request.*()` calls: 40 (64 for Pro)
+- Compilation timeout: 2 minutes
+- Script execution: 20s (basic) / 40s (other accounts) · loop execution: 500ms/bar
+- Historical buffer: 5,000 bars (10,000 for built-ins) · array/matrix/map: 100,000 elements

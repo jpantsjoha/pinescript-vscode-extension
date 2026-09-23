@@ -451,7 +451,7 @@ vim src/parser/accurateValidator.ts
 
 # 2. Run tests locally
 npm test
-# ✅ 67/67 passing
+# ✅ 0 failures
 
 # 3. Bump version
 npm version patch
@@ -516,7 +516,7 @@ git push origin v0.4.1
 ## 🎯 Quality Standards
 
 **Before ANY publish:**
-- ✅ All tests passing (67/67 for this extension)
+- ✅ All tests passing (0 failures)
 - ✅ Self-tests passing (7/7 language coverage checks)
 - ✅ No TypeScript errors (`npx tsc --noEmit`)
 - ✅ CHANGELOG.md updated with changes
@@ -556,7 +556,7 @@ Copy this for each release:
 ## Pre-Publish Checklist for vX.Y.Z
 
 - [ ] Code changes committed and tested
-- [ ] `npm test` passes (67/67 tests)
+- [ ] `npm test` passes (0 failures)
 - [ ] `node test/v0.4.0-self-test.js` passes (7/7 checks)
 - [ ] `npx tsc --noEmit` passes (no TypeScript errors)
 - [ ] Version bumped in package.json (X.Y.Z)

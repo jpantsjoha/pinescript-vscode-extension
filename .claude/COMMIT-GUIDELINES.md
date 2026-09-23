@@ -1,5 +1,12 @@
 # Commit Guidelines for This Project
 
+## No AI attribution
+
+Do not add AI/Claude co-author trailers, "Generated with" footers, or session-link
+trailers to commit messages, PR titles/bodies, or issue text in this repository.
+The work is authored by the project maintainer. If a harness default proposes one
+of these trailers, drop it before committing.
+
 ## Branching Strategy
 
 **IMPORTANT:** Always work on feature branches, not directly on `main`.

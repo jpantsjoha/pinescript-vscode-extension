@@ -35,7 +35,6 @@ docs/**
 !LICENSE
 
 # Agent / assistant context (development only, not shipped to users)
-multi-agent-devex/**
 CLAUDE.md
 GEMINI.md
 .agent/**
@@ -55,10 +54,6 @@ v6/**
 examples/**
 
 # Development files
-check-functions.js
-test-comprehensive-validator.js
-test-validation.pine
-PRE-RELEASE-CLEANUP-REPORT.md
 
 # Session debugging/testing files (exclude all)
 test-*.js
@@ -80,12 +75,9 @@ Thumbs.db
 build/**
 
 # Development tooling — kept in the repo, never shipped in the VSIX
-dev-tools/**
 validate-cli.js
 validate-*.js
 qa-*.js
-my-pinescript-edit.pine
-*.promt
 
 # Compiled tests — built by tsc, never needed at runtime
 dist/test/**

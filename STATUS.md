@@ -1,61 +1,62 @@
 # Project Status
 
-**Updated**: 2026-09-22
-**Marketplace version**: 0.6.2 (confirmed live via the Marketplace gallery API)
-**Installs**: 1,530 · **Rating**: 4.45★
-**Engine**: [`pinescript-v6-validator@0.3.0`](https://www.npmjs.com/package/pinescript-v6-validator) on npm (published 2026-08-08)
-
----
+**Updated**: 2026-09-23
+**Marketplace version**: 0.6.2 · **Installs**: 1,530 · **Rating**: 4.45★ (gallery API, 2026-09-22)
+**Engine on npm**: `pinescript-v6-validator@0.3.0` (2026-08-08). 0.4.0 is built, not published.
 
 ## Where this stands
 
 | Signal | State |
 |---|---|
-| `npm test` | 310 tests — 309 pass, 1 skip, 0 fail |
-| `npm run audit` | 19 pass · 2 warn · 0 fail |
-| Golden corpus | 4 tracked fixtures (`test/fixtures/corpus/`) + 7 gitignored `examples/*.pine`, all 0 errors. CI sees only the 4 tracked ones. |
-| Semantic checks shipped | S1, S2, S3, S5, S6, S7, S8, S9. S4 (assignment inside `and`/`or`) is registered in `checkRegistry.ts` but never implemented. |
-| Validation speed, 1,300-line script | ~12ms (budget: 100ms) |
-| `ComprehensiveValidator` | still broken — throws `ast.body is not iterable`, import removed from `extension.ts` |
+| `npm test` | 359 tests · 358 pass · 1 skip · 0 fail |
+| `npm run audit` | 20 pass · 1 warn (v6 reference re-crawl due) · 0 fail |
+| Golden corpus | 4 tracked fixtures + 7 gitignored `examples/*.pine`, 0 errors |
+| Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) |
+| Diagnostic sources | AccurateValidator, documentChecks, engine semantic checks; the editor, `validate-cli.js` and the MCP server all run all three |
+| VSIX | packaged, extracted and executed on 2026-09-23: entry resolves, engine loads |
 
-`npm run audit`'s two warnings: README does not mention every point release the moment
-it ships (mechanical drift, not a defect), and the v6 reference dataset was scraped
-2025-10-03 (354 days old) — `MODERN_V6_FUNCTIONS` in `v6/parameter-requirements.ts`
-covers the gap by hand, but a re-crawl is due (tracked as issue #6).
+## Open pull requests (stacked, merge in order)
 
-## In progress on this branch
+1. **#27** — S1 positional lookahead (#24); docs reorganised; operating model seeded. Reviewed: Kimi PASS.
+2. **#28** — S10 external-feed hint (#25); `request.security` arity (#26); `request.footprint` signature. Reviewed: Kimi PASS.
+3. **`chore/prune-legacy-repair`** — see below.
 
-S1 false positive on a positional `lookahead` argument (issue #24) — `checkRepainting`
-in `packages/validator/src/semanticChecks.ts` now also recognises
-`barmerge.lookahead_off`/`_on` passed positionally, not just as `lookahead=`. One real
-script shipped 26 false warnings under the named-only check. Uncommitted as of this
-entry; see `git diff packages/validator/src/semanticChecks.ts`.
+## 2026-09-23 — repair and prune
 
-## The central architectural decision (still unresolved)
+Operator instruction: repair what is useful, prune legacy, dated and irrelevant code and docs.
 
-Three diagnostic sources ship; two older validators are dead. `AccurateValidator` is
-regex-over-lines with no AST, so type inference cannot be added to it directly — that
-is why the roadmap's type-system, control-flow and expression-parsing items are
-blocked rather than merely unstarted. Two options, unchanged since the last review:
-repair the AST path (`parser.ts` → `ComprehensiveValidator`) and migrate, or delete
-the dead validator stack and market the extension on what it does well. See
-`ROADMAP.md` → "Blocked" for the full framing. This is a product decision, not a
-technical one, and it has not been made.
+| Change | Proof |
+|---|---|
+| `timestamp()` overloads (#9, #14) | regression cases: all three shapes silent, eight arguments flagged |
+| Function parameters declared (#16) | regression cases: typed, generic, defaulted params silent; an undefined name in a body still flagged |
+| `barcolor` added to S7 (#11) | regression cases: in `if` flagged, ternary at global scope silent |
+| `enum`, `footprint`, `volume_row` highlighted (#10) | grammar rule, no hit on `enumerate` |
+| MCP server runs S1-S10 as well | stdio boot, `tools/list`, S1 returned on a repro |
+| Deleted: AST validator stack (7 files), `dev-tools/` (28 files), 5 dead test scripts and metrics, `mcp/validator-server.js` (required a missing file), `mcp/Dockerfile`, root `settings.json`, 4 orphaned `v6/` data files | nothing imports them; tests, audit, typecheck green |
+| `npm run build` cleans `dist/` first | five dead compiled modules had been shipping in the VSIX |
+| Closed as already fixed: #7, #8, #15 | each repro validated clean on 2026-09-23 |
 
-**Known architectural debt:** the syntactic validator and the v6 dataset exist in both
-`src/parser/`+`v6/` and the engine package (`packages/validator/`).
-`test/engine-parity.test.js` fails the build if they drift, but migrating them fully to
-the package — as the semantic checks already are — is outstanding.
+## Sitrep 2026-09-23 — findings the tables above do not show
 
-## Known issues
+| Finding | Evidence |
+|---|---|
+| `main` has not moved since 2026-08-08; every change since sits in three stacked PRs | `git log -1 origin/main -- STATUS.md` → 2026-08-08; #27 → main, #28 → #27, #29 → #28 |
+| Full CI runs only on PRs targeting `main`: #28 and #29 have run PR Validation only | `gh pr checks 28/29`; `ci.yml` `pull_request.branches: [main]`. Each gets the full run when retargeted; local gates (363 tests, audit, VSIX) cover the gap meanwhile |
+| `main` has no branch protection | `gh api …/branches/main/protection` → "Branch not protected" |
+| `npm audit` in CI is advisory (`\|\| true`) | `ci.yml:175` |
+| Two stale PRs: #18 (secret-ignore rules, conflicting; its missing patterns now folded into #29) and #2 (2025-10-06 analysis-only, 1,648 lines of docs about the deleted AST path) | `gh pr view 18/2` |
+| Users run 0.6.2 / engine 0.3.0; 1,532 installs | Marketplace gallery API; `npm view pinescript-v6-validator` |
 
-- `ComprehensiveValidator` crashes on valid input; unusable until the AST path above
-  is repaired or the validator is deleted.
-- The v6 reference dataset is a point-in-time scrape (2025-10-03); `v6/scripts/` (the
-  crawler) is gitignored, so re-crawling requires local tooling not in version control
-  (issue #6).
-- 16 open GitHub issues, none yet triaged into a milestone beyond `ROADMAP.md`'s
-  informal ordering. See `ROADMAP.md` for the full list and grouping.
+## Operator decision board
+
+| Decision | Cost | Reversible | Recommendation |
+|---|---|---|---|
+| Merge #27, #28, then #29 (retarget each to `main` as the one below lands, so full CI runs) | cheap | yes | do it in that order |
+| Publish `pinescript-v6-validator@0.4.0`, bump the dependency, release 0.6.3 | cheap | one-way (npm, Marketplace) | do it after the merges; users still see the S1, footprint and timestamp false positives until then |
+| Confirm the six inferred fields in `docs/operating-model/PROJECT-OPERATING-PROFILE.md` | cheap | yes | needed before the profile can be `active` |
+| Re-crawl the v6 reference (#6) | costly | yes | next; two of today's bugs came from the stale scrape |
+| Close stale PRs #18 (superseded) and #2 (describes deleted code) | cheap | yes | close both |
+| Turn on branch protection for `main` (require CI) | cheap | yes | do it; green checks are advisory without it |
 
 ## Related projects
 
@@ -65,10 +66,8 @@ the package — as the semantic checks already are — is outstanding.
 
 ## What waits on whom
 
-- **JP**: the AST-path product decision above (repair vs. delete); re-crawl scheduling
-  for the v6 reference.
-- **Next contributor session**: after #24 merges and engine 0.3.1 is published, work
-  the "Not started" list in `ROADMAP.md` in the order it recommends (#25 and #26 first).
+- **JP**: the merges, the publish and release, the profile confirmation.
+- **Next session**: the #6 re-crawl, then remove the duplicated syntactic validator (import it from the engine).
 
 ## Repository hygiene
 
@@ -77,32 +76,3 @@ committed corpus (`test/fixtures/corpus/`) is synthetic and verified to fail whe
 bugs it targets are reintroduced, so the CI gate is real without exposing trading logic.
 Never move a file from `examples/` into the committed corpus list —
 `test/golden-corpus.test.js` asserts against exactly that.
-
-## Session 2026-09-22
-
-Branch `feat/audit-s1-lookahead-docs-operating-model`, gates at the last commit: `npm test`
-310 / 309 pass / 1 skip / 0 fail · `npm run audit` 20 pass · 1 warn · 0 fail · `tsc --noEmit`
-clean · operating-model validator PASS (3 seed warnings by design).
-
-| Delivered | Proof |
-|---|---|
-| S1 recognises a positional `lookahead` argument (#24); engine 0.3.1 built, not yet published | nine paired regression cases (including nested-call cases from the council review); a 26-call real script goes 26 → 0 warnings on `--local-engine` |
-| `validate-cli.js` prints which engine ran; `--local-engine` runs the working tree | banner line; hook pipe-tested |
-| Docs pruned and reorganised; 16 contradictions fixed; root ROADMAP.md created | link check 0 broken; audit README-version WARN cleared |
-| join-the-team operating model 2.1.0 seeded and grounded (`docs/operating-model/`) | validator PASS; 9 inferred fields flagged for JP |
-| Filed #25 (S10 `ignore_invalid_symbol` hint), #26 (`request.security` arity gap) | issues carry scope, DoD, proof |
-| Independent review of the engine change: Codex REJECT → two fixes → Kimi delta PASS; push-time Gemini CLEAN ×3 | record on PR #27 |
-| S10 built (#25): info hint for a hard-coded external feed with no `ignore_invalid_symbol`; engine 0.4.0 on `feat/s10-external-feed-hint` | 18 paired unit tests, 2 corpus cases; 23 hits on the pre-fix dashboard, 0 on the hardened one, 0 across corpus and examples |
-| `request.security` arity override (#26): symbol, timeframe, expression required | 5 paired tests; corpus 0 errors |
-| `request.footprint()` manual entry corrected to `(ticks_per_row, va_percent?, imbalance_percent?)`; the guessed `(symbol, timeframe, …)` flagged valid calls | paired tests both ways; surfaced by the S10 review |
-| FRED TGA alternatives proved: `FRED:WDTGAL` and `FRED:D2WLTGAL` (Wednesday level) resolve in TradingView symbol search and are live on FRED to 2026-09-16 | script now falls back to WDTGAL and labels the source |
-
-### Operator decision board
-
-| Decision | Cost | Reversible | Recommendation |
-|---|---|---|---|
-| Publish `pinescript-v6-validator@0.3.1` to npm, bump `package.json` to `^0.3.1`, release 0.6.3 | cheap | one-way (npm) | do it; until then the VSIX and the CLI default ship 0.3.0 with the S1 false positive |
-| Confirm the 9 `inferred` fields in `docs/operating-model/PROJECT-OPERATING-PROFILE.md` and set `active` | cheap | yes | needed before R2/R3 work claims the operating model |
-| Build S10 (#25) as an info-level hint | costly | yes | next engine change; it is the check this session's runtime error asked for |
-| Fix the `request.security` arity data gap (#26) via a manual override | cheap | yes | do with S10 |
-| Schedule the v6 reference re-crawl (dataset from 2025-10-03; audit WARN) | costly | yes | after the December-2025 release-notes review |

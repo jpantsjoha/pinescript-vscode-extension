@@ -131,7 +131,7 @@
         },
         {
           "name": "keyword.other.pine",
-          "match": "\\b(method|type)\\b"
+          "match": "\\b(method|type|enum)\\b"
         }
       ]
     },
@@ -155,7 +155,7 @@
         },
         {
           "name": "support.type.object.pine",
-          "match": "\\b(line|label|box|table|array|matrix|map|polyline)\\b"
+          "match": "\\b(line|label|box|table|array|matrix|map|polyline|footprint|volume_row)\\b"
         },
         {
           "name": "support.type.special.pine",
