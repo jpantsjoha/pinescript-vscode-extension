@@ -156,6 +156,9 @@ function parse(html, previous = {}) {
   for (const f of functions) {
     const prior = byName.get(f.name);
     if (!prior) { byName.set(f.name, f); continue; }
+    // Variadic in ANY page entry means variadic: a fixed maximum would flag valid calls.
+    if (f.variadic && !prior.variadic) { prior.variadic = true; prior.syntax = f.syntax; prior.overloads = [prior.overloads[0]]; continue; }
+    if (prior.variadic) continue;
     const keys = new Set(prior.overloads.map(o => [...o.requiredParams, ...o.optionalParams].join(',')));
     for (const o of f.overloads) {
       const k = [...o.requiredParams, ...o.optionalParams].join(',');
@@ -231,6 +234,11 @@ function loadPrevious() {
   // Load the compiled previous dataset if present, else parse names only.
   const compiled = path.join(ROOT, 'dist/v6/parameter-requirements-generated.js');
   if (fs.existsSync(compiled)) return require(compiled).PINE_FUNCTIONS;
+  // Without the prior dataset the continuity rule cannot run, and every form falls
+  // back to "first parameter required": no false positive, but real-error detection
+  // (e.g. matrix.get(m)) is lost. Say so rather than degrade silently.
+  console.warn('WARNING: dist/v6/parameter-requirements-generated.js not found — run `npm run build` first,');
+  console.warn('         or prior required sets cannot be carried over.');
   return {};
 }
 
