@@ -1,8 +1,8 @@
 # Project Status
 
 **Updated**: 2026-09-23
-**Marketplace version**: 0.6.2 · **Installs**: 1,530 · **Rating**: 4.45★ (gallery API, 2026-09-22)
-**Engine on npm**: `pinescript-v6-validator@0.3.0` (2026-08-08). 0.4.0 is built, not published.
+**Marketplace version**: 0.6.3 (live 2026-09-23 15:44 UTC) · **Installs**: 1,530 · **Rating**: 4.45★ (gallery API, 2026-09-22)
+**Engine on npm**: `pinescript-v6-validator@0.4.0` (published 2026-09-23).
 
 ## Where this stands
 
@@ -21,16 +21,9 @@
 full CI run (6/6 checks). Issues #9 #10 #11 #14 #16 #24 #25 #26 closed. Stale PRs #18 and
 #2 closed. Branch protection on `main`: 5 required checks, no force pushes, admins exempt.
 
-**Release blocked on one credential step.** `npm whoami` returns 401: the token in
-`~/.npmrc` is dead. Engine 0.4.0 must be on npm before the extension can depend on it.
-
-```bash
-npm login                                   # JP, interactive
-cd packages/validator && npm publish         # pinescript-v6-validator@0.4.0
-cd ../.. && npm install pinescript-v6-validator@^0.4.0
-# bump package.json to 0.6.3, CHANGELOG [Unreleased] -> [0.6.3] - <date>, README version
-# PR, merge, then: git tag v0.6.3 && git push origin v0.6.3  (publish.yml ships it)
-```
+**Released 2026-09-23.** Engine 0.4.0 on npm; extension 0.6.3 via PR #31 (`419b667`) and tag
+`v0.6.3`. Publish and Release workflows green; Marketplace reports 0.6.3; GitHub release
+carries the VSIX.
 
 ## 2026-09-23 — repair and prune
 
@@ -69,7 +62,6 @@ publish 0.4.0, unify the engine, re-crawl the reference, overload-aware signatur
 
 | Decision | Cost | Reversible | Recommendation |
 |---|---|---|---|
-| `npm login`, publish engine 0.4.0, release 0.6.3 (commands above) | cheap | one-way | do it; eight fixed issues wait on it |
 | Confirm the six inferred fields in the operating profile | cheap | yes | 10 minutes; unlocks `active` |
 | Re-crawl the v6 reference (#6) | costly | yes | next engineering item |
 

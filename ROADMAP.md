@@ -22,7 +22,7 @@ progress** · **shipped**.
 | 9 | Accumulator lifetime — S3 (`var` total never reset, or missing `var` reset every bar) | 0.6.2 |
 | 10 | Engine extracted to its own npm package (`pinescript-v6-validator`), shared with the agent plugin | 0.6.1 |
 
-## Built, awaiting merge and release (engine 0.4.0, extension 0.6.3)
+## Shipped in 0.6.3 (2026-09-23, engine 0.4.0)
 
 | Item | Issue | Branch / PR |
 |---|---|---|
@@ -67,11 +67,10 @@ from scratch. Git history keeps the old code.
 
 ## Next up (recommended order)
 
-1. Merge #27, #28 and the prune branch; publish engine 0.4.0; release 0.6.3.
-2. Re-crawl the v6 reference (#6). The `request.footprint` and `timestamp` bugs both
+1. Re-crawl the v6 reference (#6). The `request.footprint` and `timestamp` bugs both
    came from the stale dataset.
-3. Remove the duplicated syntactic validator (import it from the engine).
-4. #13 named-parameter IntelliSense, then the narrow #12 cast rule.
+2. Remove the duplicated syntactic validator (import it from the engine).
+3. #13 named-parameter IntelliSense, then the narrow #12 cast rule.
 
 ## Related
 
