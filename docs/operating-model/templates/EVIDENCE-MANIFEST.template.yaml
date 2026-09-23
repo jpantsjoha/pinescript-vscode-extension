@@ -1,0 +1,40 @@
+schema_version: 1.0.0
+task_id: <stable-id>
+operating_contract:
+  manual_version: 2.1.0
+  manual_sha256: <digest>
+  profile_path: docs/operating-model/PROJECT-OPERATING-PROFILE.md
+base_sha: <full-sha>
+candidate:
+  identity_type: <commit|tree|manifest>
+  sha_or_digest: <full-sha-or-sha256-digest>
+  captured_at: <ISO-8601-timestamp>
+environment:
+  operating_system: <name-and-version>
+  runtime: <language-and-version-or-not-applicable>
+  tool_versions: {}
+commands:
+  - command: <exact-command>
+    exit_code: <integer>
+    started_at: <ISO-8601-timestamp>
+    finished_at: <ISO-8601-timestamp>
+    output_artifact: <path-or-not-applicable>
+data_provenance: []
+artifacts: []
+review:
+  candidate_sha_or_digest: <same-candidate-identity>
+  reviewers:
+    - role: <independent-role>
+      identity_or_attestation: <trusted-identity-or-local-self-assertion-caveat>
+      verdict: <PASS|PASS_WITH_CONDITIONS|REJECT|BLOCKING>
+      reviewed_at: <ISO-8601-timestamp>
+  open_conditions: []
+delivery:
+  destination: <destination-or-not-applicable>
+  delivered_identity: <full-sha-digest-or-not-applicable>
+  observed_signals: []
+rollback:
+  owner: <owner>
+  method: <method>
+  trigger: <trigger>
+limitations: []

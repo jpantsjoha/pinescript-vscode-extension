@@ -1,6 +1,6 @@
 # Project Agent Contract
 
-This file is the discovery adapter for assistants that read `GEMINI.md`. Keep surface-only
+This file is the discovery adapter for assistants that read `AGENTS.md`. Keep surface-only
 notes outside the protected contract block.
 
 <!-- operating-model-contract:start -->
@@ -20,7 +20,4 @@ Read `docs/operating-model/OPERATING-MANUAL.md` and
 - Baseline team skills live under `.agents/skills/`; route by capability, not provider syntax.
 <!-- operating-model-contract:end -->
 
-Gemini-specific invocation may vary. It may not weaken the protected contract above.
-
-Pine Script v6 domain context for Gemini lives in `docs/guides/ai-assistant-context.md`;
-the project constitution is `CLAUDE.md`.
+Surface-specific invocation may vary. It may not weaken the protected contract above.

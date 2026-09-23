@@ -1,8 +1,15 @@
 # Pine Script v6 Validator Enhancement Roadmap
 
+**Archived 2026-09-22.** Superseded by [`ROADMAP.md`](../../ROADMAP.md) at the repo
+root. The "Current ~70% → target 95% TradingView parity" figures below were never
+measured — no corpus, no TradingView error archive, no parity script ever existed —
+treat every percentage in this document as unsupported. Kept for its gap analysis,
+which is still an accurate description of what `AccurateValidator` does and does not
+check.
+
 **Date**: 2025-10-15
 **Version**: 2.0.0 (Comprehensive Validation)
-**Based on**: GEMINI.md Pine Script v6 Expert System
+**Based on**: GEMINI.md Pine Script v6 Expert System (now `docs/guides/ai-assistant-context.md`)
 
 ---
 

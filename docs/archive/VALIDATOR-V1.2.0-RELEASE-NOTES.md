@@ -1,5 +1,11 @@
 # Pine Script v6 Validator v1.2.0 - Release Notes
 
+**Archived 2026-09-22.** This internal "validator version" scheme (separate from the
+extension's `package.json` version) was retired — see `STATUS.md`'s "version
+namespace confusion" history. The multi-line and ternary checks described here
+shipped in extension v0.5.0; see [`CHANGELOG.md`](../../CHANGELOG.md) for the
+current, single version history.
+
 **Release Date**: 2025-10-15
 **Version**: 1.2.0 (Multi-Line Validation)
 **Previous Version**: 1.0.0 (Function Signatures Only)

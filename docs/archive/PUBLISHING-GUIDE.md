@@ -1,5 +1,11 @@
 # Publishing Guide: Pine Script v6 Extension
 
+**Archived 2026-09-22.** Repo-specific release steps now live in
+[`docs/guides/RELEASE-RUNBOOK.md`](../guides/RELEASE-RUNBOOK.md); generic
+`vsce`/Marketplace mechanics live in the global `vscode-extension-publisher` skill.
+Kept here for the Azure DevOps PAT / publisher-setup walkthrough, which is still
+accurate but a one-time setup step most releases never repeat.
+
 Complete guide to publishing this VSCode extension to the Visual Studio Marketplace.
 
 ---

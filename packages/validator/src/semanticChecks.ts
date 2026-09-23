@@ -162,8 +162,66 @@ function checkGlobalScopeOnly(lines: string[]): ValidationError[] {
  * cited defect in Pine.
  *
  * Silent when the author has shown they considered it — either `close[1]` or an
- * explicit `lookahead=` argument. Stating the intent is what makes it deliberate.
+ * explicit lookahead argument, named (`lookahead=barmerge.lookahead_off`) or
+ * positional (`barmerge.lookahead_off` as the fifth argument, the form TradingView's
+ * own reference examples use). Stating the intent is what makes it deliberate.
  */
+/**
+ * The outer call's own top-level arguments, with any NESTED request.*() call masked
+ * out. Pine allows `request.security(A, "W", request.security(B, "D", close, ...))`;
+ * the inner call's `barmerge.lookahead_off` or `close[1]` must not exempt the outer
+ * one. The inner call is assessed on its own when the scanner reaches it.
+ */
+function topLevelArgs(args: string): string[] {
+  let masked = '';
+  let i = 0;
+  while (i < args.length) {
+    const m = /^request\.[a-zA-Z_]+\s*\(/.exec(args.slice(i));
+    const prev = i > 0 ? args[i - 1] : '';
+    if (m && !/[a-zA-Z0-9_.]/.test(prev)) {
+      let depth = 0;
+      let quote = '';
+      let j = i + m[0].length - 1;
+      for (; j < args.length; j++) {
+        const ch = args[j];
+        if (quote) {
+          if (ch === '\\') { j++; continue; }
+          if (ch === quote) quote = '';
+          continue;
+        }
+        if (ch === '"' || ch === "'") { quote = ch; continue; }
+        if (ch === '(' || ch === '[') depth++;
+        else if (ch === ')' || ch === ']') { depth--; if (depth === 0) break; }
+      }
+      masked += '__nested__';
+      i = j + 1;
+      continue;
+    }
+    masked += args[i];
+    i++;
+  }
+  const out: string[] = [];
+  let depth = 0;
+  let quote = '';
+  let cur = '';
+  for (let k = 0; k < masked.length; k++) {
+    const ch = masked[k];
+    if (quote) {
+      cur += ch;
+      if (ch === '\\') { cur += masked[++k] ?? ''; continue; }
+      if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '"' || ch === "'") { quote = ch; cur += ch; continue; }
+    if (ch === '(' || ch === '[') depth++;
+    else if (ch === ')' || ch === ']') depth--;
+    if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; continue; }
+    cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
 function checkRepainting(lines: string[]): ValidationError[] {
   const findings: ValidationError[] = [];
   const pattern = /(?<![a-zA-Z0-9_.])request\.security(?:_lower_tf)?\s*\(/g;
@@ -180,31 +238,50 @@ function checkRepainting(lines: string[]): ValidationError[] {
         // but nothing ever did — so every wrapped request.security escaped the
         // check, and wrapping is the COMMON formatting for this function.
         // Join forward until the parens balance.
+        // Stop at the paren that closes THIS call, not the last one on the closing
+        // line: `f(request.security(\n sym,\n "D",\n close), close[1])` used to take
+        // `, close[1]` into the arguments and exempt the call (review probe, 2026-09-22).
         let joined = text.slice(open);
         let depth = 0;
-        for (const ch of joined) {
-          if (ch === '(' || ch === '[') depth++;
-          else if (ch === ')' || ch === ']') depth--;
-        }
-        for (let j = i + 1; j < lines.length && depth > 0; j++) {
-          joined += '\n' + lines[j];
-          for (const ch of lines[j]) {
+        let endIdx = -1;
+        const scan = (chunk: string, offset: number): boolean => {
+          for (let k = 0; k < chunk.length; k++) {
+            const ch = chunk[k];
             if (ch === '(' || ch === '[') depth++;
-            else if (ch === ')' || ch === ']') depth--;
+            else if (ch === ')' || ch === ']') {
+              depth--;
+              if (depth === 0) { endIdx = offset + k; return true; }
+            }
           }
+          return false;
+        };
+        let closed = scan(joined, 0);
+        for (let j = i + 1; j < lines.length && !closed; j++) {
+          const offset = joined.length + 1;
+          joined += '\n' + lines[j];
+          closed = scan(lines[j], offset);
         }
-        if (depth > 0) continue;          // never closes — a syntax error, not ours
-        args = joined.slice(1, joined.lastIndexOf(')'));
+        if (!closed) continue;            // never closes — a syntax error, not ours
+        args = joined.slice(1, endIdx);
       } else {
         args = text.slice(open + 1, close);
       }
 
-      // An explicit lookahead is a deliberate decision, whichever way it goes.
-      if (/\blookahead\s*=/.test(args)) continue;
+      // Only the outer call's OWN arguments count. A nested request.*() decides for
+      // itself; scoring the whole balanced region let an inner call's lookahead_off
+      // or close[1] silence an outer call that had decided nothing (review, 2026-09-22).
+      const top = topLevelArgs(args);
 
-      // A history offset anywhere in the expression means the author is reading a
-      // settled bar: close[1], hlc3[1], ta.sma(close, 14)[1] all qualify.
-      if (/\[\s*\d+\s*\]/.test(args)) continue;
+      // An explicit lookahead is a deliberate decision, whichever way it goes: named
+      // anywhere, or positional in the FIFTH slot — the form TradingView's own
+      // examples use. The named-only test shipped 26 false warnings on one
+      // 1,489-line script whose every call passed it positionally (2026-09-22).
+      if (top.some(a => /^lookahead\s*=/.test(a))) continue;
+      if (top.length >= 5 && /^barmerge\.lookahead_(?:on|off)$/.test(top[4])) continue;
+
+      // A history offset in the outer call's own arguments means the author is
+      // reading a settled bar: close[1], hlc3[1], ta.sma(close, 14)[1] all qualify.
+      if (top.some(a => /\[\s*\d+\s*\]/.test(a))) continue;
 
       findings.push(makeFinding('S1', i + 1, match.index, 16,
         'Reading the current, still-forming higher-timeframe bar. Use close[1] or pass lookahead=barmerge.lookahead_off explicitly.'));

@@ -1,0 +1,44 @@
+schema_version: 1.0.0
+task_id: <stable-id>
+objective: <one-sentence outcome>
+artifact_and_decision: <artifact and downstream decision/action>
+operating_contract:
+  manual_version: 2.1.0
+  manual_sha256: <digest>
+  profile_path: docs/operating-model/PROJECT-OPERATING-PROFILE.md
+risk_tier: <R0|R1|R2|R3>
+highest_silent_failure: <failure and blast radius>
+authority:
+  granted_by: <human/role>
+  allowed_actions: []
+  excluded_actions: []
+governing_sources: []
+base_sha: <full-sha>
+candidate_sha_or_tree_digest: <full-sha-or-sha256-digest>
+integration:
+  owner: <owner>
+  branch: <branch>
+  worktree: <absolute-path>
+  merge_order: []
+lanes:
+  - owner: <owner>
+    branch: <branch>
+    worktree: <absolute-path>
+    owned_files: []
+    owned_resources: []
+    success_test: <command-or-observable>
+decisions: []
+evidence_required:
+  manifest_path: docs/operating-model/evidence/<task-id>.yaml
+  commands: []
+  data_provenance: []
+  review_roles: []
+docs_impact: []
+delivery:
+  destination: <destination>
+  observation: <signals-and-window>
+rollback: <method-and-owner>
+cost_and_time_ceiling: <limit>
+state: <INTAKE|GROUNDED|RISK_CLASSIFIED|AUTHORIZED|PLANNED|ISOLATED|IMPLEMENTED|LOCALLY_VERIFIED|INTEGRATED|CONVERGENCE_VERIFIED|INDEPENDENTLY_REVIEWED|APPROVED|DELIVERED|OBSERVED|COMPLETE|BLOCKED|ABORTED|SUPERSEDED>
+open_conditions: []
+next_action: <single-next-step>

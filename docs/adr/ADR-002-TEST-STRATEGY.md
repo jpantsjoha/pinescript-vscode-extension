@@ -5,6 +5,14 @@
 **Related**: ADR-001 (Validation Strategy)
 **Version**: 0.3.0
 
+> **2026-09-22 note:** "Layer 2" below, `test/comprehensive-validation-test.js`, was
+> never built under that name and does not exist in the current tree. Its role — a
+> standalone, VS-Code-free check against known good/bad code — is filled today by
+> `test/golden-corpus.test.js` and `test/benchmark.test.js`. The "41 tests" figures
+> throughout this ADR describe the suite as it stood in October 2025; run `npm test`
+> for the current count. Left as originally written below — this is a decision
+> record, not a live spec.
+
 ---
 
 ## Context
@@ -361,9 +369,10 @@ jobs:
 ## References
 
 - [ADR-001: Validation Strategy](./ADR-001-VALIDATION-STRATEGY.md)
-- [CLAUDE.md Project Directives](../CLAUDE.md)
-- [Benchmark Tests](../test/benchmark.test.js)
-- [Comprehensive Test](../test/comprehensive-validation-test.js)
+- [CLAUDE.md Project Directives](../../CLAUDE.md)
+- [Benchmark Tests](../../test/benchmark.test.js)
+- `test/comprehensive-validation-test.js` no longer exists — superseded by
+  [Golden Corpus Tests](../../test/golden-corpus.test.js)
 
 ---
 

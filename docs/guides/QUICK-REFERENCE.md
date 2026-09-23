@@ -4,10 +4,10 @@
 
 ```bash
 # Test the extension NOW:
-cd Pine-Script-Extension
+cd pinescript-vscode-extension
 code .
 # Press F5
-# Open: examples/test-v6-features.pine
+# Open any .pine file under test/fixtures/corpus/ (examples/ is gitignored, local-only)
 ```
 
 ---
@@ -255,17 +255,16 @@ fill(plot1, plot2, color)
 
 ## 📊 Coverage Stats
 
-- **240+ functions** with docs
-- **63 variables** with types
-- **8 namespaces** fully covered
-- **50+ TA indicators**
+- **457+ functions** with autocomplete
+- **31 constant namespaces**, **22 function namespaces**
+- **6,665 language constructs** total (see `../../README.md` for the full breakdown)
 - **Zero config** needed
 
 ---
 
 ## 🎓 Learning Path
 
-1. **Start here**: Open `examples/test-v6-features.pine`
+1. **Start here**: open any `.pine` file under `test/fixtures/corpus/`
 2. **Try typing**: `ta.` and explore functions
 3. **Test signature help**: Type `ta.sma(` and see hints
 4. **Read hover docs**: Hover over any function
@@ -276,10 +275,8 @@ fill(plot1, plot2, color)
 
 ## 🔗 Quick Links
 
-- **Test File**: `examples/test-v6-features.pine`
-- **Full README**: `README-NEW.md`
-- **Success Summary**: `SUCCESS-SUMMARY.md`
-- **Roadmap**: `IMPLEMENTATION-ROADMAP.md`
+- **Full README**: [../../README.md](../../README.md)
+- **Roadmap**: [../../ROADMAP.md](../../ROADMAP.md)
 
 ---
 

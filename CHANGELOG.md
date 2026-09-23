@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### 🐛 S1 warned on every `request.security()` that passed `lookahead` positionally
+
+`request.security(sym, "W", expr, barmerge.gaps_off, barmerge.lookahead_off)` — the
+fifth argument *is* the lookahead, and it is the form TradingView's own reference
+examples use. S1 recognised only the named spelling `lookahead=`, so a 1,489-line
+macro dashboard that stated its intent on all 26 of its calls got 26 warnings telling
+it to do what it had already done.
+
+Fixed in `pinescript-v6-validator@0.3.1`: both spellings count as a decision. Four
+regression-corpus cases: positional `lookahead_off`, the same on a tuple request,
+positional `lookahead_on` (an explicit if unwise decision, matching the named form),
+and the paired "still flags" case — `barmerge.gaps_off` alone says nothing about
+lookahead and must keep warning. Issue #24.
+
+The independent review (Codex lane) caught a hole in the first cut: the exemption
+regexes ran over the whole balanced argument region, so a nested
+`request.security(B, "D", close, …, barmerge.lookahead_off)` inside the expression
+argument silenced an outer call that had decided nothing — and the older `close[1]`
+exemption had the same blind spot. Only the outer call's own top-level arguments
+count now; three nested-call cases lock it, one of them the paired negative. A lane
+probing that fix found an older miss: a wrapped call's arguments were cut at the LAST
+closing paren on the closing line, so an offset on a sibling argument of the enclosing
+call leaked in and exempted it. Fixed, two more paired cases.
+
+The extension picks this up when the engine is published and the dependency bumped
+to `^0.3.1`; until then the VSIX ships 0.3.0.
+
+### 🔧 `validate-cli.js` says which engine it ran, and can run the local one
+
+The CLI, the pre-commit hook and the VSIX all load the *published* engine from
+`node_modules` — deliberately, because "correct in the source tree, broken in the
+published artefact" is this project's recurring failure. The cost: a fix in
+`packages/validator/src` is invisible to the CLI until the engine ships. `npm test`
+was green on the S1 fix while the CLI still printed 26 warnings.
+
+The CLI now prints `semantic checks: engine 0.3.0 (published: node_modules)` before
+every run, and `--local-engine` (or `PINE_ENGINE=local`) runs the working-tree build.
+
+### 📚 Documentation pruned and reorganised; team operating model adopted
+
+Thirty-one markdown files audited against the code. Sixteen contradictions fixed —
+among them: test count (169 → 310), README install snippet (0.6.1 → 0.6.2), STATUS
+header (0.6.0 / engine 0.2.0 → 0.6.2 / 0.3.0), the engine README's semantic-check
+table missing S3, CONTRIBUTING telling people to use pnpm, the MCP guide describing a
+server that runs the dead `ComprehensiveValidator` (it runs `AccurateValidator` plus
+`documentChecks`), and eight links to files that no longer exist.
+
+Root now holds only README, CHANGELOG, STATUS, ROADMAP (new — build order with issue
+numbers and built/gated/shipped state), CLAUDE.md, AGENTS.md, GEMINI.md and LICENSE.
+ADRs live in `docs/adr/`, guides in `docs/guides/`, point-in-time release notes and
+the 2025 roadmap in `docs/archive/` with a superseded-by header. Moves are `git mv`,
+so history follows.
+
+`docs/operating-model/` carries the join-the-team operating manual 2.1.0 and a
+grounded project profile (adoption status `seed`; nine inferred fields await JP's
+confirmation before `active`). `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` carry the
+shared contract block; `docs/VISION.md` states the product intent.
+
+### 📋 Filed, not built
+
+- #25 — S10 proposal: a hard-coded external feed (`"FRED:…"`, `"ECONOMICS:…"`) with no
+  `ignore_invalid_symbol` compiles cleanly and still halts at runtime with
+  `Permission denied for symbol` when the viewer's plan cannot read it. Info-level hint.
+- #26 — data gap: the scraped entry for `request.security` marks `timeframe` and
+  `expression` optional, so `request.security("X")` is not flagged (a missed error).
+
 ## [0.6.2] - 2026-08-08
 
 ### ✨ S3 — accumulator lifetime, found in the field
@@ -675,8 +743,8 @@ This release represents a **major quality milestone** with complete elimination 
 ## Support
 
 - **Documentation**: [README.md](./README.md)
-- **Testing Guide**: [ADR-002-TEST-STRATEGY.md](./docs/ADR-002-TEST-STRATEGY.md)
-- **Sync Strategy**: [ADR-003-TRADINGVIEW-SYNC-STRATEGY.md](./docs/ADR-003-TRADINGVIEW-SYNC-STRATEGY.md)
+- **Testing Guide**: [ADR-002-TEST-STRATEGY.md](./docs/adr/ADR-002-TEST-STRATEGY.md)
+- **Sync Strategy**: [ADR-003-TRADINGVIEW-SYNC-STRATEGY.md](./docs/adr/ADR-003-TRADINGVIEW-SYNC-STRATEGY.md)
 
 ---
 
