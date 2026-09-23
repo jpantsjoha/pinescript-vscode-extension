@@ -24,7 +24,7 @@ Search for **"Pine Script v6 IDE Tools"** in VS Code Extensions or [install dire
 ### Or Install from VSIX
 Download the latest `.vsix` from [Releases](https://github.com/jpantsjoha/pinescript-vscode-extension/releases) and install:
 ```bash
-code --install-extension pinescript-v6-extension-0.6.2.vsix
+code --install-extension pinescript-v6-extension-0.6.3.vsix
 ```
 
 ---
@@ -116,7 +116,25 @@ The extension works out of the box with zero configuration. All Pine Script v6 f
 
 ---
 
-## 📊 What's New in v0.6.2
+## 📊 What's New in v0.6.3
+
+### Fewer false positives
+- `request.security()` with a positional `lookahead` argument is no longer warned as repainting.
+- `timestamp()` accepts every documented form, including date and time components with a timezone.
+- Function parameters (including user-defined types) are no longer reported as undefined.
+
+### Catch scripts that compile but still fail on the chart
+- **S10** hints when a hard-coded external feed such as `"FRED:WTREGEN"` has no
+  `ignore_invalid_symbol`. Without it, the whole script halts with
+  `Permission denied for symbol` on any plan that cannot read that feed.
+- `request.security("X")` without a timeframe and expression is now an error, as on TradingView.
+- `barcolor()` inside an `if` is flagged as a scope error.
+
+### Editor and package
+- `enum` keyword highlighting.
+- A leaner package: an unused validator and stale compiled files removed.
+
+## 📊 Earlier: v0.6.2
 
 ### Accumulator lifetime — found in the field
 A `var` total a loop re-adds to every bar and never resets grows for the life of
@@ -247,4 +265,4 @@ Special thanks to:
 
 **Full Language Coverage**: 6,665 Pine Script v6 constructs
 **Test Coverage**: a regression suite and golden corpus — run `npm test`
-**Current Version**: 0.6.2
+**Current Version**: 0.6.3
