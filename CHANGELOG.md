@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### 🔄 Pine v6 reference re-crawled (2026-09-23)
+
+- **18 new functions recognised:** `request.footprint` and the `footprint.*` and
+  `volume_row.*` families (January 2026). Calls to them no longer show "Undefined function".
+- **Every overload captured.** The old crawl kept one form per function, so valid calls such
+  as `ta.vwap(src, anchor, stdev_mult)`, `time(tf, session, tz, bars_back)` and the
+  coordinate form of `line.new` could be flagged "Too many arguments". 21 functions now
+  accept their full documented forms.
+- **Hand-verified entries follow the reference.** Every `input.*()` accepts `display`, and
+  `plotcandle()`/`plotbar()` accept `format` and `precision`.
+- Still caught: too many arguments, missing required arguments (`matrix.get(m)`), unknown
+  members (`footprint.nosuch`).
+- The crawler is now part of the repository: `npm run crawl` (#6).
+
 ## [0.6.3] - 2026-09-23
 
 Fewer false positives, two new checks for scripts that compile but still fail on the
