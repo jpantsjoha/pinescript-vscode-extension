@@ -251,7 +251,7 @@ export class AccurateValidator {
 
   /**
    * Split a parameter list on top-level commas; `map<string, float> m` is ONE parameter.
-   * A `<` opens a generic only when it follows a type name directly (`array<`, `map<`);
+   * A `<` opens a generic only after `array`, `matrix`, `map` or `new` (Pine's only generics);
    * a `>` closes one only while a generic is open. So `bool up = close > open` and
    * `int n = a < b ? 1 : 2` in a default cannot unbalance the split (review finding).
    */
@@ -264,7 +264,9 @@ export class AccurateValidator {
       const ch = list[i];
       if (ch === '(' || ch === '[') depth++;
       else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
-      else if (ch === '<' && i > 0 && /[a-zA-Z0-9_]/.test(list[i - 1])) angle++;
+      // Pine's only generic type templates are array<>, matrix<> and map<> (plus
+      // the `.new<type>()` constructors). Any other `<` is a comparison.
+      else if (ch === '<' && /\b(?:array|matrix|map|new)$/.test(list.slice(0, i))) angle++;
       else if (ch === '>' && angle > 0) angle--;
       if (ch === ',' && depth === 0 && angle === 0) { out.push(cur); cur = ''; continue; }
       cur += ch;

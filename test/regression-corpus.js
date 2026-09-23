@@ -201,6 +201,15 @@ const CASES = [
       '`close > open` in a default left the depth unbalanced and the next parameter was never declared.',
   },
   {
+    name: '#16: a TIGHT comparison (no spaces) in a default does not swallow the next parameter',
+    code: IND + 'type State\n    float a\n\nf(int n = bar_index<10 ? 1 : 2, State st) =>\n    st.a\n\ng(bool b = bar_index<=10, State st2, map<string, array<float>> m = na) =>\n    st2.a\n\nvar State s = State.new(na)\nplot(f(1, s) + g(true, s))\n',
+    expect: null,
+    found: '2026-09-23',
+    why:
+      'Delta review on the first splitter fix: `<` still opened a generic after any identifier, ' +
+      'so `bar_index<10` swallowed the next parameter. Only array, matrix, map and .new open one now.',
+  },
+  {
     name: '#16: an undefined namespace inside a function body still flags',
     code: IND + 'g(float v) =>\n    nosuch.a + v\n\nplot(g(close))\n',
     expect: 'error',
