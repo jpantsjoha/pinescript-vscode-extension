@@ -192,6 +192,15 @@ const CASES = [
     why: 'A comma inside map<string, float> must not split the parameter list.',
   },
   {
+    name: '#16: a comparison in a parameter default does not swallow the next parameter',
+    code: IND + 'type State\n    float a\n\nf(bool up = close > open, State st) =>\n    st.a\n\ng(int n = bar_index < 10 ? 1 : 2, State st2) =>\n    st2.a\n\nvar State s = State.new(na)\nplot(f(true, s) + g(1, s))\n',
+    expect: null,
+    found: '2026-09-23',
+    why:
+      'Review finding on the #16 fix: the splitter counted every < and > as a bracket, so ' +
+      '`close > open` in a default left the depth unbalanced and the next parameter was never declared.',
+  },
+  {
     name: '#16: an undefined namespace inside a function body still flags',
     code: IND + 'g(float v) =>\n    nosuch.a + v\n\nplot(g(close))\n',
     expect: 'error',

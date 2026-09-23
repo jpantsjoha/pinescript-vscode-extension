@@ -52,6 +52,7 @@ from scratch. Git history keeps the old code.
 **Validator**
 - [#12](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/12) No error on an invalid cast (`int x = input.float(...)`). Needs types; a narrow declared-type vs `input.*` return-type rule is possible without an AST.
 - Wrapped one-argument calls skip arity (pinned by a test in `test/request-arity.test.js`).
+- A function signature wrapped across lines (`f(int a,` / `int b) =>`) does not declare its parameters, so #16 can recur there (missed fix, found by review 2026-09-23).
 - Remove the duplicated syntactic validator: `src/parser/{accurateValidator,documentChecks}.ts` and `v6/` copy the engine package; import them from it instead.
 
 **Editor / IntelliSense**

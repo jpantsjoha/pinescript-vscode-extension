@@ -255,15 +255,24 @@ export class AccurateValidator {
     }
   }
 
-  /** Split a parameter list on top-level commas; `map<string, float> m` is ONE parameter. */
+  /**
+   * Split a parameter list on top-level commas; `map<string, float> m` is ONE parameter.
+   * A `<` opens a generic only when it follows a type name directly (`array<`, `map<`);
+   * a `>` closes one only while a generic is open. So `bool up = close > open` and
+   * `int n = a < b ? 1 : 2` in a default cannot unbalance the split (review finding).
+   */
   private splitParameterList(list: string): string[] {
     const out: string[] = [];
     let depth = 0;
+    let angle = 0;
     let cur = '';
-    for (const ch of list) {
-      if (ch === '<' || ch === '(' || ch === '[') depth++;
-      else if (ch === '>' || ch === ')' || ch === ']') depth--;
-      if (ch === ',' && depth === 0) { out.push(cur); cur = ''; continue; }
+    for (let i = 0; i < list.length; i++) {
+      const ch = list[i];
+      if (ch === '(' || ch === '[') depth++;
+      else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+      else if (ch === '<' && i > 0 && /[a-zA-Z0-9_]/.test(list[i - 1])) angle++;
+      else if (ch === '>' && angle > 0) angle--;
+      if (ch === ',' && depth === 0 && angle === 0) { out.push(cur); cur = ''; continue; }
       cur += ch;
     }
     if (cur.trim()) out.push(cur);
