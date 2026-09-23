@@ -22,6 +22,8 @@
  * "Too many arguments"). Representing overloads explicitly is the fix — flattening
  * them into one param list is what caused the bug in the first place.
  */
+import { PINE_FUNCTIONS as GENERATED } from './parameter-requirements-generated';
+
 export interface FunctionOverload {
   requiredParams: string[];
   optionalParams: string[];
@@ -496,12 +498,16 @@ export const MODERN_V6_FUNCTIONS: Record<string, FunctionSignatureSpec> = {
     signature: 'matrix.sort(id, column, order, sort_field)'
   },
 
-  // January 2026 — volume footprint data (Premium/Ultimate plans).
+  // January 2026 — volume footprint data (Premium/Ultimate plans). Reads the
+  // chart's own bar: NO symbol, timeframe or ignore_invalid_symbol. The entry
+  // shipped with a guessed `(symbol, timeframe, …)` signature that flagged the
+  // valid `request.footprint(10)` and every named `ticks_per_row=` call
+  // (corrected 2026-09-22 against the v6 reference and release notes).
   'request.footprint': {
     name: 'request.footprint',
-    requiredParams: ['symbol', 'timeframe'],
-    optionalParams: ['row_size', 'ignore_invalid_symbol', 'currency', 'calc_bars_count'],
-    signature: 'request.footprint(symbol, timeframe, row_size, ignore_invalid_symbol, currency, calc_bars_count)'
+    requiredParams: ['ticks_per_row'],
+    optionalParams: ['va_percent', 'imbalance_percent'],
+    signature: 'request.footprint(ticks_per_row, va_percent?, imbalance_percent?) → series footprint'
   },
 };
 
@@ -520,8 +526,32 @@ const INPUT_FUNCTIONS_WITH_ACTIVE: Record<string, FunctionSignatureSpec> = Objec
 /**
  * ALL FUNCTION SIGNATURES
  */
+/**
+ * Data requests. The 2025-10-03 scrape marked only `symbol` required, so
+ * `request.security("X")` passed arity (issue #26). TradingView rejects a call
+ * without symbol, timeframe AND expression. The generated parameter list is kept
+ * (it feeds hover text and named-argument checks); only the required set changes.
+ */
+const requestSpec = (name: string, required: string[]): FunctionSignatureSpec => {
+  const gen = GENERATED[name];
+  return {
+    ...gen,
+    requiredParams: required,
+    optionalParams: gen.optionalParams.filter(p => !required.includes(p)),
+    parameters: gen.parameters.map(p =>
+      required.includes(p.name) ? { ...p, required: true, optional: false } : p
+    ),
+  } as FunctionSignatureSpec;
+};
+
+export const REQUEST_FUNCTIONS: Record<string, FunctionSignatureSpec> = {
+  'request.security': requestSpec('request.security', ['symbol', 'timeframe', 'expression']),
+  'request.security_lower_tf': requestSpec('request.security_lower_tf', ['symbol', 'timeframe', 'expression']),
+};
+
 export const ALL_FUNCTION_SIGNATURES: Record<string, FunctionSignatureSpec> = {
   ...CORE_FUNCTIONS,
+  ...REQUEST_FUNCTIONS,
   ...PLOT_FUNCTIONS,
   ...ALERT_FUNCTIONS,
   ...INPUT_FUNCTIONS_WITH_ACTIVE,

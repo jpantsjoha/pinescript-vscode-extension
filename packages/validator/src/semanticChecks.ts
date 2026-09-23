@@ -222,6 +222,118 @@ function topLevelArgs(args: string): string[] {
   return out;
 }
 
+/**
+ * From the '(' at `open` on line `i`, the balanced argument text of that call and
+ * the line it closes on, joining forward across wrapped lines. Null when the call
+ * never closes — a syntax error, not ours.
+ */
+function balancedArgs(lines: string[], i: number, open: number): { args: string; endLine: number } | null {
+  let joined = lines[i].slice(open);
+  let depth = 0;
+  let endIdx = -1;
+  let endLine = i;
+  const scan = (chunk: string, offset: number): boolean => {
+    for (let k = 0; k < chunk.length; k++) {
+      const ch = chunk[k];
+      if (ch === '(' || ch === '[') depth++;
+      else if (ch === ')' || ch === ']') {
+        depth--;
+        if (depth === 0) { endIdx = offset + k; return true; }
+      }
+    }
+    return false;
+  };
+  let closed = scan(joined, 0);
+  for (let j = i + 1; j < lines.length && !closed; j++) {
+    const offset = joined.length + 1;
+    joined += '\n' + lines[j];
+    endLine = j;
+    closed = scan(lines[j], offset);
+  }
+  if (!closed) return null;
+  return { args: joined.slice(1, endIdx), endLine };
+}
+
+//──────────────────────────────────────────────────────────
+// S10 — hard-coded external feed without ignore_invalid_symbol
+//──────────────────────────────────────────────────────────
+
+/** 0-based slot of `ignore_invalid_symbol` in each request.*() signature. */
+const IGNORE_INVALID_SLOT: Record<string, number> = {
+  security: 5, security_lower_tf: 3, dividends: 4, earnings: 4, splits: 4, financial: 4,
+};
+
+/**
+ * A script that compiles can still halt on the chart. `request.security("FRED:X", …)`
+ * is read from the VIEWER's plan at runtime; a feed that plan cannot read raises
+ * `Permission denied for symbol` and stops the whole script. TradingView names only
+ * the first failing feed, so the author discovers them one at a time — a 26-feed
+ * macro dashboard died this way on 2026-09-22. `ignore_invalid_symbol=true` makes the
+ * call return na instead.
+ *
+ * A hint, not a warning: the author may WANT the hard stop. Like S1 this flags a
+ * decision that has not been stated, and is silent once `ignore_invalid_symbol`
+ * appears, named or positional, whichever value it carries. Only a bare string
+ * literal with an exchange prefix counts as external: `syminfo.tickerid`, `""`,
+ * `ticker.new(...)`, an input variable or a concatenation are the author's business.
+ */
+function checkExternalFeed(lines: string[], rawLines: string[]): ValidationError[] {
+  const findings: ValidationError[] = [];
+  // request.footprint() is not here: it has no symbol argument and no
+  // ignore_invalid_symbol — it reads the chart's own bar (reference, January 2026).
+  const pattern = /(?<![a-zA-Z0-9_.])request\.(security_lower_tf|security|dividends|earnings|splits|financial)\s*\(/g;
+
+  lines.forEach((text, i) => {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const fn = match[1];
+      const open = match.index + match[0].length - 1;
+      const region = balancedArgs(lines, i, open);
+      if (region === null) continue;
+      const { args, endLine } = region;
+      const top = topLevelArgs(args);
+      if (top.length === 0) continue;
+
+      // The first argument must be ONE bare string literal, positional or as
+      // `symbol=`/`ticker=`. Strings are blanked in `lines`, so the literal reads as
+      // quotes around spaces.
+      const first = top[0].replace(/^(?:symbol|ticker)\s*=\s*/, '');
+      if (!/^(["'])\s*\1$/.test(first)) continue;
+
+      // Blanking preserves length, so the same offsets index the raw text.
+      let rawJoined = rawLines[i].slice(open);
+      for (let j = i + 1; j <= endLine; j++) rawJoined += '\n' + rawLines[j];
+      const rawArgs = rawJoined.slice(1, 1 + args.length);
+      const q1 = args.search(/["']/);
+      const q2 = args.indexOf(args[q1], q1 + 1);
+      if (q1 === -1 || q2 === -1) continue;
+      const literal = rawArgs.slice(q1 + 1, q2);
+      if (!/^[A-Za-z0-9_]+:\S+$/.test(literal)) continue;  // "" or a bare ticker: chart-relative
+
+      if (top.some(a => /^ignore_invalid_symbol\s*=/.test(a))) continue;
+      // Positional slot: only positional arguments count. `gaps=…, lookahead=…,
+      // currency=…` after the expression are named and say nothing about the flag.
+      // `(?!=)`: `x == y` passed positionally is a comparison, not a named argument.
+      const positional = top.filter(a => !/^[a-zA-Z_][a-zA-Z0-9_]*\s*=(?!=)/.test(a)).length;
+      if (positional > IGNORE_INVALID_SLOT[fn]) continue;    // passed positionally, either value
+
+      // Pin the finding to the literal itself, so `// pine-ignore: S10` on that line
+      // works for a wrapped call too (suppression is per line).
+      const before = args.slice(0, q1);
+      const newlines = (before.match(/\n/g) || []).length;
+      const litLine = i + newlines;
+      const litCol = newlines === 0 ? open + 1 + q1 : q1 - before.lastIndexOf('\n') - 1;
+
+      findings.push(makeFinding('S10', litLine + 1, litCol, q2 - q1 + 1,
+        `"${literal}" is read from the viewer's plan at runtime; a feed it cannot read halts the ` +
+        `script with "Permission denied for symbol". Pass ignore_invalid_symbol=true to degrade to ` +
+        `na, or state the hard stop with // pine-ignore: S10.`));
+    }
+  });
+
+  return findings;
+}
+
 function checkRepainting(lines: string[]): ValidationError[] {
   const findings: ValidationError[] = [];
   const pattern = /(?<![a-zA-Z0-9_.])request\.security(?:_lower_tf)?\s*\(/g;
@@ -553,12 +665,15 @@ function matchingParen(text: string, openIndex: number): number {
 export function runSemanticChecks(source: string): ValidationError[] {
   const scan = blankComments(blankStrings(source));
   const lines = scan.split('\n');
+  // S10 needs the string literals back — same offsets, blanking preserves length.
+  const rawLines = source.split('\n');
 
   return [
     ...checkPlotLimit(lines),
     ...checkRequestLimit(lines),
     ...checkGlobalScopeOnly(lines),
     ...checkRepainting(lines),
+    ...checkExternalFeed(lines, rawLines),
     ...checkTaInConditional(lines),
     ...checkAccumulatorLifetime(lines),
     ...checkEntryWithoutExit(lines),

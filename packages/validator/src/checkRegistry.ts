@@ -14,7 +14,7 @@ import { Severity, DiagnosticSeverity } from './accurateValidator';
 import { blankStrings } from './documentChecks';
 
 export type SemanticCheckId =
-  | 'S1' | 'S2' | 'S3' | 'S4' | 'S5' | 'S6' | 'S7' | 'S8' | 'S9';
+  | 'S1' | 'S2' | 'S3' | 'S4' | 'S5' | 'S6' | 'S7' | 'S8' | 'S9' | 'S10';
 
 export interface SemanticCheck {
   id: SemanticCheckId;
@@ -95,6 +95,14 @@ export const SEMANTIC_CHECKS: Record<SemanticCheckId, SemanticCheck> = {
     severity: Severity.Warning,
     title: 'strategy.entry with no exit anywhere in the script',
     docAnchor: 'pinescript-strategy#entries-and-exits'
+  },
+  // A hint, not a warning: the author may WANT the hard stop when a feed is
+  // missing. Like S1 it flags a decision that has not been stated.
+  S10: {
+    id: 'S10',
+    severity: Severity.Information,
+    title: 'Hard-coded external feed without ignore_invalid_symbol — halts if the viewer cannot read it',
+    docAnchor: 'pinescript-indicator#higher-timeframes-without-repainting'
   }
 };
 

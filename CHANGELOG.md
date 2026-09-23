@@ -67,13 +67,46 @@ grounded project profile (adoption status `seed`; nine inferred fields await JP'
 confirmation before `active`). `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` carry the
 shared contract block; `docs/VISION.md` states the product intent.
 
+### ✨ S10 — a hard-coded external feed with no `ignore_invalid_symbol` (info)
+
+A script that compiles can still die on the chart. `request.security("FRED:WTREGEN", …)`
+is read from the *viewer's* plan at runtime, and a feed that plan cannot read halts the
+whole script with `Permission denied for symbol`. TradingView names only the first
+failing feed, so the author discovers them one at a time — a 26-feed macro dashboard
+went down this way on 2026-09-22.
+
+S10 flags a `request.security` / `security_lower_tf` / `dividends` / `earnings` /
+`splits` / `financial` call whose first argument is one bare string
+literal with an exchange prefix and whose argument list carries no
+`ignore_invalid_symbol` — named or positional, whichever value. It is an **info**, not
+a warning: the author may want the hard stop, and `// pine-ignore: S10` states so.
+Silent for `syminfo.tickerid`, `""`, a bare ticker, `ticker.new()`, an input variable
+and a concatenation. Fourteen paired unit tests, two corpus cases; on the pre-fix
+dashboard it names all 23 literal feeds, on the hardened one none, and it fires
+nowhere across the golden corpus and examples. Engine 0.4.0. Issue #25.
+
+### 🐛 `request.footprint()` carried a guessed signature
+
+The January-2026 entry in `MODERN_V6_FUNCTIONS` said `request.footprint(symbol,
+timeframe, row_size, …)`. The reference says `request.footprint(ticks_per_row,
+va_percent?, imbalance_percent?)`: it reads the chart's own bar and takes no symbol.
+So the valid `request.footprint(10)` raised "missing timeframe" and every named
+`ticks_per_row=` call raised an unknown-parameter error. Corrected in both data copies;
+the independent review of S10 surfaced it. Paired tests: one-, two- and three-argument
+and named forms are silent; zero arguments and four are still flagged.
+
+### 🐛 `request.security("X")` passed arity (#26)
+
+The 2025-10-03 scrape marked only `symbol` required. A manual override in
+`v6/parameter-requirements.ts` (mirrored in the engine's data) now requires `symbol`,
+`timeframe` and `expression` for `request.security` and `request.security_lower_tf`,
+keeping the generated parameter list for hover and named-argument checks. Proved both
+ways: one- and two-argument calls raise the arity error; the minimal, full positional,
+named, tuple and wrapped forms stay silent; nine arguments is one too many.
+
 ### 📋 Filed, not built
 
-- #25 — S10 proposal: a hard-coded external feed (`"FRED:…"`, `"ECONOMICS:…"`) with no
-  `ignore_invalid_symbol` compiles cleanly and still halts at runtime with
-  `Permission denied for symbol` when the viewer's plan cannot read it. Info-level hint.
-- #26 — data gap: the scraped entry for `request.security` marks `timeframe` and
-  `expression` optional, so `request.security("X")` is not flagged (a missed error).
+- #25 and #26 were filed here first and built the same day (above).
 
 ## [0.6.2] - 2026-08-08
 

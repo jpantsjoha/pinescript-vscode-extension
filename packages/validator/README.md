@@ -48,6 +48,7 @@ Most Pine tooling catches code TradingView will reject. These catch code it
 | S7 | `plot` / `bgcolor` / `fill` outside global scope — a v6 scope error |
 | S8 | A function defined inside a block — Pine has no nested functions |
 | S9 | `strategy.entry` with no exit anywhere — unbounded risk |
+| S10 | A hard-coded external feed (`"FRED:…"`, `"ECONOMICS:…"`) with no `ignore_invalid_symbol` — compiles, then halts with `Permission denied for symbol` on a plan that cannot read it (info) |
 
 Suppress a specific finding when you have considered it:
 
