@@ -1,7 +1,7 @@
 {
   "name": "pinescript-v6-extension",
   "displayName": "Pine Script v6 IDE Tools",
-  "description": "Unofficial Pine Script v6 support for VS Code \u2014 IntelliSense, hover docs, and real-time validation with 100% language coverage.",
+  "description": "Unofficial Pine Script v6 support for VS Code — IntelliSense, hover docs, and real-time validation with 100% language coverage.",
   "publisher": "jpantsjoha",
   "author": {
     "name": "Jaroslav Pantsjoha",
@@ -147,6 +147,6 @@
   },
   "dependencies": {
     "glob": "^11.0.3",
-    "pinescript-v6-validator": "^0.3.0"
+    "pinescript-v6-validator": "^0.4.0"
   }
 }
