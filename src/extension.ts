@@ -83,8 +83,10 @@ export function activate(context: vscode.ExtensionContext) {
           const line = document.lineAt(position.line).text;
           const beforeCursor = line.substring(0, position.character);
 
-          // Check if we're completing after a namespace dot
-          const namespaceMatch = beforeCursor.match(/([a-z]+)\.\s*$/);
+          // Check if we're completing after a namespace dot. Identifiers may
+          // contain underscores/digits and the chain may be nested:
+          // volume_row., strategy.closedtrades., chart.point., ...
+          const namespaceMatch = beforeCursor.match(/([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*)\.\s*$/);
           if (namespaceMatch) {
             const namespace = namespaceMatch[1];
             const nsItems = getNamespaceCompletions(namespace);
