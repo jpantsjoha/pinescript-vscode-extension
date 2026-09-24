@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1200" height="300" fill="#0E1626"/>
+  <text x="600" y="48" fill="#FFFFFF" font-size="26" font-weight="700" text-anchor="middle">From install to a clean script in about a minute</text>
+  <g font-size="15" text-anchor="middle">
+    <g><circle cx="130" cy="130" r="30" fill="#3B82F6"/><text x="130" y="138" fill="#FFFFFF" font-size="22" font-weight="700">1</text>
+      <text x="130" y="192" fill="#FFFFFF" font-size="18" font-weight="700">Install</text>
+      <text x="130" y="216" fill="#9FB3C8">Extensions view:</text><text x="130" y="236" fill="#9FB3C8">"Pine Script v6"</text></g>
+    <g><circle cx="365" cy="130" r="30" fill="#3B82F6"/><text x="365" y="138" fill="#FFFFFF" font-size="22" font-weight="700">2</text>
+      <text x="365" y="192" fill="#FFFFFF" font-size="18" font-weight="700">Open a .pine file</text>
+      <text x="365" y="216" fill="#9FB3C8">highlighting and</text><text x="365" y="236" fill="#9FB3C8">checks start at once</text></g>
+    <g><circle cx="600" cy="130" r="30" fill="#3B82F6"/><text x="600" y="138" fill="#FFFFFF" font-size="22" font-weight="700">3</text>
+      <text x="600" y="192" fill="#FFFFFF" font-size="18" font-weight="700">Type with IntelliSense</text>
+      <text x="600" y="216" fill="#9FB3C8">completions, signatures,</text><text x="600" y="236" fill="#9FB3C8">hover docs</text></g>
+    <g><circle cx="835" cy="130" r="30" fill="#F59E0B"/><text x="835" y="138" fill="#0E1626" font-size="22" font-weight="700">4</text>
+      <text x="835" y="192" fill="#FFFFFF" font-size="18" font-weight="700">Fix the squiggles</text>
+      <text x="835" y="216" fill="#9FB3C8">Problems panel lists</text><text x="835" y="236" fill="#9FB3C8">each issue and why</text></g>
+    <g><circle cx="1070" cy="130" r="30" fill="#22C55E"/><text x="1070" y="138" fill="#0E1626" font-size="22" font-weight="700">5</text>
+      <text x="1070" y="192" fill="#FFFFFF" font-size="18" font-weight="700">Paste into TradingView</text>
+      <text x="1070" y="216" fill="#9FB3C8">fewer compile-fix-paste</text><text x="1070" y="236" fill="#9FB3C8">round trips</text></g>
+  </g>
+  <g stroke="#9FB3C8" stroke-width="3" marker-end="url(#b)"><path d="M168 130 H322"/><path d="M403 130 H557"/><path d="M638 130 H792"/><path d="M873 130 H1027"/></g>
+  <defs><marker id="b" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9FB3C8"/></marker></defs>
+</svg>
