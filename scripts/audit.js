@@ -236,6 +236,16 @@ function auditPackaging() {
     warn('packaging', 'v6/ TypeScript sources are shipped in the VSIX; only dist/v6/ is needed at runtime');
   }
 
+  // Credentials must never be packaged. vsce reads the working tree, so a gitignored
+  // .env is still one `vsce package` away from shipping (found 2026-09-24).
+  const secretPatterns = ['.env', '.env.*', '*.pat', '*.token', '.npmrc', 'secrets.json'];
+  const unexcluded = secretPatterns.filter(p => !ignore.split('\n').some(l => l.trim() === p));
+  if (unexcluded.length) {
+    fail('packaging', `.vscodeignore does not exclude credential files: ${unexcluded.join(', ')} — a local vsce package would ship them`);
+  } else {
+    pass('packaging', 'credential files (.env, *.pat, *.token, .npmrc) excluded from the VSIX');
+  }
+
   // Development tooling that exists in the tree must stay out of the VSIX.
   const devOnly = [['mcp/**', 'mcp'], ['scripts/**', 'scripts'], ['validate-cli.js', 'validate-cli.js'], ['examples/**', 'examples']]
     .filter(([, p]) => exists(p))
