@@ -328,8 +328,12 @@ export function getSignatureData(functionName: string): SignatureData[] {
  */
 export function getHoverData(symbol: string): HoverData | undefined {
   let item: PineItem | undefined = V6_VARIABLES[symbol] || V6_FUNCTIONS[symbol];
-  if (!item && symbol.includes('.')) {
-    item = manualNamespaceItem(symbol.split('.')[0], symbol.split('.')[1]);
+  // Only a two-segment symbol can be a v6-manual namespace member. Splitting
+  // `strategy.closedtrades.profit` on its first dot returned the docs for the
+  // variable `strategy.closedtrades` instead (review finding, 2026-09-24).
+  if (!item && symbol.split('.').length === 2) {
+    const [ns, name] = symbol.split('.');
+    item = manualNamespaceItem(ns, name);
   }
   if (item) {
     return {
@@ -371,8 +375,11 @@ function openCallAt(beforeCursor: string): { name: string; open: number } | null
     else if (ch === '[') { if (depth > 0) depth--; }
     else if (ch === '(') {
       if (depth > 0) { depth--; continue; }
-      const m = text.slice(0, i).match(/([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*$/);
-      return m ? { name: m[1], open: i } : null;
+      // A call name may carry a generic argument list: `array.new<float>(`,
+      // `map.new<string, float>(`. A '(' with no name before it is a grouping
+      // paren, `ta.sma((close + open`; keep scanning outward for the call.
+      const m = text.slice(0, i).match(/([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(?:<[^()]*>)?\s*$/);
+      if (m) return { name: m[1], open: i };
     }
   }
   return null;

@@ -154,3 +154,19 @@ test('signature help finds the open call past a closed nested call and ignores c
   const outside = 'z = ta.sma(close, 14) + ';
   assert.strictEqual(d.findFunctionCallName(outside, outside.length), null);
 });
+
+test('review findings: generic constructors, grouping parens and three-segment hover', () => {
+  const d = require('../dist/src/intellisenseData.js');
+  const gen = 'var a = array.new<float>(';
+  assert.strictEqual(d.findFunctionCallName(gen, gen.length), 'array.new');
+  const gen2 = 'm = map.new<string, float>(';
+  assert.strictEqual(d.findFunctionCallName(gen2, gen2.length), 'map.new');
+  const grp = 'x = ta.sma((close + open';
+  assert.strictEqual(d.findFunctionCallName(grp, grp.length), 'ta.sma');
+  assert.strictEqual(d.calculateActiveParameter(grp), 0);
+  const grp2 = 'x = ta.sma((close + open) / 2, ';
+  assert.strictEqual(d.findFunctionCallName(grp2, grp2.length), 'ta.sma');
+  assert.strictEqual(d.calculateActiveParameter(grp2), 1);
+  const h = d.getHoverData('strategy.closedtrades.profit');
+  assert.ok(h && !/Total closed trades/.test(h.description || ''), JSON.stringify(h));
+});
