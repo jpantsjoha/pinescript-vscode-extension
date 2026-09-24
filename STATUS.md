@@ -1,8 +1,8 @@
 # Project Status
 
 **Updated**: 2026-09-23
-**Marketplace version**: 0.6.3 (live 2026-09-23 15:44 UTC) · **Installs**: 1,530 · **Rating**: 4.45★ (gallery API, 2026-09-22)
-**Engine on npm**: `pinescript-v6-validator@0.4.0` (published 2026-09-23).
+**Marketplace version**: 0.6.4 · **Open VSX**: 0.6.4 (first publish, 2026-09-24)
+**Engine on npm**: `pinescript-v6-validator@0.4.0`. 0.4.1 (re-crawled data) is built; publishing waits on `npm login` (session expired 2026-09-24). The extension bundles the new data itself.
 
 ## Where this stands
 
