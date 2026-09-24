@@ -1,3 +1,12 @@
+# Credentials — never packaged. vsce packages from the working tree, so a local
+# .env (gitignored, never committed) would otherwise ship inside a hand-built VSIX.
+.env
+.env.*
+*.pat
+*.token
+.npmrc
+secrets.json
+
 # IDE & Version Control
 .vscode/**
 .vscode-test/**
