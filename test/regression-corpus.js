@@ -297,6 +297,23 @@ const CASES = [
     why: 'Paired "still flags" for the declared-locals exemption: only statement-level declarations count.',
   },
 
+  {
+    name: '#37 review: a declaration inside a one-line switch arm or body is declared',
+    code: IND + 'type Foo\n    float x\nFoo source = Foo.new(close)\nresult = switch\n    bar_index > 0 => Foo position = source, position.x\n    => 0.0\nplot(result)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'Codex delta review of #41: the statement-level declaration regex was anchored at the line start, ' +
+      'so `Foo position = source` after `=>` was missed and position.x was checked as built-in position.*.',
+  },
+  {
+    name: '#37 review: a comma inside a call still never starts a declaration',
+    code: IND + 'plot(close, color=color.purplee)\n',
+    expect: 'error',
+    found: '2026-09-24',
+    why: 'Paired "still flags": statement splitting happens only at depth-0 commas and =>, never inside a call.',
+  },
+
   //────────────────────────────────────────────────────────
   // S10 — hard-coded external feed without ignore_invalid_symbol
   //────────────────────────────────────────────────────────

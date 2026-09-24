@@ -225,8 +225,14 @@ export class AccurateValidator {
     // Statement-level declaration: `x = 1`, `float x = 1`, `var Foo x = ...`,
     // `array<float> xs = ...`, `x := 2`. Anchored at the start of the statement,
     // so a named argument inside a call can never match.
-    const stmtDecl = line.match(/^\s*(?:var\s+|varip\s+)?(?:[A-Za-z_][\w.]*(?:<[^>]*>)?\s+)?([A-Za-z_]\w*)\s*:?=(?!=)/);
-    if (stmtDecl && !this.isReservedKeyword(stmtDecl[1])) this.declaredLocals.add(stmtDecl[1]);
+    // A line can hold several statements: a one-line body or switch arm such as
+    // `cond => Foo p = src, p.x`. Split at `=>` and at commas at bracket depth 0;
+    // a comma inside a call never starts a segment, so named arguments still never
+    // count as declarations (review finding, 2026-09-24).
+    for (const segment of this.statementSegments(line)) {
+      const stmtDecl = segment.match(/^\s*(?:var\s+|varip\s+)?(?:[A-Za-z_][\w.]*(?:<[^>]*>)?\s+)?([A-Za-z_]\w*)\s*:?=(?!=)/);
+      if (stmtDecl && !this.isReservedKeyword(stmtDecl[1])) this.declaredLocals.add(stmtDecl[1]);
+    }
     // Tuple destructuring: `[a, b] = f()`.
     const tupleDecl = line.match(/^\s*\[([^\]]+)\]\s*=(?!=)/);
     if (tupleDecl) {
@@ -301,6 +307,23 @@ export class AccurateValidator {
         }
       }
     }
+  }
+
+  /** Statement segments of one line: split at `=>` and at depth-0 commas. */
+  private statementSegments(line: string): string[] {
+    const out: string[] = [];
+    let depth = 0;
+    let cur = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '(' || ch === '[') depth++;
+      else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+      if (depth === 0 && ch === '=' && line[i + 1] === '>') { out.push(cur); cur = ''; i++; continue; }
+      if (depth === 0 && ch === ',') { out.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    out.push(cur);
+    return out;
   }
 
   /**
