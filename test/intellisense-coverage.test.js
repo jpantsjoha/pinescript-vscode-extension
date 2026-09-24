@@ -170,3 +170,11 @@ test('review findings: generic constructors, grouping parens and three-segment h
   const h = d.getHoverData('strategy.closedtrades.profit');
   assert.ok(h && !/Total closed trades/.test(h.description || ''), JSON.stringify(h));
 });
+
+test('a comparison before a paren is not read as a generic call', () => {
+  const d = require('../dist/src/intellisenseData.js');
+  const cmp = 'x = dayofmonth < 15 ? high > (';
+  assert.strictEqual(d.findFunctionCallName(cmp, cmp.length), null);
+  const nested = 'm = map.new<string, array<float>>(';
+  assert.strictEqual(d.findFunctionCallName(nested, nested.length), 'map.new');
+});

@@ -378,7 +378,11 @@ function openCallAt(beforeCursor: string): { name: string; open: number } | null
       // A call name may carry a generic argument list: `array.new<float>(`,
       // `map.new<string, float>(`. A '(' with no name before it is a grouping
       // paren, `ta.sma((close + open`; keep scanning outward for the call.
-      const m = text.slice(0, i).match(/([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(?:<[^()]*>)?\s*$/);
+      // The generic list must be type names only (`<float>`, `<string, array<float>>`),
+      // so a comparison such as `dayofmonth < 15 ? high > (` is never read as one.
+      const TYPE = '[A-Za-z_][\\w.]*(?:<[A-Za-z_][\\w.]*(?:\\s*,\\s*[A-Za-z_][\\w.]*)*>)?';
+      const GENERIC = `(?:<\\s*${TYPE}(?:\\s*,\\s*${TYPE})*\\s*>)?`;
+      const m = text.slice(0, i).match(new RegExp(`([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*${GENERIC}\\s*$`));
       if (m) return { name: m[1], open: i };
     }
   }
