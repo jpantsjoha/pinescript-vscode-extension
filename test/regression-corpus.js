@@ -273,6 +273,73 @@ const CASES = [
     why: 'Paired "still flags": adding the footprint namespace must not accept every member of it.',
   },
 
+  {
+    name: '#37 review: a variable named like a built-in namespace is a variable, not the namespace',
+    code: IND + 'type PositionInfo\n    float entryPrice\nPositionInfo position = PositionInfo.new(100.0)\np = position.entryPrice\nplot(p)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'Gemini review of #37: once the member check ran after "=", a UDT variable named `position` ' +
+      'had its fields checked against the built-in position.* constants and failed.',
+  },
+  {
+    name: '#37 review: tuple-destructured variables are declared',
+    code: IND + 'type Coord\n    float x\ngetCoords() =>\n    [Coord.new(1.0), 10]\n[pt, count] = getCoords()\nv = pt.x\nplot(v)\n',
+    expect: null,
+    found: '2026-09-24',
+    why: 'Gemini review of #37: `[pt, count] = f()` never declared pt, so `v = pt.x` became "undefined namespace".',
+  },
+  {
+    name: '#37 review: a named argument still does not declare the namespace it names',
+    code: IND + 'plot(close, color=color.purplee)\n',
+    expect: 'error',
+    found: '2026-09-24',
+    why: 'Paired "still flags" for the declared-locals exemption: only statement-level declarations count.',
+  },
+
+  {
+    name: '#37 review: a declaration inside a one-line switch arm or body is declared',
+    code: IND + 'type Foo\n    float x\nFoo source = Foo.new(close)\nresult = switch\n    bar_index > 0 => Foo position = source, position.x\n    => 0.0\nplot(result)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'Codex delta review of #41: the statement-level declaration regex was anchored at the line start, ' +
+      'so `Foo position = source` after `=>` was missed and position.x was checked as built-in position.*.',
+  },
+  {
+    name: '#37 review: a comma inside a call still never starts a declaration',
+    code: IND + 'plot(close, color=color.purplee)\n',
+    expect: 'error',
+    found: '2026-09-24',
+    why: 'Paired "still flags": statement splitting happens only at depth-0 commas and =>, never inside a call.',
+  },
+
+  {
+    name: '#37 review: a map<K, V> declaration is not split at its generic comma',
+    code: IND + 'map<string, float> position = map.new<string, float>()\nposition.put("x", close)\nv = position.size()\nplot(close)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'Codex round-2 review of #41: statement splitting at depth-0 commas cut `map<string, float> position` ' +
+      'in two, so `position` was not declared and its members were checked as built-in position.*.',
+  },
+
+  {
+    name: '#37: an unknown function on a real built-in namespace is still undefined',
+    code: IND + 'x = position.nosuchfn(1)\nplot(close)\n',
+    expect: 'error',
+    found: '2026-09-24',
+    why: 'Paired "still flags" for exempting declared names in the undefined-function check: undeclared, it is the built-in namespace.',
+  },
+
+  {
+    name: '#37 review: a field named new compared with < does not open a generic',
+    code: IND + 'type Holder\n    float new\n    float x\nf(Holder h) => b = h.new<close, size = h, size.x\nplot(f(Holder.new(open, 1.0)))\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Codex round-3 review of #41: `.new<` matched any .new, so a comparison swallowed the following statement separators.',
+  },
+
   //────────────────────────────────────────────────────────
   // S10 — hard-coded external feed without ignore_invalid_symbol
   //────────────────────────────────────────────────────────
@@ -565,6 +632,146 @@ const CASES = [
     why:
       'The most important case in the file. If ordinary correct Pine warns, nothing ' +
       'else here matters.',
+  },
+
+  //────────────────────────────────────────────────────────
+  // Issue #37 — namespace members after '=' were never checked
+  //────────────────────────────────────────────────────────
+  {
+    name: '#37: a misspelled xloc constant in a plain assignment is flagged',
+    code: IND + 'x = xloc.bar_indexx\nplot(x)\n',
+    expect: 'error',
+    found: '2026-09-24',
+    why:
+      'checkUndefinedNamespaces skipped any name.member preceded by /=\\w+\\s*=\\s*$/ — meant ' +
+      'for named arguments — which also swallowed every plain assignment, so a typo that ' +
+      'fails compilation on TradingView validated clean here.',
+  },
+  {
+    name: '#37: a misspelled color constant as a named-argument value is flagged',
+    code: IND + 'plot(close, color=color.purplee)\n',
+    expect: 'error',
+    found: '2026-09-24',
+    why:
+      'The same \'=\' skip hid named-argument VALUES too: color.purplee was never compared ' +
+      'against the color constant list. Removing the skip is only safe because that list is ' +
+      'complete — constants, color.* functions and all.',
+  },
+  {
+    name: '#37: a misspelled shape constant in plotshape style= is flagged',
+    code: IND + 'plotshape(true, style=shape.circlee)\n',
+    expect: 'error',
+    found: '2026-09-24',
+    why:
+      'Issue #37\'s own example: style=shape.circlee compiled nothing and warned nothing. ' +
+      'shape has a closed constant list, so a member outside it is a fact, not a guess.',
+  },
+  {
+    name: '#37: an unknown namespace after \'=\' is flagged, not just in call position',
+    code: IND + 'z = nosuchns.value\nplot(close)\n',
+    expect: 'error',
+    found: '2026-09-24',
+    why:
+      'plot(nosuchns.value) was already an error while z = nosuchns.value said nothing — ' +
+      'the \'=\' skip ran before the unknown-namespace branch. Both spellings of the same ' +
+      'mistake must agree.',
+  },
+  {
+    name: '#37: valid named-argument constants stay silent',
+    code: IND + 'plot(close, style=plot.style_line)\nplotshape(true, style=shape.circle)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'The whole point of the old \'=\' skip was to leave named arguments alone. The fix ' +
+      'validates the member instead of skipping the position, so the valid form must ' +
+      'prove it still passes — otherwise the skip was load-bearing and removing it is wrong.',
+  },
+  {
+    name: '#37: color.* functions and constants as named-argument values stay silent',
+    code: IND + 'plot(close, color=color.new(color.red, 50))\nplot(close, color=color.rgb(1, 2, 3))\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'color is both a constant namespace and a function namespace; a member check that ' +
+      'only knew the constants would call color.new and color.rgb errors — the exact false ' +
+      'positive this issue\'s fix had to avoid.',
+  },
+  {
+    name: '#37: valid constants assigned after \'=\' stay silent',
+    code: IND + 'a = color.red\nb = xloc.bar_index\nc = math.pi\nd = display.all\nplot(a != color.red ? b : c)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'Paired negative for the removed \'=\' skip: the four most common constant namespaces ' +
+      'in assignment position must produce nothing, or plain assignments become noise.',
+  },
+  {
+    name: '#37: built-in variables of dual-use namespaces stay silent after \'=\'',
+    code: IND + 'a = strategy.position_size\nb = syminfo.tickerid\nc = timeframe.period\nd = barstate.islast\nplot(a + 1)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'strategy.position_size is a VARIABLE, not a constant or function — a member check ' +
+      'that only consulted constants and function signatures would flag it. Dual-use ' +
+      'namespaces must accept all three kinds of member.',
+  },
+  {
+    name: '#37: namespaced function calls after \'=\' stay silent',
+    code: IND + 'x = ta.sma(close, 14)\nfp = request.footprint(10)\ny = footprint.poc(fp)\np = chart.point.now(close)\nplot(x + y)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'ta, request, footprint and chart have no closed member list, so they are never ' +
+      'member-checked at all — when unsure whether a member exists, do not flag it. ' +
+      'chart.point is also a sub-namespace, not a member, and must not trip the check.',
+  },
+  {
+    name: '#37: a user-defined type used after \'=\' stays silent',
+    code: IND + 'type Foo\n    float a\nf = Foo.new(1.0)\nv = f.a\nplot(v)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'Foo.new is a constructor and f.a field access; with the \'=\' skip gone these reach ' +
+      'the namespace check for the first time, and only the declared-types exemption keeps ' +
+      'them from being "undefined namespace".',
+  },
+  {
+    name: '#37: an enum member used after \'=\' stays silent',
+    code: IND + 'enum Side\n    long\n    short\ns = Side.long\nplot(s == Side.short ? 1 : 0)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'Side.long looks exactly like namespace.constant. Enums are collected as declared ' +
+      'types, and a declared type must shadow any namespace reading — never flagged.',
+  },
+  {
+    name: '#37: an import alias used after \'=\' stays silent',
+    code: IND + 'import user/lib/1 as ta2\nx = ta2.fn(close)\ny = ta2.other(x)\nplot(y)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'Library aliases were never collected at all; only the \'=\' skip hid ta2.fn(). With ' +
+      'the skip removed the alias must be a declared binding, or every library call in the ' +
+      'wild becomes "undefined namespace".',
+  },
+  {
+    name: '#37: an import WITHOUT alias binds the library name and stays silent',
+    code: IND + 'import user/lib/1\nx = lib.fn(close)\nplot(x)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'Pine binds the last path segment when there is no `as` clause. Collecting only the ' +
+      'alias form would flag the equally common bare form.',
+  },
+  {
+    name: '#37: method calls on user objects stay silent after \'=\'',
+    code: IND + 'a = array.new<float>()\na.push(close)\nn = a.size()\nplot(n)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'a.push and a.size are method calls on a declared variable, not namespace members. ' +
+      'The declared-variables exemption in the unknown-namespace branch is what keeps them ' +
+      'silent once the \'=\' skip no longer does.',
   },
 ];
 
