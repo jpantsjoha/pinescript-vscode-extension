@@ -382,8 +382,11 @@ function openCallAt(beforeCursor: string): { name: string; open: number } | null
       // so a comparison such as `dayofmonth < 15 ? high > (` is never read as one.
       const TYPE = '[A-Za-z_][\\w.]*(?:<[A-Za-z_][\\w.]*(?:\\s*,\\s*[A-Za-z_][\\w.]*)*>)?';
       const GENERIC = `(?:<\\s*${TYPE}(?:\\s*,\\s*${TYPE})*\\s*>)?`;
-      const m = text.slice(0, i).match(new RegExp(`([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*${GENERIC}\\s*$`));
-      if (m) return { name: m[1], open: i };
+      const m = text.slice(0, i).match(new RegExp(`([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*(${GENERIC})\\s*$`));
+      // Only Pine's generic constructors take a type list; anything else followed
+      // by `<...>` is a comparison (`dayofmonth < high > (`), so this '(' is a
+      // grouping paren and the scan continues outward.
+      if (m && (!m[2] || /^(?:array|matrix|map)\.new$/.test(m[1]))) return { name: m[1], open: i };
     }
   }
   return null;

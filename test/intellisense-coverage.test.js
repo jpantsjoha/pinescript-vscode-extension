@@ -175,6 +175,12 @@ test('a comparison before a paren is not read as a generic call', () => {
   const d = require('../dist/src/intellisenseData.js');
   const cmp = 'x = dayofmonth < 15 ? high > (';
   assert.strictEqual(d.findFunctionCallName(cmp, cmp.length), null);
+  const cmp2 = 'x = dayofmonth < high > (';
+  assert.strictEqual(d.findFunctionCallName(cmp2, cmp2.length), null);
+  const outer = 'y = math.max(dayofmonth < high > (';
+  assert.strictEqual(d.findFunctionCallName(outer, outer.length), 'math.max');
+  const pt = 'a = array.new<chart.point>(';
+  assert.strictEqual(d.findFunctionCallName(pt, pt.length), 'array.new');
   const nested = 'm = map.new<string, array<float>>(';
   assert.strictEqual(d.findFunctionCallName(nested, nested.length), 'map.new');
 });
