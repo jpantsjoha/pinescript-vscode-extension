@@ -313,13 +313,18 @@ export class AccurateValidator {
   private statementSegments(line: string): string[] {
     const out: string[] = [];
     let depth = 0;
+    let angle = 0;
     let cur = '';
     for (let i = 0; i < line.length; i++) {
       const ch = line[i];
       if (ch === '(' || ch === '[') depth++;
       else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
-      if (depth === 0 && ch === '=' && line[i + 1] === '>') { out.push(cur); cur = ''; i++; continue; }
-      if (depth === 0 && ch === ',') { out.push(cur); cur = ''; continue; }
+      // `map<string, float> m = ...`: a generic type's comma is not a separator.
+      // Only array/matrix/map take a type list, so a comparison `<` never opens one.
+      else if (ch === '<' && /(?:\b(?:array|matrix|map)|\.new)$/.test(line.slice(0, i))) angle++;
+      else if (ch === '>' && angle > 0) angle--;
+      if (depth === 0 && angle === 0 && ch === '=' && line[i + 1] === '>') { out.push(cur); cur = ''; i++; continue; }
+      if (depth === 0 && angle === 0 && ch === ',') { out.push(cur); cur = ''; continue; }
       cur += ch;
     }
     out.push(cur);
@@ -716,7 +721,13 @@ export class AccurateValidator {
         // Check if it's a namespaced function that exists
         const beforeFunc = line.substring(0, column);
         const namespaceMatch = beforeFunc.match(/([a-zA-Z_][a-zA-Z0-9_]*)\.\s*$/);
-        if (namespaceMatch && this.knownNamespaces.has(namespaceMatch[1])) {
+        // A declared variable, type or import alias named like a built-in namespace
+        // is the user's object: `map<string, float> position = ...; position.put(..)`
+        // is a method call, not an undefined `position.*` function (pre-existing false
+        // positive, fixed with #37).
+        const ownName = namespaceMatch &&
+          (this.declaredLocals.has(namespaceMatch[1]) || this.declaredTypes.has(namespaceMatch[1]) || this.declaredImports.has(namespaceMatch[1]));
+        if (namespaceMatch && !ownName && this.knownNamespaces.has(namespaceMatch[1])) {
           // It's a namespaced function, check if it exists
           const fullName = `${namespaceMatch[1]}.${funcName}`;
           if (!ALL_FUNCTION_SIGNATURES[fullName]) {

@@ -314,6 +314,24 @@ const CASES = [
     why: 'Paired "still flags": statement splitting happens only at depth-0 commas and =>, never inside a call.',
   },
 
+  {
+    name: '#37 review: a map<K, V> declaration is not split at its generic comma',
+    code: IND + 'map<string, float> position = map.new<string, float>()\nposition.put("x", close)\nv = position.size()\nplot(close)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'Codex round-2 review of #41: statement splitting at depth-0 commas cut `map<string, float> position` ' +
+      'in two, so `position` was not declared and its members were checked as built-in position.*.',
+  },
+
+  {
+    name: '#37: an unknown function on a real built-in namespace is still undefined',
+    code: IND + 'x = position.nosuchfn(1)\nplot(close)\n',
+    expect: 'error',
+    found: '2026-09-24',
+    why: 'Paired "still flags" for exempting declared names in the undefined-function check: undeclared, it is the built-in namespace.',
+  },
+
   //────────────────────────────────────────────────────────
   // S10 — hard-coded external feed without ignore_invalid_symbol
   //────────────────────────────────────────────────────────
