@@ -332,6 +332,14 @@ const CASES = [
     why: 'Paired "still flags" for exempting declared names in the undefined-function check: undeclared, it is the built-in namespace.',
   },
 
+  {
+    name: '#37 review: a field named new compared with < does not open a generic',
+    code: IND + 'type Holder\n    float new\n    float x\nf(Holder h) => below = h.new < close, position = h, position.x\nplot(f(Holder.new(open, 1.0)))\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Codex round-3 review of #41: `.new<` matched any .new, so a comparison swallowed the following statement separators.',
+  },
+
   //────────────────────────────────────────────────────────
   // S10 — hard-coded external feed without ignore_invalid_symbol
   //────────────────────────────────────────────────────────

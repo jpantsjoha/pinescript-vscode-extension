@@ -315,7 +315,7 @@ export class AccurateValidator {
       else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
       // `map<string, float> m = ...`: a generic type's comma is not a separator.
       // Only array/matrix/map take a type list, so a comparison `<` never opens one.
-      else if (ch === '<' && /(?:\b(?:array|matrix|map)|\.new)$/.test(line.slice(0, i))) angle++;
+      else if (ch === '<' && /\b(?:array|matrix|map)(?:\.new)?$/.test(line.slice(0, i))) angle++;
       else if (ch === '>' && angle > 0) angle--;
       if (depth === 0 && angle === 0 && ch === '=' && line[i + 1] === '>') { out.push(cur); cur = ''; i++; continue; }
       if (depth === 0 && angle === 0 && ch === ',') { out.push(cur); cur = ''; continue; }
@@ -342,7 +342,7 @@ export class AccurateValidator {
       else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
       // Pine's only generic type templates are array<>, matrix<> and map<> (plus
       // the `.new<type>()` constructors). Any other `<` is a comparison.
-      else if (ch === '<' && /(?:\b(?:array|matrix|map)|\.new)$/.test(list.slice(0, i))) angle++;
+      else if (ch === '<' && /\b(?:array|matrix|map)(?:\.new)?$/.test(list.slice(0, i))) angle++;
       else if (ch === '>' && angle > 0) angle--;
       if (ch === ',' && depth === 0 && angle === 0) { out.push(cur); cur = ''; continue; }
       cur += ch;
