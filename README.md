@@ -1,268 +1,187 @@
 # Pine Script v6 IDE Tools
 
-> **Professional Pine Script v6 development** in VS Code with IntelliSense, real-time validation, and 100% language coverage.
+**Write TradingView Pine Script v6 in VS Code and catch mistakes before you paste into TradingView,
+including the ones that compile and are still wrong.**
 
-[![CI/CD](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/visual-studio-marketplace/v/jpantsjoha.pinescript-v6-extension)](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/jpantsjoha.pinescript-v6-extension)](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/jpantsjoha.pinescript-v6-extension)](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)
+[![Open VSX](https://img.shields.io/open-vsx/v/jpantsjoha/pinescript-v6-extension?label=Open%20VSX)](https://open-vsx.org/extension/jpantsjoha/pinescript-v6-extension)
+[![CI](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/jpantsjoha/pinescript-vscode-extension/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
-![Pine Script v6 Extension in Action](./images/screenshots/blog-image.png)
-*Real-time validation, IntelliSense, and hover documentation for Pine Script v6*
+Built and maintained by **[Jaroslav Pantsjoha](https://jpantsjoha.com)**. Free, open source, and unofficial: not affiliated with TradingView.
 
-![Function Signature Help](./images/screenshots/blog-image-function-tip.png)
-*Complete function signatures with parameter hints and documentation*
+![Real-time validation, IntelliSense and hover documentation](./images/screenshots/blog-image.png)
 
 ---
 
-## 🚀 Quick Start
+## Why use it
 
-### Install from Marketplace
-Search for **"Pine Script v6 IDE Tools"** in VS Code Extensions or [install directly from marketplace](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)
+TradingView's Pine Editor is the only place Pine Script compiles, so most authors find their
+mistakes one paste at a time. This extension moves that feedback into your editor.
 
-### Or Install from VSIX
-Download the latest `.vsix` from [Releases](https://github.com/jpantsjoha/pinescript-vscode-extension/releases) and install:
-```bash
-code --install-extension pinescript-v6-extension-0.6.3.vsix
-```
+- **Fewer compile-fix-paste round trips.** Wrong argument counts, misspelled parameter
+  names and undefined functions are underlined as you type.
+- **Catches what TradingView does not.** Some scripts compile and still give wrong answers:
+  a higher-timeframe request that repaints, a `ta.*` call that skips bars, an accumulator
+  that grows forever. The semantic checks flag them, with the reason and the fix.
+- **No noise on correct code.** Every check is tested in both directions: it must catch the
+  real error and stay silent on valid code. A false positive is treated as a bug.
+- **Works where you work.** VS Code, Cursor, Windsurf and VSCodium, plus a command-line
+  checker and an MCP server for AI coding agents, all running the same engine.
 
----
-
-## ✨ Features
-
-### 🎯 **100% Pine Script v6 Coverage**
-- **6,665 language constructs** from official TradingView reference
-- **457+ functions** with autocomplete (ta.*, math.*, str.*, array.*, etc.)
-- **31 constant namespaces** (xloc, yloc, extend, scale, display, etc.)
-- **22 function namespaces** with full parameter validation
-- **32 strategy.* variables** (position_size, equity, netprofit, etc.)
-
-### 🧠 **Semantic checks — catches code that compiles and is still wrong**
-- **Repainting** — `request.security()` reading the current, forming bar
-- **`ta.*` in a conditional** — silently corrupts the indicator's own history
-- **Accumulator lifetime** — a `var` total a loop re-adds to every bar and never resets, so it grows for the life of the chart
-- **Scope errors** — `plot`/`bgcolor`/`barcolor` inside `if`, functions defined in a block
-- **Platform limits** — 64 plots, 40 `request.*()` calls, counted before TradingView rejects you
-- **Unbounded risk** — `strategy.entry` with no exit anywhere
-- **Unguarded external feeds** (hint, from 0.6.3) — a hard-coded `"FRED:…"` or `"ECONOMICS:…"` request with no `ignore_invalid_symbol`, which halts on the chart with `Permission denied for symbol` when the viewer's plan cannot read it
-
-Suppress one you have considered: `// pine-ignore: S1`
-
-### 🔍 **Real-Time Validation**
-- Catches undefined functions and variables
-- Detects missing/extra parameters
-- Validates namespace properties
-- **Zero false positives** on the golden corpus — four committed fixtures
-  exercising every construct that has ever produced one, asserted clean on every
-  commit, plus real scripts checked locally
-
-### 💡 **Intelligent IntelliSense**
-- Smart autocomplete for all built-in functions
-- Parameter hints with type information
-- Hover documentation
-- Namespace-aware suggestions
-
-### 📝 **Syntax Highlighting**
-- Complete Pine Script v6 syntax support
-- Built-in variables and constants
-- Keywords, operators, and functions
-- Comments and strings
+![How the checks work](./images/diagrams/how-it-works.png)
 
 ---
 
-## 📖 Usage Examples
+## Get started
 
-### Valid Pine Script v6 Code
+![From install to a clean script](./images/diagrams/getting-started.png)
 
-```pinescript
-//@version=6
-indicator("My Indicator", overlay=true)
+1. **Install.**
+   - VS Code: search **"Pine Script v6 IDE Tools"** in the Extensions view, or
+     [install from the Marketplace](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension).
+   - Cursor, Windsurf, VSCodium, Gitpod: install from
+     [Open VSX](https://open-vsx.org/extension/jpantsjoha/pinescript-v6-extension).
+   - Offline: download the `.vsix` from
+     [Releases](https://github.com/jpantsjoha/pinescript-vscode-extension/releases) and run
+     `code --install-extension pinescript-v6-extension-0.6.4.vsix`.
+2. **Open or create a `.pine` file.** Highlighting and checks start immediately; there is
+   nothing to configure.
+3. **Paste this and watch the checks work:**
 
-// All valid v6 syntax - no false positives! ✅
-length = input.int(14, "Length")
-source = input.source(close, "Source")
+   ```pinescript
+   //@version=6
+   indicator("My first check", overlay=true)
 
-// Technical analysis with autocomplete
-sma_value = ta.sma(source, length)
-ema_value = ta.ema(source, length)
-rsi_value = ta.rsi(source, 14)
+   length = input.int(14, "Length", minval=1)
+   fast = ta.ema(close, length)
+   slow = ta.ema(close, length * 2)
 
-// Math functions with precision parameter
-rounded = math.round(close, 2)  // ✅ v0.4.4+ supports precision
-max_val = math.max(open, close)
+   // Higher-timeframe data, read without repainting. Change close[1] to close and
+   // delete the last two arguments: the repainting warning (S1) appears, with the fix.
+   daily = request.security(syminfo.tickerid, "D", close[1], barmerge.gaps_off, barmerge.lookahead_off)
 
-// Strategy variables fully supported
-if strategy.position_size > 0
-    plot(strategy.equity, "Equity")
-    plot(strategy.netprofit, "Net Profit")
+   plot(fast, "Fast", color=color.new(color.blue, 0))
+   plot(slow, "Slow", color=color.new(color.orange, 0))
+   plot(daily, "Prior daily close", color=color.gray, style=plot.style_stepline)
+   ```
 
-// Plot with all v6 constants
-plot(sma_value, "SMA", color=color.new(color.blue, 50), style=plot.style_line)
-plot(ema_value, "EMA", color=color.new(color.red, 50), style=plot.style_linebr)
-
-// All namespace constants work
-x = xloc.bar_index
-y = yloc.price
-e = extend.both
-s = scale.left
-```
-
----
-
-## 🔧 Configuration
-
-The extension works out of the box with zero configuration. All Pine Script v6 features are automatically recognized.
+4. **Read the Problems panel** (`Ctrl+Shift+M` / `Cmd+Shift+M`). Each entry says what is
+   wrong and why. Hover any built-in for its documentation.
+5. **Paste into TradingView** with far fewer surprises.
 
 ---
 
-## 📊 What's New in v0.6.3
+## What it catches
 
-### Fewer false positives
-- `request.security()` with a positional `lookahead` argument is no longer warned as repainting.
-- `timestamp()` accepts every documented form, including date and time components with a timezone.
-- Function parameters (including user-defined types) are no longer reported as undefined.
+**Before TradingView rejects it**
 
-### Catch scripts that compile but still fail on the chart
-- **S10** hints when a hard-coded external feed such as `"FRED:WTREGEN"` has no
-  `ignore_invalid_symbol`. Without it, the whole script halts with
-  `Permission denied for symbol` on any plan that cannot read that feed.
-- `request.security("X")` without a timeframe and expression is now an error, as on TradingView.
-- `barcolor()` inside an `if` is flagged as a scope error.
-
-### Editor and package
-- `enum` keyword highlighting.
-- A leaner package: an unused validator and stale compiled files removed.
-
-## 📊 Earlier: v0.6.2
-
-### Accumulator lifetime — found in the field
-A `var` total a loop re-adds to every bar and never resets grows for the life of
-the chart, not just the bar — a defect that produces a plausible number and
-survives a backtest. Now detected as **S3**, alongside the semantic checks
-already shipped: repainting `request.security`, `ta.*` inside conditionals,
-scope errors, platform limits, entries with no exit. Suppress one you have
-considered with `// pine-ignore: S1` (or `S2`, `S3`, …).
-
-### The engine is now a package
-Published as [`pinescript-v6-validator`](https://www.npmjs.com/package/pinescript-v6-validator)
-and shared with the agent plugin, so both cannot disagree about a file.
-
-### False positives eliminated (0.5.x)
-The coordinate forms of `line.new`, `label.new` and `box.new` are official v6
-overloads, but the bundled reference only carried the `chart.point` form — so
-correct code lit up red. Overloads are now modelled properly.
-
-```pinescript
-// Before v0.5.0: 10 errors on these three lines. Now: clean. ✅
-line.new(x1=bar_index[1], y1=low[1], x2=bar_index, y2=high)
-label.new(x=bar_index, y=high, text="hi")
-box.new(left=bar_index[5], top=high, right=bar_index, bottom=low)
-```
-
-Also fixed: `for … in` loop iterators, comments and blank lines inside wrapped
-calls, nested parentheses in arguments, user-defined `type`/`enum` namespaces, and
-two indentation rules TradingView removed in December 2025.
-
-### 12.8× faster
-A 1,302-line script validates in **12.3ms**, down from 158ms.
-
-### Caught up with Pine v6
-Ten months of TradingView releases the bundled reference was missing —
-multiline strings (`"""…"""`), `request.footprint()`, `calc_on_every_history_tick`,
-`sort_field`, `active` on inputs, `timeframe_bars_back`, `syminfo.isin`,
-`box.set_xloc()`.
-
-### A real test gate
-From 67 tests to a regression suite and golden corpus asserted to produce zero errors, with
-paired "must still flag" cases for every fix — so a check can never be quietly
-deleted instead of repaired.
-
-See [CHANGELOG](./CHANGELOG.md) for complete version history.
-
----
-
-## 🧪 Testing
-
-- **A regression suite and golden corpus**, run on every commit: `npm test`
-- **Golden corpus**: four committed fixtures asserted to produce zero errors, and
-  proven able to fail — reintroducing a fixed bug turns them red
-- **Paired regression tests**: every false-positive fix ships with a "must still
-  flag" counterpart, so a check cannot be silently deleted instead of repaired
-- **Performance budget**: enforced in CI (<100ms for a 1,300-line script)
-
-```bash
-npm test                          # full suite
-node validate-cli.js file.pine    # headless single-file validation
-```
-
-## 📚 Documentation
-
-- [ROADMAP](./ROADMAP.md) — build order, checked against the open issues
-- [STATUS](./STATUS.md) — current session state
-- [docs/PINESCRIPT-V6-SYNTAX-RULES.md](./docs/PINESCRIPT-V6-SYNTAX-RULES.md) — canonical syntax/style reference
-- [docs/adr/](./docs/adr/) — architecture decision records
-- [docs/guides/](./docs/guides/) — contributor, testing, release and AI-assistant guides
-
-## 🤝 Contributing
-
-Contributions welcome! See [docs/guides/CONTRIBUTING.md](./docs/guides/CONTRIBUTING.md) for guidelines.
-
-### Found a Bug?
-- Check [existing issues](https://github.com/jpantsjoha/pinescript-vscode-extension/issues)
-- Create a new issue with:
-  - Pine Script code that triggers the problem
-  - Expected vs actual behavior
-  - Extension version
-
-### Want to Help?
-- Report false positives/negatives
-- Suggest feature improvements
-- Submit pull requests
-- Share feedback
-
----
-
-## 🔗 Related Projects
-
-| Project | What it is |
+| Mistake | Example |
 |---|---|
-| **[pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin)** | Pine Script v6 skills and MCP tooling for **coding agents** — consumes this extension's validation engine, so an agent and your editor never disagree about a file. |
+| Wrong number of arguments | `ta.sma(close)`: missing `length` |
+| Unknown parameter name | `plotshape(cond, shape=shape.circle)`: the parameter is `style=` |
+| Undefined function or namespace | `ta.smaa(close, 14)`, `mylib.value` |
+| Plot calls inside a block | `if cond` then `plot(x)`: plot at global scope with `na` instead |
+| Platform limits | more than 64 plots or 40 `request.*()` calls |
+
+**Compiles, but is wrong (semantic checks)**
+
+| Check | What it means | Usual fix |
+|---|---|---|
+| **S1** Repainting | `request.security()` reads the still-forming higher-timeframe bar, so backtests look better than live | use `close[1]`, or state `barmerge.lookahead_off` |
+| **S2** `ta.*` in a conditional | the function skips bars, so its history has gaps | compute it every bar, then use the result in the condition |
+| **S3** Accumulator lifetime | a `var` total re-added every bar grows forever; a missing `var` resets every bar | reset before the loop, or add or remove `var` |
+| **S7 / S8** Scope | `plot`, `bgcolor`, `barcolor` inside `if`; functions defined inside a block | move to global scope |
+| **S9** Unbounded risk | `strategy.entry` with no exit anywhere | add `strategy.exit` or `strategy.close` |
+| **S10** Unguarded external feed | a hard-coded `"FRED:…"` or `"ECONOMICS:…"` symbol halts the whole script with *Permission denied for symbol* on plans that cannot read it | pass `ignore_invalid_symbol=true` |
+
+Made a deliberate choice? Silence one semantic check on one line: `// pine-ignore: S1`.
+Compile errors cannot be silenced.
 
 ---
 
-## 📚 Resources
+## Editing features
 
-- **Marketplace**: [Pine Script v6 IDE Tools](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension)
-- **Repository**: [GitHub](https://github.com/jpantsjoha/pinescript-vscode-extension)
-- **Issues**: [Bug Reports](https://github.com/jpantsjoha/pinescript-vscode-extension/issues)
-- **Releases**: [Changelog](https://github.com/jpantsjoha/pinescript-vscode-extension/releases)
-- **Story**: [How This Extension Was Built](https://jaroslav-pantsjoha.medium.com/couldnt-find-a-pinescript-language-support-on-ide-so-i-built-one-enjoy-1fe57df0560f) (Medium)
-- **TradingView Pine Script Reference**: [Official Docs](https://www.tradingview.com/pine-script-reference/v6/)
+- **Validation against all 475 built-in functions** in TradingView's current v6 reference,
+  including every documented overload.
+- **IntelliSense** for the common built-ins across `ta.*`, `math.*`, `str.*`, `array.*`,
+  `input.*`, `request.*`, `strategy.*` and `color.*`, plus built-in variables.
+- **Signature help** with parameter hints as you type the arguments.
+- **Hover documentation** for functions, variables and constants.
+- **Syntax highlighting** for v6, including `type`, `enum` and `method`.
+
+![Function signature help](./images/screenshots/blog-image-function-tip.png)
+
+### Commands and settings
+
+| Command (Command Palette) | Does |
+|---|---|
+| `Pine: Validate current file` | re-runs every check on the open file |
+| `Pine: Show docs for symbol` | opens the documentation for the symbol under the cursor |
+
+| Setting | Default | Does |
+|---|---|---|
+| `pine.docsMode` | `full` | `full` or `summary` documentation in hovers and completions |
+| `pine.applyFileAssociation` | `true` | maps `*.pine` files to Pine Script on activation |
+| `pine.httpSuggestions.enabled` | `false` | optional hook to an HTTP completion service you run yourself |
 
 ---
 
-## 📄 License
+## Troubleshooting
 
-MIT License - see [LICENSE](./LICENSE) for details.
+- **Valid code is flagged.** That is a bug here, not in your script.
+  [Open an issue](https://github.com/jpantsjoha/pinescript-vscode-extension/issues) with
+  the smallest snippet that shows it; false positives are fixed first.
+- **A warning is right, but intentional.** Add `// pine-ignore: S<n>` on that line.
+- **The script compiles but TradingView says *Permission denied for symbol*.** Your plan
+  cannot read that data feed. Pass `ignore_invalid_symbol=true` so the feed returns `na`
+  instead of stopping the script (the S10 hint points at these calls).
+- **No highlighting.** Check the language mode in the status bar reads *Pine Script*.
 
 ---
 
-## 🙏 Acknowledgments
+## For developers and AI agents
 
-Created by **[Jaroslav Pantsjoha](https://jpantsjoha.com)**
+- **Command line:** `node validate-cli.js my-script.pine` runs the same checks as the
+  editor and exits non-zero on errors, ready for CI.
+- **Engine on npm:** [`pinescript-v6-validator`](https://www.npmjs.com/package/pinescript-v6-validator)
+  is the validation engine on its own.
+- **AI coding agents:** [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin)
+  gives agents Pine Script v6 skills and an MCP validation tool built on the same engine,
+  so an agent and your editor never disagree about a file.
+- **Contributing:** see [CONTRIBUTING](./docs/guides/CONTRIBUTING.md). Every fix ships with
+  a test that proves it catches the real error and one that proves it stays quiet on
+  valid code.
+
+---
+
+## What's new
+
+**0.6.4**: current with TradingView's September 2026 Pine v6 reference
+(`request.footprint()`, `footprint.*`, `volume_row.*`), every documented overload accepted,
+`display` on every `input.*()`, and now on Open VSX.
+
+**0.6.3**: fewer false positives (`request.security` lookahead, `timestamp()`, function
+parameters), the S10 external-feed hint, `enum` highlighting.
+
+Full history in the [CHANGELOG](./CHANGELOG.md). Plans in the [ROADMAP](./ROADMAP.md).
+
+---
+
+## About
+
+Created by **[Jaroslav Pantsjoha](https://jpantsjoha.com)**, who could not find proper Pine
+Script support for a real IDE and built it.
+[Read the story](https://jaroslav-pantsjoha.medium.com/couldnt-find-a-pinescript-language-support-on-ide-so-i-built-one-enjoy-1fe57df0560f).
 
 - Website: [jpantsjoha.com](https://jpantsjoha.com)
 - GitHub: [@jpantsjoha](https://github.com/jpantsjoha)
 - LinkedIn: [in/johas](https://uk.linkedin.com/in/johas)
 
-Special thanks to:
-- TradingView for Pine Script
-- VS Code extension development community
-- All contributors and testers
+If it saves you time, a [rating on the Marketplace](https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension&ssr=false#review-details)
+helps other Pine authors find it.
 
----
-
-**Full Language Coverage**: 6,665 Pine Script v6 constructs
-**Test Coverage**: a regression suite and golden corpus — run `npm test`
-**Current Version**: 0.6.3
+**License:** MIT, see [LICENSE](./LICENSE). Pine Script and TradingView are trademarks of
+TradingView, Inc.

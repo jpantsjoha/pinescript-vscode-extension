@@ -66,8 +66,10 @@ from scratch. Git history keeps the old code.
 
 ## Next up (recommended order)
 
-1. Remove the duplicated syntactic validator (import it from the engine).
-2. #13 named-parameter IntelliSense, then the narrow #12 cast rule.
+1. #36 IntelliSense from the 475-function reference (completions cover ~205 today).
+2. #37 missed errors: misspelled namespace members, names after `=`.
+3. Remove the duplicated syntactic validator (import it from the engine).
+4. #13 named-parameter IntelliSense, then the narrow #12 cast rule.
 
 ## Related
 

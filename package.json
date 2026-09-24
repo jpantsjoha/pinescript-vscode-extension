@@ -1,13 +1,13 @@
 {
   "name": "pinescript-v6-extension",
   "displayName": "Pine Script v6 IDE Tools",
-  "description": "Unofficial Pine Script v6 support for VS Code — IntelliSense, hover docs, and real-time validation with 100% language coverage.",
+  "description": "Unofficial Pine Script v6 support: real-time validation against TradingView's current v6 reference, checks for code that compiles but is wrong, IntelliSense and hover docs.",
   "publisher": "jpantsjoha",
   "author": {
     "name": "Jaroslav Pantsjoha",
     "url": "https://jpantsjoha.com"
   },
-  "version": "0.6.3",
+  "version": "0.6.4",
   "icon": "images/pinescript-extension.png",
   "repository": {
     "type": "git",

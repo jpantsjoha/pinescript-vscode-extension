@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.6.4] - 2026-09-24
+
+Up to date with TradingView's current Pine v6 reference, and now on Open VSX.
 
 ### 🔄 Pine v6 reference re-crawled (2026-09-23)
 
@@ -22,6 +24,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Still caught: too many arguments, missing required arguments (`matrix.get(m)`), unknown
   members (`footprint.nosuch`).
 - The crawler is now part of the repository: `npm run crawl` (#6).
+
+### 📖 A README that gets you started
+
+Rewritten for new users: why to use it, a one-minute getting-started walkthrough with a
+script to paste, a "what it catches" table with the fix for each check, commands and
+settings, troubleshooting, and two diagrams (how the checks work, getting started).
+Claims now match what the extension does.
+
+### 📦 Available on Open VSX
+
+Published to [Open VSX](https://open-vsx.org/extension/jpantsjoha/pinescript-v6-extension)
+as well as the VS Code Marketplace, so Cursor, Windsurf, VSCodium and Gitpod users can
+install it. The editor ships the re-crawled reference itself; the standalone npm engine
+with the same data follows as `pinescript-v6-validator@0.4.1`.
 
 ## [0.6.3] - 2026-09-23
 
