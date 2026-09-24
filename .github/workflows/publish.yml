@@ -38,10 +38,26 @@ jobs:
     - name: Package extension
       run: vsce package
 
+    # Publish the one VSIX built above to both registries, so they ship identical bits.
     - name: Publish to VS Code Marketplace
       env:
         VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      run: vsce publish -p $VSCE_PAT
+      run: vsce publish -p "$VSCE_PAT" --packagePath "pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix"
+
+    # Open VSX serves Cursor, Windsurf, VSCodium, Gitpod and Theia. Skipped with a
+    # warning rather than failed when no token is configured, so a missing optional
+    # token cannot fail a release that reached the Marketplace (same as c4x).
+    - name: Publish to Open VSX
+      env:
+        OVSX_PAT: ${{ secrets.OVSX_PAT }}
+      run: |
+        VSIX="pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix"
+        if [ -z "$OVSX_PAT" ]; then
+          echo "::warning::OVSX_PAT is not set, so Open VSX was skipped. Publish it by hand:"
+          echo "  npx ovsx publish $VSIX -p \$OVSX_PAT"
+          exit 0
+        fi
+        npx --yes ovsx publish "$VSIX" -p "$OVSX_PAT"
 
     - name: Upload VSIX to release
       uses: softprops/action-gh-release@v1
