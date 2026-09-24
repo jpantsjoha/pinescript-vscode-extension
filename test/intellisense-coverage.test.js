@@ -142,3 +142,15 @@ test('hover falls back to the reference for functions v6-manual does not know', 
   // v6-manual entries keep their hand-written docs
   assert.strictEqual(getHoverData('close').type, 'series float');
 });
+
+test('signature help finds the open call past a closed nested call and ignores commas in strings', () => {
+  const d = require('../dist/src/intellisenseData.js');
+  const line = 'x = str.format("{0}, {1}", a, ta.sma(close, 14), ';
+  assert.strictEqual(d.findFunctionCallName(line, line.length), 'str.format');
+  assert.strictEqual(d.calculateActiveParameter(line), 3);
+  const inner = 'y = ta.sma(close, ';
+  assert.strictEqual(d.findFunctionCallName(inner, inner.length), 'ta.sma');
+  assert.strictEqual(d.calculateActiveParameter(inner), 1);
+  const outside = 'z = ta.sma(close, 14) + ';
+  assert.strictEqual(d.findFunctionCallName(outside, outside.length), null);
+});

@@ -356,20 +356,49 @@ export function getHoverData(symbol: string): HoverData | undefined {
  * Find the function being called before the cursor, e.g. `ta.sma(close, |`
  * yields `ta.sma`. Pure helper shared by the signature-help provider.
  */
-export function findFunctionCallName(line: string, character: number): string | null {
-  const beforeCursor = line.substring(0, character);
-  const match = beforeCursor.match(/([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*)\s*\([^)]*$/i);
-  return match ? match[1] : null;
+/**
+ * The innermost call still open at the cursor. Scans back from the cursor, skipping
+ * string literals and any call already closed, so `str.format("{0}, {1}", ta.sma(x, 1), `
+ * resolves to `str.format`, not to nothing. Returns the name and the index of its '('.
+ */
+function openCallAt(beforeCursor: string): { name: string; open: number } | null {
+  // Blank string contents (keeping length) so their parens and commas are inert.
+  const text = beforeCursor.replace(/"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?/g, m => m[0] + ' '.repeat(Math.max(0, m.length - 1)));
+  let depth = 0;
+  for (let i = text.length - 1; i >= 0; i--) {
+    const ch = text[i];
+    if (ch === ')' || ch === ']') depth++;
+    else if (ch === '[') { if (depth > 0) depth--; }
+    else if (ch === '(') {
+      if (depth > 0) { depth--; continue; }
+      const m = text.slice(0, i).match(/([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*$/);
+      return m ? { name: m[1], open: i } : null;
+    }
+  }
+  return null;
 }
 
-/** Index of the active parameter: count top-level commas inside the call. */
+/** Name of the function whose argument list the cursor is in, or null. */
+export function findFunctionCallName(line: string, character: number): string | null {
+  const call = openCallAt(line.substring(0, character));
+  return call ? call.name : null;
+}
+
+/**
+ * Index of the active parameter: top-level commas between the open '(' and the
+ * cursor, ignoring commas inside strings and nested calls. Accepts either the text
+ * before the cursor (preferred) or the text from the '(' onwards.
+ */
 export function calculateActiveParameter(text: string): number {
+  const call = openCallAt(text);
+  const inner = call ? text.slice(call.open + 1) : text.replace(/^[^(]*\(/, '');
+  const blanked = inner.replace(/"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?/g, m => ' '.repeat(m.length));
   let depth = 0;
   let paramIndex = 0;
-  for (const char of text) {
-    if (char === '(' || char === '[') depth++;
-    else if (char === ')' || char === ']') depth--;
-    else if (char === ',' && depth === 1) paramIndex++;
+  for (const ch of blanked) {
+    if (ch === '(' || ch === '[') depth++;
+    else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+    else if (ch === ',' && depth === 0) paramIndex++;
   }
   return paramIndex;
 }
