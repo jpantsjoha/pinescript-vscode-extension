@@ -1,0 +1,289 @@
+#!/usr/bin/env node
+/**
+ * Re-crawl the TradingView Pine Script v6 reference and regenerate
+ * v6/parameter-requirements-generated.ts (and its engine mirror).
+ *
+ *   node scripts/crawl-v6-reference.js                 # download the page, then parse
+ *   node scripts/crawl-v6-reference.js --cached <file> # parse a saved page, no network
+ *   node scripts/crawl-v6-reference.js --dry-run       # parse and print the diff, write nothing
+ *
+ * Needs `playwright` (dev dependency) and a Chromium build. Set CHROMIUM_PATH to use a
+ * specific binary when Playwright's pinned one is not installed.
+ *
+ * WHAT THIS FIXES OVER THE 2025 CRAWLER
+ *
+ * 1. Overloads. The old parser kept only the FIRST syntax line of each function, so
+ *    `timestamp(year, month, day, ...)` and the coordinate form of `line.new` were
+ *    missing and correct code was flagged. Every distinct parameter list on the page
+ *    is now emitted as an overload; a call is valid if it fits ANY of them.
+ *
+ * 2. Required parameters are NOT inferred from the absence of an "Optional." label.
+ *    The reference labels optional arguments inconsistently: `request.security`'s
+ *    `gaps` and `lookahead`, `timestamp`'s `hour`, and every styling argument of
+ *    `line.new` are optional and unlabelled. "Unlabelled means required" would flag
+ *    thousands of valid calls. The rule stays the false-positive-safe one: the first
+ *    parameter of each form is required unless labelled optional; the rest are
+ *    optional. Maximum arity and parameter NAMES come from the syntax lines, which are
+ *    reliable. Tighter required sets belong in v6/parameter-requirements.ts, verified
+ *    by hand.
+ */
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const cheerio = require('cheerio');
+
+const ROOT = path.resolve(__dirname, '..');
+const BASE_URL = 'https://www.tradingview.com/pine-script-reference/v6/';
+const OUTPUTS = [
+  path.join(ROOT, 'v6/parameter-requirements-generated.ts'),
+  path.join(ROOT, 'packages/validator/data/parameter-requirements-generated.ts'),
+];
+
+async function download() {
+  const { chromium } = require('playwright');
+  const browser = await chromium.launch({
+    headless: true,
+    ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
+  });
+  try {
+    const page = await browser.newPage();
+    await page.goto(BASE_URL, { waitUntil: 'networkidle', timeout: 120000 });
+    await page.waitForTimeout(4000);
+    return await page.content();
+  } finally {
+    await browser.close();
+  }
+}
+
+/** `request.security(symbol, timeframe, expression) → series <type>` -> ['symbol','timeframe','expression'] */
+function paramsFromSyntax(syntax) {
+  const open = syntax.indexOf('(');
+  if (open === -1) return null;
+  let depth = 0;
+  let close = -1;
+  for (let i = open; i < syntax.length; i++) {
+    if (syntax[i] === '(') depth++;
+    else if (syntax[i] === ')') { depth--; if (depth === 0) { close = i; break; } }
+  }
+  if (close === -1) return null;
+  const inner = syntax.slice(open + 1, close).trim();
+  if (!inner) return [];
+  return inner.split(',').map(p => p.trim().replace(/\s*=.*$/, '')).filter(Boolean);
+}
+
+function parse(html, previous = {}) {
+  const $ = cheerio.load(html);
+  const functions = [];
+
+  $('.tv-pine-reference-item').each((_, item) => {
+    const $item = $(item);
+    const id = $item.attr('id') || '';
+    if (!id.startsWith('fun_')) return;
+
+    const name = $item.find('.tv-pine-reference-item__header').first().text().trim().replace(/\(\)$/, '');
+    const syntaxes = $item.find('pre.tv-pine-reference-item__syntax').map((_, e) => $(e).text().trim()).get();
+    if (!name || syntaxes.length === 0) return;
+    const description = $item.find('.tv-pine-reference-item__text').first().text().trim();
+
+    // Arguments section: names, types, descriptions, and any explicit label.
+    const parameters = [];
+    let inArgs = false;
+    $item.find('.tv-pine-reference-item__sub-header, .tv-pine-reference-item__text').each((_, el) => {
+      const $el = $(el);
+      const text = $el.text().trim();
+      if (text === 'Arguments') { inArgs = true; return; }
+      if ($el.hasClass('tv-pine-reference-item__sub-header')) { inArgs = false; return; }
+      if (!inArgs) return;
+      const m = text.match(/^(\w+)\s*\(([^)]+)\)\s*(.*)/s);
+      if (!m) return;
+      // The LABEL, not the word: "Optional." / "Required argument." — a description
+      // saying "optionally, the time" must not make `dateString` optional.
+      parameters.push({
+        name: m[1],
+        type: m[2],
+        description: m[3],
+        explicitlyOptional: /(^|\.\s+)Optional\b/.test(m[3]),
+        explicitlyRequired: /(^|\.\s+)Required\b/.test(m[3]),
+      });
+    });
+    const labelledOptional = new Set(parameters.filter(p => p.explicitlyOptional && !p.explicitlyRequired).map(p => p.name));
+    parameters.forEach((p, i) => {
+      if (p.explicitlyRequired) { p.required = true; p.optional = false; }
+      else if (p.explicitlyOptional) { p.required = false; p.optional = true; }
+      else { p.required = i === 0; p.optional = i !== 0; }
+    });
+
+    // Variadic functions (`str.format(formatString, arg0, arg1, ...)`) keep NO
+    // overloads and a signature containing "...", which the validator reads as
+    // "unbounded arguments". A fixed maximum would flag valid calls.
+    const variadic = syntaxes.some(s => s.includes('...'));
+
+    // One overload per DISTINCT parameter list (return-type variants collapse).
+    const seen = new Set();
+    const overloads = [];
+    for (const syntax of syntaxes) {
+      const names = paramsFromSyntax(syntax);
+      if (names === null) continue;
+      const key = names.join(',');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const first = names[0];
+      let required = first && !labelledOptional.has(first) ? [first] : [];
+      // Continuity: a form whose parameter list is unchanged since the last crawl keeps
+      // that crawl's required set. It shipped for a year against the golden corpus, so
+      // re-deriving it here could only lose real-error detection, never gain accuracy.
+      const prior = previous[name];
+      if (prior) {
+        const priorNames = paramsFromSyntax(prior.syntax || '') || [];
+        const priorReq = prior.requiredParams || [];
+        const isPrefix = priorReq.every((n, i) => names[i] === n);
+        if (priorNames.join(',') === key && isPrefix) required = priorReq.slice();
+      }
+      overloads.push({
+        requiredParams: required,
+        optionalParams: names.filter(n => !required.includes(n)),
+        signature: syntax,
+      });
+    }
+    if (overloads.length === 0) return;
+
+    functions.push({ name, syntax: variadic ? syntaxes.find(s => s.includes('...')) : syntaxes[0], description, parameters, overloads: variadic ? [overloads[0]] : overloads, variadic });
+  });
+
+  // A name can appear twice on the page (e.g. a method and a function); merge overloads.
+  const byName = new Map();
+  for (const f of functions) {
+    const prior = byName.get(f.name);
+    if (!prior) { byName.set(f.name, f); continue; }
+    // Variadic in ANY page entry means variadic: a fixed maximum would flag valid calls.
+    if (f.variadic && !prior.variadic) { prior.variadic = true; prior.syntax = f.syntax; prior.overloads = [prior.overloads[0]]; continue; }
+    if (prior.variadic) continue;
+    const keys = new Set(prior.overloads.map(o => [...o.requiredParams, ...o.optionalParams].join(',')));
+    for (const o of f.overloads) {
+      const k = [...o.requiredParams, ...o.optionalParams].join(',');
+      if (!keys.has(k)) { prior.overloads.push(o); keys.add(k); }
+    }
+  }
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function emit(functions) {
+  const out = [
+    '/**',
+    ' * AUTO-GENERATED: Pine Script v6 Parameter Requirements',
+    ` * Generated: ${new Date().toISOString()}`,
+    ` * Source: ${BASE_URL}`,
+    ` * Functions: ${functions.length}`,
+    ' * Generator: scripts/crawl-v6-reference.js — do not edit by hand; put corrections',
+    ' * in v6/parameter-requirements.ts, which overrides this file.',
+    ' */',
+    '',
+    'export interface FunctionParameter {',
+    '  name: string;',
+    '  type: string;',
+    '  description?: string;',
+    '  optional: boolean;',
+    '  required: boolean;',
+    '  explicitlyOptional?: boolean;',
+    '  explicitlyRequired?: boolean;',
+    '}',
+    '',
+    'export interface GeneratedOverload {',
+    '  requiredParams: string[];',
+    '  optionalParams: string[];',
+    '  signature: string;',
+    '}',
+    '',
+    'export interface FunctionSignatureSpec {',
+    '  name: string;',
+    '  syntax: string;',
+    '  description?: string;',
+    '  requiredParams: string[];',
+    '  optionalParams: string[];',
+    '  signature: string;',
+    '  parameters: FunctionParameter[];',
+    '  /** Present only when the reference lists more than one parameter list. */',
+    '  overloads?: GeneratedOverload[];',
+    '  returns?: string;',
+    '}',
+    '',
+    'export const PINE_FUNCTIONS: Record<string, FunctionSignatureSpec> = {',
+  ];
+  functions.forEach((f, i) => {
+    const primary = f.overloads[0];
+    const entry = {
+      name: f.name,
+      syntax: f.syntax,
+      description: f.description || undefined,
+      requiredParams: primary.requiredParams,
+      optionalParams: primary.optionalParams,
+      signature: f.syntax,
+      parameters: f.parameters,
+      ...(f.overloads.length > 1 ? { overloads: f.overloads } : {}),
+    };
+    out.push(`  ${JSON.stringify(f.name)}: ${JSON.stringify(entry, null, 2).split('\n').join('\n  ')}${i < functions.length - 1 ? ',' : ''}`);
+  });
+  out.push('};', '', `// Total functions: ${functions.length}`, '');
+  return out.join('\n');
+}
+
+function loadPrevious() {
+  const file = OUTPUTS[0];
+  if (!fs.existsSync(file)) return {};
+  // Load the compiled previous dataset if present, else parse names only.
+  const compiled = path.join(ROOT, 'dist/v6/parameter-requirements-generated.js');
+  if (fs.existsSync(compiled)) return require(compiled).PINE_FUNCTIONS;
+  // Without the prior dataset the continuity rule cannot run, and every form falls
+  // back to "first parameter required": no false positive, but real-error detection
+  // (e.g. matrix.get(m)) is lost. Say so rather than degrade silently.
+  console.warn('WARNING: dist/v6/parameter-requirements-generated.js not found — run `npm run build` first,');
+  console.warn('         or prior required sets cannot be carried over.');
+  return {};
+}
+
+function arity(spec) {
+  const forms = spec.overloads && spec.overloads.length ? spec.overloads : [spec];
+  return {
+    min: Math.min(...forms.map(f => (f.requiredParams || []).length)),
+    max: Math.max(...forms.map(f => (f.requiredParams || []).length + (f.optionalParams || []).length)),
+  };
+}
+
+function report(prev, next) {
+  const before = new Set(Object.keys(prev));
+  const after = new Map(next.map(f => [f.name, f]));
+  const added = [...after.keys()].filter(n => !before.has(n));
+  const removed = [...before].filter(n => !after.has(n));
+  const widened = [];
+  const narrowed = [];
+  for (const [n, f] of after) {
+    if (!before.has(n)) continue;
+    const a = arity(prev[n]);
+    if (f.variadic) continue;
+    const b = arity({ ...f.overloads[0], overloads: f.overloads });
+    if (b.max > a.max || b.min < a.min) widened.push(`${n} ${a.min}-${a.max} -> ${b.min}-${b.max}`);
+    else if (b.max < a.max || b.min > a.min) narrowed.push(`${n} ${a.min}-${a.max} -> ${b.min}-${b.max}`);
+  }
+  console.log(`functions: ${before.size} -> ${after.size}`);
+  console.log(`added (${added.length}): ${added.join(', ')}`);
+  console.log(`removed (${removed.length}): ${removed.join(', ')}`);
+  console.log(`arity widened (${widened.length}):\n  ${widened.join('\n  ')}`);
+  console.log(`arity narrowed (${narrowed.length}) — each is a potential new error, review by hand:\n  ${narrowed.join('\n  ')}`);
+  console.log(`with overloads: ${next.filter(f => f.overloads.length > 1).length}`);
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const cachedIdx = args.indexOf('--cached');
+  const html = cachedIdx !== -1 ? fs.readFileSync(args[cachedIdx + 1], 'utf8') : await download();
+  const previous = loadPrevious();
+  const functions = parse(html, previous);
+  report(previous, functions);
+  if (args.includes('--dry-run')) return;
+  const ts = emit(functions);
+  for (const out of OUTPUTS) fs.writeFileSync(out, ts);
+  console.log(`wrote ${OUTPUTS.map(o => path.relative(ROOT, o)).join(', ')}`);
+}
+
+main().catch(e => { console.error(e); process.exit(1); });

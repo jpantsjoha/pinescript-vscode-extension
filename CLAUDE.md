@@ -104,8 +104,9 @@ validator.
 
 `v6/parameter-requirements-merged.ts` = `{...GENERATED, ...MANUAL}` — manual wins.
 
-- `parameter-requirements-generated.ts` — auto-scraped **2025-10-03**, 457 functions.
-  A point-in-time crawl: anything TradingView shipped later is simply absent.
+- `parameter-requirements-generated.ts` — crawled **2026-09-23**, 475 functions, every
+  overload the reference lists. Regenerate with `npm run crawl` (`scripts/crawl-v6-reference.js`);
+  it prints what was added, widened and narrowed. Review every narrowed entry by hand.
 - `parameter-requirements.ts` — hand-verified overrides. Put corrections here,
   never in the generated file (a re-crawl would erase them).
 

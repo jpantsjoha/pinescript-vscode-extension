@@ -1,0 +1,4 @@
+# Dummy value in a documentation anti-pattern example ("sk-1234567890abcdef"),
+# not a credential. Replaced with a placeholder on 2026-09-23; this entry stops
+# full-history scans flagging the 2025-10-06 commit that introduced it.
+daa4a02fdde38ed546b745f093e5c8acbb448f33:mcp/VSCODE-COPILOT-SETUP.md:generic-api-key:470

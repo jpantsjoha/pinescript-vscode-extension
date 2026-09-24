@@ -232,6 +232,48 @@ const CASES = [
   },
 
   //────────────────────────────────────────────────────────
+  // 2026-09-23 re-crawl of the v6 reference
+  //────────────────────────────────────────────────────────
+  {
+    name: 'crawl: forms TradingView added since 2025-10-03 validate clean',
+    code: IND + 'v = ta.vwap(close, timeframe.change("D"), 1.0)\nph = ta.pivothigh(high, 5, 5)\nt = time("D", "0930-1600", "America/New_York", 1)\nl = line.new(bar_index[1], low, bar_index, high, xloc.bar_index, extend.none, color.red, line.style_solid, 1, true)\nx = input.int(5, "n", 1, 10, 1, "t", "a", "g", false, display.all, true)\nplot(v + x)\n',
+    expect: null,
+    found: '2026-09-23',
+    why:
+      'The 2025 crawl kept one syntax line per function and hand-written overrides lacked ' +
+      'parameters added since (input.* display, ta.vwap stdev form, time() bars_back), so ' +
+      'valid calls reported "Too many arguments".',
+  },
+  {
+    name: 'crawl: footprint.* and volume_row.* are known functions',
+    code: IND + 'fp = request.footprint(10)\nrow = footprint.get_row_by_price(fp, close)\nd = volume_row.delta(row)\npoc = footprint.poc(fp)\nplot(d)\n',
+    expect: null,
+    found: '2026-09-23',
+    why: 'January-2026 API absent from the 2025 crawl; every call was "Undefined function".',
+  },
+  {
+    name: 'crawl: a pivot call with four arguments is still too many',
+    code: IND + 'ph = ta.pivothigh(high, 5, 5, 1)\nplot(ph)\n',
+    expect: 'error',
+    found: '2026-09-23',
+    why: 'Paired "still flags": widening to the source overload must not make the maximum unbounded.',
+  },
+  {
+    name: 'crawl: matrix.get without row and column is still missing arguments',
+    code: IND + 'm = matrix.new<float>(2, 2, 0)\ng = matrix.get(m)\nplot(close)\n',
+    expect: 'error',
+    found: '2026-09-23',
+    why: 'Paired "still flags": the re-crawl keeps each unchanged form\'s required set rather than re-guessing it.',
+  },
+  {
+    name: 'crawl: an unknown footprint.* member is still undefined',
+    code: IND + 'x = footprint.nosuch(1)\nplot(close)\n',
+    expect: 'error',
+    found: '2026-09-23',
+    why: 'Paired "still flags": adding the footprint namespace must not accept every member of it.',
+  },
+
+  //────────────────────────────────────────────────────────
   // S10 — hard-coded external feed without ignore_invalid_symbol
   //────────────────────────────────────────────────────────
   {

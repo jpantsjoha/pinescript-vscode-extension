@@ -568,7 +568,33 @@ export const TIME_FUNCTIONS: Record<string, FunctionSignatureSpec> = {
   },
 };
 
-export const ALL_FUNCTION_SIGNATURES: Record<string, FunctionSignatureSpec> = {
+/**
+ * A manual entry exists to get REQUIRED parameters right; the reference is the better
+ * source for the full parameter LIST, and it grows (every input.* gained `display`,
+ * plotcandle/plotbar gained `format`/`precision`). On 2026-09-23 sixteen manual entries
+ * accepted fewer parameters than the fresh crawl, so a valid long call could be
+ * flagged "Too many arguments". Widen each manual entry with any parameter the
+ * reference lists and it lacks; the manual required set is never loosened.
+ */
+function widenFromReference(all: Record<string, FunctionSignatureSpec>): Record<string, FunctionSignatureSpec> {
+  const namesOf = (s: { requiredParams?: string[]; optionalParams?: string[]; overloads?: FunctionOverload[] }) =>
+    new Set((s.overloads && s.overloads.length ? s.overloads : [s])
+      .flatMap(o => [...(o.requiredParams || []), ...(o.optionalParams || [])]));
+  const out: Record<string, FunctionSignatureSpec> = {};
+  for (const [name, spec] of Object.entries(all)) {
+    const ref = (GENERATED as Record<string, any>)[name];
+    if (!ref || String(ref.signature || '').includes('...')) { out[name] = spec; continue; }
+    const have = namesOf(spec);
+    const missing = [...namesOf(ref)].filter(p => !have.has(p));
+    if (!missing.length) { out[name] = spec; continue; }
+    out[name] = spec.overloads && spec.overloads.length
+      ? { ...spec, overloads: spec.overloads.map(o => ({ ...o, optionalParams: [...o.optionalParams, ...missing] })) }
+      : { ...spec, optionalParams: [...spec.optionalParams, ...missing] };
+  }
+  return out;
+}
+
+export const ALL_FUNCTION_SIGNATURES: Record<string, FunctionSignatureSpec> = widenFromReference({
   ...CORE_FUNCTIONS,
   ...REQUEST_FUNCTIONS,
   ...TIME_FUNCTIONS,
@@ -578,7 +604,7 @@ export const ALL_FUNCTION_SIGNATURES: Record<string, FunctionSignatureSpec> = {
   ...TA_FUNCTIONS,
   ...DRAWING_FUNCTIONS,
   ...MODERN_V6_FUNCTIONS,
-};
+});
 
 /**
  * Helper function to check if a parameter is required

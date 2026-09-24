@@ -472,7 +472,7 @@ measured against.
   "servers": {
     "example": {
       "env": {
-        "API_KEY": "sk-1234567890abcdef"
+        "API_KEY": "<hard-coded-key-do-not-do-this>"
       }
     }
   }

@@ -60,17 +60,14 @@ from scratch. Git history keeps the old code.
 - [#5](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/5) Variable refactor support wanted
 
 **Data / tooling**
-- [#6](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/6) `v6/scripts` is gitignored; the 2025-10-03 reference re-crawl is overdue.
 
 **Out of scope until asked for**
 - [#1](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/1) Pine Script v5. The extension targets v6 by design.
 
 ## Next up (recommended order)
 
-1. Re-crawl the v6 reference (#6). The `request.footprint` and `timestamp` bugs both
-   came from the stale dataset.
-2. Remove the duplicated syntactic validator (import it from the engine).
-3. #13 named-parameter IntelliSense, then the narrow #12 cast rule.
+1. Remove the duplicated syntactic validator (import it from the engine).
+2. #13 named-parameter IntelliSense, then the narrow #12 cast rule.
 
 ## Related
 

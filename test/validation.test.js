@@ -75,9 +75,29 @@ describe('Parameter Requirements Validation', () => {
 
   describe('Generated Functions Coverage', () => {
 
-    it('should have generated 457 function signatures', () => {
+    // A re-crawl may ADD functions (TradingView ships API) but must never silently
+    // drop one: a missing function turns every call to it into "undefined function".
+    // 457 at the 2025-10-03 crawl; 475 at 2026-09-23 (footprint.* and volume_row.*).
+    it('should keep every function from the 2026-09-23 crawl', () => {
       const count = Object.keys(PINE_FUNCTIONS).length;
-      assert.strictEqual(count, 457, `Should have 457 generated functions, got ${count}`);
+      assert.ok(count >= 475, `Expected at least 475 generated functions, got ${count}`);
+      for (const name of ['request.footprint', 'footprint.poc', 'volume_row.delta', 'timestamp', 'line.new']) {
+        assert.ok(PINE_FUNCTIONS[name], `${name} missing from the generated reference`);
+      }
+    });
+
+    it('carries every overload the reference lists (timestamp, line.new)', () => {
+      const forms = n => (PINE_FUNCTIONS[n].overloads || [PINE_FUNCTIONS[n]]).map(o => [...o.requiredParams, ...o.optionalParams].join(','));
+      assert.ok(forms('timestamp').some(f => f.startsWith('timezone,year,month,day')), forms('timestamp').join(' | '));
+      assert.ok(forms('line.new').some(f => f.startsWith('x1,y1,x2,y2')), forms('line.new').join(' | '));
+    });
+
+    it('keeps variadic functions unbounded (no fixed-arity overloads)', () => {
+      for (const n of ['str.format', 'math.max', 'array.from']) {
+        const spec = PINE_FUNCTIONS[n];
+        assert.ok(spec.signature.includes('...'), `${n} lost its variadic signature: ${spec.signature}`);
+        assert.ok(!spec.overloads, `${n} must not carry fixed-arity overloads`);
+      }
     });
 
     it('should have alert() function', () => {
