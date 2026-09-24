@@ -36,7 +36,8 @@ Claims now match what the extension does.
 
 Published to [Open VSX](https://open-vsx.org/extension/jpantsjoha/pinescript-v6-extension)
 as well as the VS Code Marketplace, so Cursor, Windsurf, VSCodium and Gitpod users can
-install it. Engine: `pinescript-v6-validator@0.4.1`.
+install it. The editor ships the re-crawled reference itself; the standalone npm engine
+with the same data follows as `pinescript-v6-validator@0.4.1`.
 
 ## [0.6.3] - 2026-09-23
 

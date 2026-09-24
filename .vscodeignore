@@ -59,6 +59,9 @@ scripts/**
 # the .ts originals adds ~800KB of dead weight to every install.
 v6/**
 
+# Diagram sources: the README uses the PNG renders; the SVGs are for editing only.
+images/diagrams/*.svg
+
 # Examples & Test Files
 examples/**
 
