@@ -76,6 +76,14 @@ export class AccurateValidator {
   // unambiguous, so this set is exact, and an alias may shadow a built-in namespace.
   private declaredImports = new Set<string>();
 
+  // Names genuinely DECLARED by the script: statement-level assignments (with or
+  // without a type, `var`/`varip`), tuple destructuring, function parameters and
+  // loop variables. Unlike declaredVariables it never collects a named argument
+  // inside a call, so `plot(close, color=color.purplee)` still checks `color`, while
+  // `PositionInfo position = ...` then `position.entryPrice` is a variable, not the
+  // built-in `position` namespace (review finding, 2026-09-24).
+  private declaredLocals = new Set<string>();
+
   // Functions whose parameter-NAME data is verified complete — safe to flag unknown
   // named arguments as errors. (Most functions have incomplete generated param data,
   // e.g. plot/input.*, so a blanket check would false-positive. This is the curated
@@ -99,6 +107,7 @@ export class AccurateValidator {
     this.declaredVariables.clear();
     this.declaredTypes.clear();
     this.declaredImports.clear();
+    this.declaredLocals.clear();
 
     // Pine v6 (April 2026) added multiline string literals delimited by `"""` or
     // `'''`. Their contents are text, not code, and they span lines — so they must
@@ -213,6 +222,25 @@ export class AccurateValidator {
   }
 
   private collectDeclaredVariables(line: string): void {
+    // Statement-level declaration: `x = 1`, `float x = 1`, `var Foo x = ...`,
+    // `array<float> xs = ...`, `x := 2`. Anchored at the start of the statement,
+    // so a named argument inside a call can never match.
+    const stmtDecl = line.match(/^\s*(?:var\s+|varip\s+)?(?:[A-Za-z_][\w.]*(?:<[^>]*>)?\s+)?([A-Za-z_]\w*)\s*:?=(?!=)/);
+    if (stmtDecl && !this.isReservedKeyword(stmtDecl[1])) this.declaredLocals.add(stmtDecl[1]);
+    // Tuple destructuring: `[a, b] = f()`.
+    const tupleDecl = line.match(/^\s*\[([^\]]+)\]\s*=(?!=)/);
+    if (tupleDecl) {
+      for (const n of tupleDecl[1].split(',').map(t => t.trim())) {
+        if (/^[A-Za-z_]\w*$/.test(n) && !this.isReservedKeyword(n)) {
+          this.declaredLocals.add(n);
+          this.declaredVariables.add(n);
+        }
+      }
+    }
+    // Loop counters: `for i = 0 to 9`.
+    const forDecl = line.match(/^\s*for\s+([A-Za-z_]\w*)\s*=/);
+    if (forDecl) this.declaredLocals.add(forDecl[1]);
+
     // Library imports bind a namespace prefix: `import user/lib/1 as ta2` binds
     // `ta2`, and the same import without `as` binds the library's last path
     // segment (`lib`). Calls like `ta2.fn()` must never be "undefined namespace".
@@ -241,6 +269,7 @@ export class AccurateValidator {
         const iterator = name.trim();
         if (iterator && !this.isReservedKeyword(iterator)) {
           this.declaredVariables.add(iterator);
+          this.declaredLocals.add(iterator);
         }
       }
     }
@@ -268,6 +297,7 @@ export class AccurateValidator {
         const name = decl.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*$/);
         if (name && !this.isReservedKeyword(name[1])) {
           this.declaredVariables.add(name[1]);
+          this.declaredLocals.add(name[1]);
         }
       }
     }
@@ -314,7 +344,7 @@ export class AccurateValidator {
       // set deliberately over-collects (every `name=` in a call registers `name`),
       // so consulting it would let `plot(close, color=color.purplee)` — the named
       // argument "color" — exempt the misspelled `color.purplee` it assigns.
-      if (this.declaredTypes.has(namespace) || this.declaredImports.has(namespace)) {
+      if (this.declaredTypes.has(namespace) || this.declaredImports.has(namespace) || this.declaredLocals.has(namespace)) {
         continue;
       }
 

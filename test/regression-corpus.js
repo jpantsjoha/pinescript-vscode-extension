@@ -273,6 +273,30 @@ const CASES = [
     why: 'Paired "still flags": adding the footprint namespace must not accept every member of it.',
   },
 
+  {
+    name: '#37 review: a variable named like a built-in namespace is a variable, not the namespace',
+    code: IND + 'type PositionInfo\n    float entryPrice\nPositionInfo position = PositionInfo.new(100.0)\np = position.entryPrice\nplot(p)\n',
+    expect: null,
+    found: '2026-09-24',
+    why:
+      'Gemini review of #37: once the member check ran after "=", a UDT variable named `position` ' +
+      'had its fields checked against the built-in position.* constants and failed.',
+  },
+  {
+    name: '#37 review: tuple-destructured variables are declared',
+    code: IND + 'type Coord\n    float x\ngetCoords() =>\n    [Coord.new(1.0), 10]\n[pt, count] = getCoords()\nv = pt.x\nplot(v)\n',
+    expect: null,
+    found: '2026-09-24',
+    why: 'Gemini review of #37: `[pt, count] = f()` never declared pt, so `v = pt.x` became "undefined namespace".',
+  },
+  {
+    name: '#37 review: a named argument still does not declare the namespace it names',
+    code: IND + 'plot(close, color=color.purplee)\n',
+    expect: 'error',
+    found: '2026-09-24',
+    why: 'Paired "still flags" for the declared-locals exemption: only statement-level declarations count.',
+  },
+
   //────────────────────────────────────────────────────────
   // S10 — hard-coded external feed without ignore_invalid_symbol
   //────────────────────────────────────────────────────────
