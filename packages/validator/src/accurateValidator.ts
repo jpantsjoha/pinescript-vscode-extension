@@ -6,6 +6,7 @@
 
 import { PINE_FUNCTIONS_MERGED as ALL_FUNCTION_SIGNATURES } from '../data/parameter-requirements-merged';
 import { isValidNamespaceMember, CONSTANT_NAMESPACES } from '../data/pine-constants-complete';
+import { REFERENCE_NAMES } from '../data/reference-names';
 import {
   STANDALONE_BUILTINS,
   VARIABLE_NAMESPACES,
@@ -68,6 +69,13 @@ export class AccurateValidator {
   // "undefined namespace".
   private declaredTypes = new Set<string>();
 
+  // Names bound by `import user/lib/1 as ta2` (or the library's last path segment
+  // without `as`). Kept separate from declaredVariables because that set is
+  // deliberately over-collected — every `name=` in a call looks like a declaration
+  // to it, so `plot(close, color=color.red)` "declares" `color`. Import lines are
+  // unambiguous, so this set is exact, and an alias may shadow a built-in namespace.
+  private declaredImports = new Set<string>();
+
   // Functions whose parameter-NAME data is verified complete — safe to flag unknown
   // named arguments as errors. (Most functions have incomplete generated param data,
   // e.g. plot/input.*, so a blanket check would false-positive. This is the curated
@@ -90,6 +98,7 @@ export class AccurateValidator {
     this.errors = [];
     this.declaredVariables.clear();
     this.declaredTypes.clear();
+    this.declaredImports.clear();
 
     // Pine v6 (April 2026) added multiline string literals delimited by `"""` or
     // `'''`. Their contents are text, not code, and they span lines — so they must
@@ -204,6 +213,15 @@ export class AccurateValidator {
   }
 
   private collectDeclaredVariables(line: string): void {
+    // Library imports bind a namespace prefix: `import user/lib/1 as ta2` binds
+    // `ta2`, and the same import without `as` binds the library's last path
+    // segment (`lib`). Calls like `ta2.fn()` must never be "undefined namespace".
+    const importDecl = line.match(/^\s*import\s+(?:[a-zA-Z_][a-zA-Z0-9_]*\/)*([a-zA-Z_][a-zA-Z0-9_]*)\/\d+(?:\s+as\s+([a-zA-Z_][a-zA-Z0-9_]*))?/);
+    if (importDecl) {
+      this.declaredImports.add(importDecl[2] || importDecl[1]);
+      this.declaredVariables.add(importDecl[2] || importDecl[1]);
+    }
+
     // Collect user-defined type / enum declarations so `TypeName.new(...)` and field
     // access aren't mistaken for an undefined namespace.
     const typeDecl = line.match(/^\s*(?:export\s+)?(?:type|enum)\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
@@ -290,18 +308,27 @@ export class AccurateValidator {
       const member = match[2];
       const column = match.index;
 
-      // Skip if this is a parameter assignment (e.g., style=plot.style_line)
-      // Check if there's an = sign before the namespace
-      const beforeMatch = line.substring(0, column);
-      if (/\w+\s*=\s*$/.test(beforeMatch)) {
-        // This is something like "style=plot.style_line", skip the check
+      // UDT/enum types and import aliases shadow any built-in namespace and are
+      // never flagged: `Foo.new()` is a constructor, `Side.long` an enum member,
+      // `ta2.fn()` a library call. declaredVariables is NOT consulted here: that
+      // set deliberately over-collects (every `name=` in a call registers `name`),
+      // so consulting it would let `plot(close, color=color.purplee)` — the named
+      // argument "color" — exempt the misspelled `color.purplee` it assigns.
+      if (this.declaredTypes.has(namespace) || this.declaredImports.has(namespace)) {
         continue;
       }
 
-      // Skip if it's a known namespace, declared variable, or built-in
+      // Flag an unknown namespace (e.g., nosuchns.value). Issue #37: there used
+      // to be a `/\w+\s*=\s*$/` skip here, meant for named arguments like
+      // style=plot.style_line. It also skipped every PLAIN assignment
+      // (`x = xloc.bar_indexx`, `z = nosuchns.value`), so misspellings after '='
+      // never reached either check below. The member check is complete enough
+      // (constants + functions + built-in variables) that valid named-argument
+      // values pass it, so the blanket skip is gone. declaredVariables still
+      // exempts this branch: method calls on user objects (`myArray.push(x)`)
+      // and field access (`st.a`) are not namespace references.
       if (!this.knownNamespaces.has(namespace) &&
           !this.declaredVariables.has(namespace) &&
-          !this.declaredTypes.has(namespace) &&
           !this.isBuiltInVariable(namespace)) {
         this.addError(
           lineNum,
@@ -313,24 +340,27 @@ export class AccurateValidator {
       }
       // Check if member is a valid constant for known namespaces
       else if (this.knownNamespaces.has(namespace)) {
-        const isValid = this.isValidConstantOrFunction(namespace, member);
+        // A call (`math.nonexistent(10)`) is checkUndefinedFunctions' job; reporting
+        // it here too put two errors on one token.
+        const isCall = /^\s*\(/.test(line.slice(match.index + match[0].length));
+        const isValid = isCall || this.isValidConstantOrFunction(namespace, member);
 
         if (!isValid) {
-          // Check for constant-like namespaces (all 31 constant namespaces from v6)
-          const constantNamespaces = new Set([
-            'adjustment', 'alert', 'backadjustment', 'barmerge', 'barstate', 'color',
-            'currency', 'dayofweek', 'display', 'dividends', 'earnings', 'extend',
-            'font', 'format', 'hline', 'label', 'line', 'location', 'math', 'order',
-            'plot', 'position', 'scale', 'session', 'settlement_as_close', 'shape',
-            'size', 'splits', 'strategy', 'table', 'text', 'xloc', 'yloc'
-          ]);
-          if (constantNamespaces.has(namespace)) {
+          // Only CONSTANT_NAMESPACES have a complete, authoritative member list
+          // (constants plus, for dual-use namespaces like color/plot/strategy, the
+          // functions and variables folded into NAMESPACE_CONSTANTS and
+          // isValidConstantOrFunction). Namespaces whose member list is partial
+          // (ta.*, request.*, syminfo.*, ...) are never member-checked: when
+          // unsure whether a member exists, do not flag it.
+          // An unknown member of a constant namespace is a hard compile error in
+          // Pine ("cannot find symbol"), so this is an Error, not a Warning.
+          if (CONSTANT_NAMESPACES.has(namespace)) {
             this.addError(
               lineNum,
               column + namespace.length + 1,
               member.length,
               `Unknown ${namespace} constant or function '${member}'`,
-              Severity.Warning
+              Severity.Error
             );
           }
         }
@@ -599,6 +629,21 @@ export class AccurateValidator {
     if (ALL_FUNCTION_SIGNATURES[fullName]) {
       return true;
     }
+
+    // Any constant or variable the current v6 reference documents
+    // (`session.ismarket`, `label.all`, `strategy.openprofit_percent`, ...). The
+    // hand lists above date from 2025; without this, 22 documented names were
+    // flagged as unknown when #37 turned the member check on after '='.
+    if (REFERENCE_NAMES.has(fullName)) {
+      return true;
+    }
+
+    // A sub-namespace: `strategy.commission.percent`, `chart.point.new`. The regex
+    // above sees only the first two segments, so accept any documented name or
+    // function that continues past `namespace.member.`.
+    const prefix = `${fullName}.`;
+    for (const name of REFERENCE_NAMES) if (name.startsWith(prefix)) return true;
+    for (const name of Object.keys(ALL_FUNCTION_SIGNATURES)) if (name.startsWith(prefix)) return true;
 
     return false;
   }
