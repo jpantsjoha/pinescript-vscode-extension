@@ -15,10 +15,18 @@
  *    list. Authority for variables and keywords, and the fallback for
  *    descriptions/examples the crawl does not carry (51 merged entries are
  *    signature-only manual overrides with no description).
+ *  - v6/reference-names.ts (REFERENCE_NAMES): the 371 namespaced constants and
+ *    built-in variables the reference documents (xloc.bar_index, shape.circle,
+ *    strategy.commission.percent, ...). Authority on WHICH of these exist.
+ *  - v6/pine-constants-complete.ts (NAMESPACE_CONSTANTS, STRATEGY_VARIABLES):
+ *    member lists per constant namespace, and the constant/variable split for
+ *    strategy.*.
  */
 
 import { V6_VARIABLES, V6_FUNCTIONS, V6_NAMESPACES, PineItem } from '../v6/v6-manual';
 import { PINE_FUNCTIONS_MERGED } from '../v6/parameter-requirements-merged';
+import { REFERENCE_NAMES } from '../v6/reference-names';
+import { NAMESPACE_CONSTANTS, STRATEGY_VARIABLES } from '../v6/pine-constants-complete';
 
 // Keywords for Pine Script v6
 export const V6_KEYWORDS = [
@@ -51,7 +59,7 @@ interface ReferenceEntry {
 
 const REFERENCE = PINE_FUNCTIONS_MERGED as unknown as Record<string, ReferenceEntry>;
 
-export type CompletionKind = 'function' | 'variable' | 'keyword' | 'module' | 'color';
+export type CompletionKind = 'function' | 'variable' | 'keyword' | 'module' | 'color' | 'constant';
 
 export interface CompletionData {
   label: string;
@@ -144,6 +152,52 @@ function getRootNamespaces(): string[] {
   return [...roots];
 }
 
+/**
+ * Namespaces that exist only through documented constants/variables
+ * (`xloc`, `shape`, `strategy.commission`, ...). Kept separate from
+ * getNamespaces() so top-level completions stay unchanged.
+ */
+function getConstantNamespaces(): string[] {
+  const names = new Set<string>();
+  for (const fqn of REFERENCE_NAMES) {
+    const dot = fqn.lastIndexOf('.');
+    if (dot > 0) names.add(fqn.slice(0, dot));
+  }
+  return [...names];
+}
+
+/** Root namespaces whose documented members are all built-in variables. */
+const VARIABLE_ROOTS = new Set(['barstate', 'chart', 'syminfo', 'timeframe']);
+
+/** Roots whose `.all` member is a built-in variable (drawing-object lists). */
+const ALL_VARIABLE_ROOTS = new Set(['box', 'label', 'line', 'linefill', 'polyline', 'table']);
+
+/**
+ * Constant vs variable for a fully qualified REFERENCE_NAMES entry. The crawl
+ * lumps both into one list, so the split is by rule: all-variable roots,
+ * STRATEGY_VARIABLES (plus the closedtrades/opentrades state), session.is*,
+ * dividend/earnings actual/estimate/future_*, drawing `.all` lists, and the
+ * ta.* cumulative-volume variables. Everything else is a constant.
+ */
+function isVariableName(fqn: string): boolean {
+  const dot = fqn.indexOf('.');
+  const root = fqn.slice(0, dot);
+  const member = fqn.slice(dot + 1);
+  if (VARIABLE_ROOTS.has(root)) return true;
+  if (ALL_VARIABLE_ROOTS.has(root) && member === 'all') return true;
+  if (root === 'strategy') {
+    return STRATEGY_VARIABLES.has(member)
+      || member.startsWith('closedtrades.') || member.startsWith('opentrades.');
+  }
+  if (root === 'session') return member.startsWith('is');
+  if (root === 'dividends' || root === 'earnings') {
+    return member === 'actual' || member === 'estimate' || member.startsWith('future_');
+  }
+  // ta.tr/ta.vwap are functions and never reach here (functions win the label).
+  if (root === 'ta') return true;
+  return false;
+}
+
 /** All top-level completions: variables, functions, keywords, namespace hints. */
 export function getAllCompletionData(): CompletionData[] {
   const items: CompletionData[] = [];
@@ -228,13 +282,31 @@ export function getNamespaceCompletionData(namespace: string): CompletionData[] 
 
   // Immediate child sub-namespaces as module hints
   // (`strategy.` offers closedtrades/opentrades/risk, `chart.` offers point).
-  for (const nsPath of getNamespaces()) {
+  for (const nsPath of [...getNamespaces(), ...getConstantNamespaces()]) {
     if (!nsPath.startsWith(prefix)) continue;
     const child = nsPath.slice(prefix.length);
     if (child.includes('.')) continue;
     if (!byLabel.has(child)) {
       byLabel.set(child, { label: child, kind: 'module', detail: `${nsPath} namespace` });
     }
+  }
+
+  // Documented constants and built-in variables (issue #45). Functions and
+  // v6-manual members win the label; a name is offered once.
+  const addConstantOrVariable = (name: string) => {
+    if (byLabel.has(name)) return;
+    const fqn = `${prefix}${name}`;
+    const kind: CompletionKind = isVariableName(fqn) ? 'variable' : 'constant';
+    byLabel.set(name, { label: name, kind, detail: fqn });
+  };
+  for (const fqn of REFERENCE_NAMES) {
+    if (!fqn.startsWith(prefix)) continue;
+    const name = fqn.slice(prefix.length);
+    if (name.includes('.')) continue;
+    addConstantOrVariable(name);
+  }
+  for (const name of NAMESPACE_CONSTANTS[namespace] ?? []) {
+    addConstantOrVariable(name);
   }
 
   return [...byLabel.values()];
@@ -344,6 +416,13 @@ export function getHoverData(symbol: string): HoverData | undefined {
       example: item.example,
       category: item.category,
     };
+  }
+
+  // Documented constants and built-in variables (issue #45): the hover shows
+  // the full name (the provider's header) and the kind; no description source
+  // exists for these beyond v6-manual, handled above.
+  if (REFERENCE_NAMES.has(symbol)) {
+    return { type: isVariableName(symbol) ? 'variable' : 'constant' };
   }
 
   const entry = REFERENCE[symbol];

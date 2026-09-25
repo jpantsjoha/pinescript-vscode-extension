@@ -17,6 +17,7 @@ const KIND_MAP: Record<CompletionData['kind'], vscode.CompletionItemKind> = {
   keyword: vscode.CompletionItemKind.Keyword,
   module: vscode.CompletionItemKind.Module,
   color: vscode.CompletionItemKind.Color,
+  constant: vscode.CompletionItemKind.Constant,
 };
 
 // Build the rich markdown documentation shared by completions and hover.

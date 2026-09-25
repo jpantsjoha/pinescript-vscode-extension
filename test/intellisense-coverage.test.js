@@ -184,3 +184,62 @@ test('a comparison before a paren is not read as a generic call', () => {
   const nested = 'm = map.new<string, array<float>>(';
   assert.strictEqual(d.findFunctionCallName(nested, nested.length), 'map.new');
 });
+
+// ── Issue #45: constants and built-in variables after a namespace ──
+
+const { REFERENCE_NAMES } = require('../dist/v6/reference-names.js');
+
+/** Namespaces of every documented constant/variable (everything up to the last dot). */
+const CONSTANT_NAMESPACES = [...new Set([...REFERENCE_NAMES].map(fqn => fqn.slice(0, fqn.lastIndexOf('.'))))];
+
+test('documented constants are offered after their namespace (#45)', () => {
+  const cases = [
+    ['xloc', 'bar_index', 'constant'],
+    ['shape', 'circle', 'constant'],
+    ['plot', 'style_line', 'constant'],
+    ['location', 'abovebar', 'constant'],
+    ['size', 'small', 'constant'],
+    ['display', 'all', 'constant'],
+    ['session', 'ismarket', 'variable'],
+  ];
+  for (const [ns, member, kind] of cases) {
+    const item = getNamespaceCompletionData(ns).find(d => d.label === member);
+    assert.ok(item, `${ns}.${member} missing from ${ns} completions`);
+    assert.strictEqual(item.kind, kind, `${ns}.${member} should be kind '${kind}'`);
+  }
+});
+
+test('nested constant namespaces resolve (strategy.commission.percent)', () => {
+  const strategy = getNamespaceCompletionData('strategy').map(d => d.label);
+  assert.ok(strategy.includes('commission'), 'strategy. should hint the commission sub-namespace');
+  const commission = getNamespaceCompletionData('strategy.commission');
+  const percent = commission.find(d => d.label === 'percent');
+  assert.ok(percent, 'strategy.commission.percent missing');
+  assert.strictEqual(percent.kind, 'constant');
+});
+
+test('every REFERENCE_NAMES entry is offered in its namespace (#45 sweep)', () => {
+  const missing = [];
+  for (const fqn of REFERENCE_NAMES) {
+    const dot = fqn.lastIndexOf('.');
+    const labels = new Set(getNamespaceCompletionData(fqn.slice(0, dot)).map(d => d.label));
+    if (!labels.has(fqn.slice(dot + 1))) missing.push(fqn);
+  }
+  assert.deepStrictEqual(missing, [], `missing completions for: ${missing.slice(0, 10).join(', ')}`);
+});
+
+test('no duplicate labels within any constant namespace', () => {
+  for (const ns of CONSTANT_NAMESPACES) {
+    const labels = getNamespaceCompletionData(ns).map(d => d.label);
+    const dupes = labels.filter((l, i) => labels.indexOf(l) !== i);
+    assert.deepStrictEqual([...new Set(dupes)], [], `duplicate labels in namespace '${ns}'`);
+  }
+});
+
+test('hover on a constant or variable shows its kind (#45)', () => {
+  for (const [symbol, kind] of [['xloc.bar_index', 'constant'], ['shape.circle', 'constant'], ['session.ismarket', 'variable'], ['strategy.commission.percent', 'constant']]) {
+    const hover = getHoverData(symbol);
+    assert.ok(hover, `no hover data for '${symbol}'`);
+    assert.strictEqual(hover.type, kind, `hover for '${symbol}' should be a ${kind}`);
+  }
+});
