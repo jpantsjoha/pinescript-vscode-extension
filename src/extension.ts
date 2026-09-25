@@ -7,6 +7,7 @@ import {
   getHoverInfo,
   createCompletionItem
 } from './completions';
+import { getDeclaredNames, isShadowedNamespace } from './intellisenseData';
 import { createSignatureHelpProvider } from './signatureHelp';
 // NOTE: the extension imports ONLY the validators it runs. A dead AST validator
 // (parser/lexer/ComprehensiveValidator) was imported here but never called; it was
@@ -21,6 +22,34 @@ import { runDocumentChecks } from './parser/documentChecks';
 // Resolved at runtime from dist/engine, which the build copies from the pinned
 // npm package. Same single source; avoids shipping node_modules in the VSIX.
 const engine = require('../engine/index.js');
+
+// getDeclaredNames scans the whole document; completion requests repeat on
+// every keystroke after `ns.`. Cache the result per document URI in a small
+// bounded map (last 20 documents, insertion-ordered LRU) so interleaved
+// documents A → B → A do not rescan, an edit invalidates via
+// `document.version`, and closing a document drops its entry — a close/reopen
+// at the same version can never reuse stale data (PR #46 delta review 2).
+// The pure collector stays vscode-free; the cache lives here next to the
+// provider.
+const DECLARED_NAMES_CACHE_LIMIT = 20;
+const declaredNamesCache = new Map<string, { version: number; names: Map<string, number> }>();
+function getDeclaredNamesCached(document: vscode.TextDocument): Map<string, number> {
+  const uri = document.uri.toString();
+  const hit = declaredNamesCache.get(uri);
+  if (hit && hit.version === document.version) {
+    // Refresh recency: reinsert so the LRU eviction below drops the oldest.
+    declaredNamesCache.delete(uri);
+    declaredNamesCache.set(uri, hit);
+    return hit.names;
+  }
+  const names = getDeclaredNames(document.getText());
+  declaredNamesCache.set(uri, { version: document.version, names });
+  if (declaredNamesCache.size > DECLARED_NAMES_CACHE_LIMIT) {
+    const oldest = declaredNamesCache.keys().next().value;
+    if (oldest !== undefined) declaredNamesCache.delete(oldest);
+  }
+  return names;
+}
 
 export function activate(context: vscode.ExtensionContext) {
   // Optional: ensure files.associations maps *.pine -> pine
@@ -89,7 +118,17 @@ export function activate(context: vscode.ExtensionContext) {
           const namespaceMatch = beforeCursor.match(/([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*)\.\s*$/);
           if (namespaceMatch) {
             const namespace = namespaceMatch[1];
-            const nsItems = getNamespaceCompletions(namespace);
+            // A name declared at global scope shadows the built-in namespace:
+            // `xloc = 1` then `xloc.` must not offer xloc.bar_index — but only
+            // when the declaration precedes the completion line (`xloc.` above
+            // `xloc = 1` still offers the built-ins). The scan is
+            // whole-document, so cache it per document (PR #46 delta review)
+            // instead of rescanning on every keystroke.
+            const declaredNames = getDeclaredNamesCached(document);
+            if (isShadowedNamespace(namespace, declaredNames, position.line)) {
+              return [];
+            }
+            const nsItems = getNamespaceCompletions(namespace, declaredNames, position.line);
             if (nsItems.length > 0) {
               return nsItems;
             }
@@ -231,6 +270,11 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(runDiagnostics));
   context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(e => runDiagnostics(e.document)));
+  // Drop the shadowing cache entry on close: a close/reopen of the same URI
+  // at the same version must never reuse stale declaration data.
+  context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(doc => {
+    declaredNamesCache.delete(doc.uri.toString());
+  }));
   if (vscode.window.activeTextEditor) runDiagnostics(vscode.window.activeTextEditor.document);
 
   // Command: Validate current file

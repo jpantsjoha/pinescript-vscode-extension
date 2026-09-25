@@ -3,6 +3,7 @@ import { V6_VARIABLES, V6_FUNCTIONS, PineItem } from '../v6/v6-manual';
 import {
   V6_KEYWORDS,
   CompletionData,
+  DeclaredNames,
   getAllCompletionData,
   getNamespaceCompletionData,
   getHoverData
@@ -17,6 +18,7 @@ const KIND_MAP: Record<CompletionData['kind'], vscode.CompletionItemKind> = {
   keyword: vscode.CompletionItemKind.Keyword,
   module: vscode.CompletionItemKind.Module,
   color: vscode.CompletionItemKind.Color,
+  constant: vscode.CompletionItemKind.Constant,
 };
 
 // Build the rich markdown documentation shared by completions and hover.
@@ -137,8 +139,8 @@ export function createCompletionItem(
 }
 
 // Get completions for a specific namespace
-export function getNamespaceCompletions(namespace: string): vscode.CompletionItem[] {
-  return getNamespaceCompletionData(namespace).map(completionFromData);
+export function getNamespaceCompletions(namespace: string, declaredNames?: DeclaredNames, cursorLine?: number): vscode.CompletionItem[] {
+  return getNamespaceCompletionData(namespace, declaredNames, cursorLine).map(completionFromData);
 }
 
 // Get all completions (no namespace context)
