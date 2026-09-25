@@ -243,3 +243,92 @@ test('hover on a constant or variable shows its kind (#45)', () => {
     assert.strictEqual(hover.type, kind, `hover for '${symbol}' should be a ${kind}`);
   }
 });
+
+// ── PR #46 review: shadowing, chart.point kind, hover parity, constant docs ──
+
+const { NAMESPACE_CONSTANTS } = require('../dist/v6/pine-constants-complete.js');
+const {
+  getDeclaredNames,
+} = require('../dist/src/intellisenseData.js');
+
+test('a user-declared name suppresses built-in namespace completions (#46 review)', () => {
+  // `xloc = 1` declares a user variable; `xloc.` must not offer bar_index/bar_time.
+  const plain = getNamespaceCompletionData('xloc');
+  assert.ok(plain.length > 0, 'xloc. should offer built-ins when xloc is not declared');
+  const shadowed = getNamespaceCompletionData('xloc', new Set(['xloc']));
+  assert.strictEqual(shadowed.length, 0,
+    `xloc. with a user variable 'xloc' still offered ${shadowed.length} built-in members: ${shadowed.map(d => d.label).join(', ')}`);
+  // A nested chain is decided by its root segment.
+  const nested = getNamespaceCompletionData('strategy.closedtrades', new Set(['strategy']));
+  assert.strictEqual(nested.length, 0,
+    `strategy.closedtrades. with a user variable 'strategy' still offered ${nested.length} built-in members`);
+});
+
+test('getDeclaredNames mirrors the validator declaration rules (#46 review)', () => {
+  assert.ok(typeof getDeclaredNames === 'function', 'getDeclaredNames is not exported');
+  const names = getDeclaredNames([
+    'xloc = 1',                          // plain assignment
+    'float shape = na',                  // typed
+    'var int scale = 0',                 // var
+    'varip string position = ""',        // varip
+    '[pos, yloc] = f()',                 // tuple destructuring
+    'f(math, int display) => 1',         // parameters
+    'type location',                     // UDT
+    'enum size',                         // enum
+    'import user/lib/1 as extend',       // import alias
+    'import user/otherlib/2',            // import without alias binds last segment
+    'for font = 0 to 9',                 // for counter
+    'for [i, order] in a',               // for-in tuple
+    'g() => 1',                          // function name
+    'plot(close, color=color.red)',      // named argument is NOT a declaration
+    '// text = 1',                       // comment is NOT a declaration
+    's = "hline = 3"',                   // string content is NOT a declaration
+  ].join('\n'));
+  for (const n of ['xloc', 'shape', 'scale', 'position', 'pos', 'yloc', 'math', 'display',
+                   'location', 'size', 'extend', 'otherlib', 'font', 'i', 'order', 'g']) {
+    assert.ok(names.has(n), `declared name '${n}' not collected`);
+  }
+  for (const n of ['color', 'text', 'hline']) {
+    assert.ok(!names.has(n), `'${n}' must not be collected (named argument / comment / string)`);
+  }
+});
+
+test('declared names suppress completions end to end (#46 review)', () => {
+  const doc = 'xloc = 1\nx = xloc.';
+  const withDecl = getNamespaceCompletionData('xloc', getDeclaredNames(doc));
+  assert.strictEqual(withDecl.length, 0, `shadowed xloc. offered ${withDecl.length} built-ins`);
+  const without = getNamespaceCompletionData('xloc', getDeclaredNames('x = xloc.'));
+  assert.ok(without.length > 0, 'unshadowed xloc. lost its built-ins');
+});
+
+test('chart.point is a module, never a variable (#46 review)', () => {
+  const point = getNamespaceCompletionData('chart').find(d => d.label === 'point');
+  assert.ok(point, 'chart.point missing from chart. completions');
+  assert.strictEqual(point.kind, 'module', `chart.point completion kind should be module, got ${point.kind}`);
+  const hover = getHoverData('chart.point');
+  assert.ok(hover, 'no hover for chart.point');
+  assert.notStrictEqual(hover.type, 'variable', 'chart.point hover must not be a variable');
+});
+
+test('every completion member of every namespace has a hover (#46 review)', () => {
+  const allNs = new Set([...getNamespaces(), ...CONSTANT_NAMESPACES, ...Object.keys(NAMESPACE_CONSTANTS)]);
+  const missing = [];
+  let total = 0;
+  for (const ns of allNs) {
+    for (const item of getNamespaceCompletionData(ns)) {
+      total++;
+      const fqn = `${ns}.${item.label}`;
+      if (!getHoverData(fqn)) missing.push(fqn);
+    }
+  }
+  assert.strictEqual(missing.length, 0,
+    `${missing.length} of ${total} completion members have no hover: ${missing.slice(0, 10).join(', ')}`);
+});
+
+test('constant hover carries a description and its namespace (#46 review)', () => {
+  const hover = getHoverData('xloc.bar_index');
+  assert.ok(hover, 'no hover for xloc.bar_index');
+  assert.strictEqual(hover.type, 'constant');
+  assert.ok(hover.description && hover.description.length > 0, 'constant hover has no description');
+  assert.strictEqual(hover.category, 'xloc', 'constant hover should name its namespace');
+});

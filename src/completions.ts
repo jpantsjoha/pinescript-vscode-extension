@@ -138,8 +138,8 @@ export function createCompletionItem(
 }
 
 // Get completions for a specific namespace
-export function getNamespaceCompletions(namespace: string): vscode.CompletionItem[] {
-  return getNamespaceCompletionData(namespace).map(completionFromData);
+export function getNamespaceCompletions(namespace: string, declaredNames?: ReadonlySet<string>): vscode.CompletionItem[] {
+  return getNamespaceCompletionData(namespace, declaredNames).map(completionFromData);
 }
 
 // Get all completions (no namespace context)

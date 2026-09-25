@@ -7,6 +7,7 @@ import {
   getHoverInfo,
   createCompletionItem
 } from './completions';
+import { getDeclaredNames, isShadowedNamespace } from './intellisenseData';
 import { createSignatureHelpProvider } from './signatureHelp';
 // NOTE: the extension imports ONLY the validators it runs. A dead AST validator
 // (parser/lexer/ComprehensiveValidator) was imported here but never called; it was
@@ -89,7 +90,13 @@ export function activate(context: vscode.ExtensionContext) {
           const namespaceMatch = beforeCursor.match(/([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*)\.\s*$/);
           if (namespaceMatch) {
             const namespace = namespaceMatch[1];
-            const nsItems = getNamespaceCompletions(namespace);
+            // A user-declared name shadows the built-in namespace:
+            // `xloc = 1` then `xloc.` must not offer xloc.bar_index.
+            const declaredNames = getDeclaredNames(document.getText());
+            if (isShadowedNamespace(namespace, declaredNames)) {
+              return [];
+            }
+            const nsItems = getNamespaceCompletions(namespace, declaredNames);
             if (nsItems.length > 0) {
               return nsItems;
             }
