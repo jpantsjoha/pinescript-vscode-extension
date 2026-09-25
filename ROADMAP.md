@@ -39,6 +39,16 @@ progress** · **shipped**.
 Verified already fixed and closed 2026-09-23: #7 (nested call arity), #8 (comment
 parsed as code), #15 (UDT `.new()`).
 
+## Shipped on main, awaiting release
+
+| Item | Issue | Branch / PR |
+|---|---|---|
+| Completions, signature help and hover cover all 475 reference functions, with every overload in signature help | [#36](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/36) | PR #40 |
+| Misspelled constant-namespace members and unknown namespaces after `=` are errors; the member list is complete (371 names) and swept by a test | [#37](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/37) | PR #41 |
+
+In review: [#42](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/42),
+statements wrapped across lines keep their declarations and arity checks (PR #43).
+
 ## Decided — the AST path
 
 Deleted on 2026-09-23 (operator instruction: repair what is useful, prune the rest).
@@ -51,8 +61,6 @@ from scratch. Git history keeps the old code.
 
 **Validator**
 - [#12](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/12) No error on an invalid cast (`int x = input.float(...)`). Needs types; a narrow declared-type vs `input.*` return-type rule is possible without an AST.
-- Wrapped one-argument calls skip arity (pinned by a test in `test/request-arity.test.js`).
-- A function signature wrapped across lines (`f(int a,` / `int b) =>`) does not declare its parameters, so #16 can recur there (missed fix, found by review 2026-09-23).
 - Remove the duplicated syntactic validator: `src/parser/{accurateValidator,documentChecks}.ts` and `v6/` copy the engine package; import them from it instead.
 
 **Editor / IntelliSense**
@@ -66,10 +74,9 @@ from scratch. Git history keeps the old code.
 
 ## Next up (recommended order)
 
-1. #36 IntelliSense from the 475-function reference (completions cover ~205 today).
-2. #37 missed errors: misspelled namespace members, names after `=`.
-3. Remove the duplicated syntactic validator (import it from the engine).
-4. #13 named-parameter IntelliSense, then the narrow #12 cast rule.
+1. Remove the duplicated syntactic validator (import it from the engine).
+2. #13 named-parameter IntelliSense.
+3. #12 narrow cast rule.
 
 ## Related
 

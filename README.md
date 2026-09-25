@@ -81,6 +81,7 @@ mistakes one paste at a time. This extension moves that feedback into your edito
 | Mistake | Example |
 |---|---|
 | Wrong number of arguments | `ta.sma(close)`: missing `length` |
+| Misspelled constant | `color.purplee`, `xloc.bar_indexx` |
 | Unknown parameter name | `plotshape(cond, shape=shape.circle)`: the parameter is `style=` |
 | Undefined function or namespace | `ta.smaa(close, 14)`, `mylib.value` |
 | Plot calls inside a block | `if cond` then `plot(x)`: plot at global scope with `na` instead |
@@ -106,8 +107,8 @@ Compile errors cannot be silenced.
 
 - **Validation against all 475 built-in functions** in TradingView's current v6 reference,
   including every documented overload.
-- **IntelliSense** for the common built-ins across `ta.*`, `math.*`, `str.*`, `array.*`,
-  `input.*`, `request.*`, `strategy.*` and `color.*`, plus built-in variables.
+- **IntelliSense** for all 475 built-ins in the v6 reference, with every documented
+  overload in signature help, plus built-in variables and constants.
 - **Signature help** with parameter hints as you type the arguments.
 - **Hover documentation** for functions, variables and constants.
 - **Syntax highlighting** for v6, including `type`, `enum` and `method`.

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+Merged on main, not yet in a tagged release.
+
+### ✨ IntelliSense covers the whole v6 reference (#36, PR #40)
+
+- Completions, signature help and hover now draw on all 475 built-in functions in the
+  reference, not just the common ones. Signature help lists every documented overload.
+- Signature help finds the call you are typing in, past closed nested calls. It ignores
+  commas inside strings and understands `array.new<float>(`, `map.new<string, float>(`
+  and grouping parens.
+
+### 🐛 Misspelled constants and unknown namespaces are now errors (#37, PR #41)
+
+- A typo in a constant namespace member fails here as it does on TradingView:
+  `color.purplee`, `xloc.bar_indexx`, `shape.circlee`. Unknown namespaces after `=`
+  are flagged too.
+- The member list is complete against the reference (371 names), and a test sweeps it.
+- Your own names stay quiet: variables, UDTs, tuples, parameters and import aliases
+  named like a namespace are never flagged, and method calls on them (`position.put`)
+  no longer report "Undefined function".
+
 ## [0.6.4] - 2026-09-24
 
 Up to date with TradingView's current Pine v6 reference, and now on Open VSX.
