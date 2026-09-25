@@ -108,9 +108,9 @@ Compile errors cannot be silenced.
 - **Validation against all 475 built-in functions** in TradingView's current v6 reference,
   including every documented overload.
 - **IntelliSense** for all 475 built-ins in the v6 reference, with every documented
-  overload in signature help, plus built-in variables.
+  overload in signature help, plus built-in variables and constants.
 - **Signature help** with parameter hints as you type the arguments.
-- **Hover documentation** for functions and variables.
+- **Hover documentation** for functions, variables and constants.
 - **Syntax highlighting** for v6, including `type`, `enum` and `method`.
 
 ![Function signature help](./images/screenshots/blog-image-function-tip.png)

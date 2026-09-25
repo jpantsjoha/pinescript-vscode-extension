@@ -29,6 +29,26 @@ Merged on main, not yet in a tagged release.
   named like a namespace are never flagged, and method calls on them (`position.put`)
   no longer report "Undefined function".
 
+### ✨ Constants and variables complete after a namespace dot (#45, PR #46)
+
+- Type `xloc.`, `shape.`, `location.`, `size.`, `display.`, `session.` or
+  `strategy.commission.` and completions offer that namespace's built-in constants
+  and variables, including the `plot.style_*` forms, with their descriptions on hover.
+- Your own names still win: a global variable named like a namespace (`xloc = 1`)
+  suppresses the built-ins from its declaration line down, and leaves them above it.
+
+### 🐛 Statements wrapped across lines are read as one (#42, PR #43)
+
+- Function and method headers, tuple declarations, calls and a `=>` on its own line
+  now join into a single statement. Parameters and tuple names declared on a wrapped
+  line are no longer reported "undefined", and wrapped calls keep their
+  argument-count checks.
+- An unknown named argument is underlined on its own line, and per-call checks read
+  only the call's own arguments, so a nested call with a `shape=` argument no longer
+  warns on the outer `plotshape`.
+- An unclosed bracket no longer cascades into follow-on errors. Known limit: a
+  first argument at column 0 right after `plotshape(` is not checked.
+
 ## [0.6.4] - 2026-09-24
 
 Up to date with TradingView's current Pine v6 reference, and now on Open VSX.

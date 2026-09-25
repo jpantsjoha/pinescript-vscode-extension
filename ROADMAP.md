@@ -45,9 +45,8 @@ parsed as code), #15 (UDT `.new()`).
 |---|---|---|
 | Completions, signature help and hover cover all 475 reference functions, with every overload in signature help | [#36](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/36) | PR #40 |
 | Misspelled constant-namespace members and unknown namespaces after `=` are errors; the member list is complete (371 names) and swept by a test | [#37](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/37) | PR #41 |
-
-In review: [#42](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/42),
-statements wrapped across lines keep their declarations and arity checks (PR #43).
+| Statements wrapped across lines keep their declarations, arity checks and argument-level error locations | [#42](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/42) | PR #43 |
+| Built-in constants and variables complete after a namespace dot, with hover descriptions and line-aware shadowing | [#45](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/45) | PR #46 |
 
 ## Decided — the AST path
 
