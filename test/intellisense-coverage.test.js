@@ -264,33 +264,73 @@ test('a user-declared name suppresses built-in namespace completions (#46 review
     `strategy.closedtrades. with a user variable 'strategy' still offered ${nested.length} built-in members`);
 });
 
-test('getDeclaredNames mirrors the validator declaration rules (#46 review)', () => {
+test('getDeclaredNames collects only global-scope statement declarations (#46 delta review)', () => {
   assert.ok(typeof getDeclaredNames === 'function', 'getDeclaredNames is not exported');
   const names = getDeclaredNames([
-    'xloc = 1',                          // plain assignment
+    'xloc = 1',                          // plain assignment at indent 0
     'float shape = na',                  // typed
     'var int scale = 0',                 // var
     'varip string position = ""',        // varip
-    '[pos, yloc] = f()',                 // tuple destructuring
-    'f(math, int display) => 1',         // parameters
+    '[pos, yloc] = f()',                 // global tuple destructuring
     'type location',                     // UDT
     'enum size',                         // enum
     'import user/lib/1 as extend',       // import alias
     'import user/otherlib/2',            // import without alias binds last segment
-    'for font = 0 to 9',                 // for counter
-    'for [i, order] in a',               // for-in tuple
-    'g() => 1',                          // function name
     'plot(close, color=color.red)',      // named argument is NOT a declaration
     '// text = 1',                       // comment is NOT a declaration
     's = "hline = 3"',                   // string content is NOT a declaration
+    'f(math, int display) => 1',         // parameters NEVER shadow
+    'for font = 0 to 9',                 // loop variable NEVER shadows
+    'for [i, order] in a',               // for-in variables NEVER shadow
+    'g() => 1',                          // function name is not an assignment
+    'yloc := 2',                         // `:=` reassigns; it cannot declare
+    'if close > open',                   // everything below is inside a block:
+    '    boxed = 1',                     //   a local NEVER shadows
   ].join('\n'));
-  for (const n of ['xloc', 'shape', 'scale', 'position', 'pos', 'yloc', 'math', 'display',
-                   'location', 'size', 'extend', 'otherlib', 'font', 'i', 'order', 'g']) {
-    assert.ok(names.has(n), `declared name '${n}' not collected`);
+  for (const n of ['xloc', 'shape', 'scale', 'position', 'pos', 'yloc',
+                   'location', 'size', 'extend', 'otherlib']) {
+    assert.ok(names.has(n), `global declaration '${n}' not collected`);
   }
-  for (const n of ['color', 'text', 'hline']) {
-    assert.ok(!names.has(n), `'${n}' must not be collected (named argument / comment / string)`);
+  for (const n of ['color', 'text', 'hline', 'math', 'display', 'font', 'i', 'order', 'g', 'boxed']) {
+    assert.ok(!names.has(n), `'${n}' must not be collected (argument / comment / string / parameter / loop / function / local)`);
   }
+});
+
+// The delta-review rule: a name shadows a built-in namespace ONLY when declared
+// at global scope (indent 0) by a statement-level declaration. Parameters,
+// block locals, loop variables and `:=` reassignments never shadow, and a
+// named argument on a continuation line of a wrapped call is not a declaration.
+// Each case asserts the `xloc.` completion count (xloc has 2 built-in members).
+test('namespace shadowing follows global scope only (#46 delta review)', () => {
+  const count = (doc) => getNamespaceCompletionData('xloc', getDeclaredNames(doc)).length;
+
+  // A function parameter named xloc never shadows, even at top level after it.
+  assert.strictEqual(count('f(xloc) =>\n    xloc\nxloc.'), 2,
+    'parameter xloc suppressed the built-in namespace');
+
+  // A local inside an indented block never shadows.
+  assert.strictEqual(count('if close > open\n    xloc = 1\nxloc.'), 2,
+    'block-local xloc = 1 suppressed the built-in namespace');
+
+  // A named argument on a continuation line of a wrapped call is not a
+  // declaration — bracket depth is tracked across lines.
+  const wrapped = 'line.new(\n    first_point = chart.point.now(close),\n    xloc = xloc.bar_time)\nxloc.';
+  assert.strictEqual(count(wrapped), 2,
+    'wrapped named argument xloc = xloc.bar_time suppressed the built-in namespace');
+  // Same with a dedented continuation line (indent 0 but still inside the call).
+  const dedented = 'line.new(\nxloc = xloc.bar_time)\nxloc.';
+  assert.strictEqual(count(dedented), 2,
+    'dedented continuation xloc = xloc.bar_time suppressed the built-in namespace');
+
+  // `:=` cannot introduce a name.
+  assert.strictEqual(count('xloc := 1\nxloc.'), 2,
+    'reassignment xloc := 1 suppressed the built-in namespace');
+
+  // The clear cases: global statement-level declarations DO shadow.
+  assert.strictEqual(count('xloc = 1\nxloc.'), 0,
+    'global xloc = 1 did not shadow the built-in namespace');
+  assert.strictEqual(count('[xloc, y] = [1, 2]\nxloc.'), 0,
+    'global tuple [xloc, y] = [1, 2] did not shadow the built-in namespace');
 });
 
 test('declared names suppress completions end to end (#46 review)', () => {
