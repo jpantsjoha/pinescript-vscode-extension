@@ -82,9 +82,8 @@ jobs:
     - name: Build extension
       run: npm run build
 
-    - name: Install vsce
-      run: npm install -g @vscode/vsce
-
+    # vsce is a pinned devDependency (installed by npm ci); `npm run package`
+    # uses node_modules/.bin/vsce, the same version the audit asks.
     - name: Create build directory
       run: mkdir -p build
 

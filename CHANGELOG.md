@@ -25,15 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `packages/validator` and re-syncs `dist/engine/` after each error-free compile,
   alongside the extension watcher. The sync follows tsc's end-of-cycle report
   rather than a filesystem watcher, so it works the same on Linux, macOS, Windows
-  and Node 18. Each sync copies into a staging directory and swaps it in, so
-  `dist/engine/` is always one complete build. A cycle with errors leaves the last
-  good build in place. CI runs `scripts/watch-smoke.js` on Node 18 and 20.
+  and Node 18. Each sync copies into a staging directory and swaps it in
+  (`scripts/engine-sync.js`), so `dist/engine/` is always one complete build. A
+  failed swap restores the last good build (fault-injection test in
+  `test/engine-sync.test.js`), and a cycle with errors is not synced. CI runs
+  `scripts/watch-smoke.js` on Node 18 and 20.
 - CI runs `scripts/verify-vsix.js` after packaging. Before extracting, it rejects
-  absolute, `..`, backslash and symlink entries. It then checks the engine ships
-  exactly once in any layout, and executes the packaged `activate()`.
-- The audit evaluates `.vscodeignore` with vsce's matching rules
-  (`scripts/vscodeignore.js`). It fails if a runtime engine file would be excluded
-  or a second engine copy would ship.
+  absolute, `..` and backslash paths, and any entry that is not a regular file or
+  directory. It then checks the engine ships exactly once in any layout, and
+  executes the packaged `activate()`.
+- `@vscode/vsce` is a pinned devDependency (2.32.0, the last release that supports
+  Node 18). CI packages with it instead of a global install, and the audit asks it
+  which files ship (`scripts/vsce-ls.js`). The audit fails if a runtime engine file
+  would be excluded or a second engine copy would ship.
 - No diagnostic changes: identical output on every `.pine` file in the repo against
   the 0.6.5 build, and all 107 regression cases pass through the CLI.
 - `test/engine-parity.test.js` now fails the build if a copy of an engine module

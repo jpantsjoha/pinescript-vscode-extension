@@ -18,7 +18,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const ADVISORY = process.argv.includes('--warn');
@@ -225,12 +225,9 @@ function auditPackaging() {
   }
 
   // The engine (validator code + reference data) loads at runtime from dist/engine/,
-  // the local build of packages/validator. Rather than pattern-match the ignore
-  // file's text (which missed `**/*.js`, `**/engine/**`, `*/engine/**` ...), this
-  // evaluates .vscodeignore with vsce's own rules (scripts/vscodeignore.js) and asks
-  // of concrete paths: does it ship? The real VSIX is still checked in CI by
-  // scripts/verify-vsix.js; this catches the mistake before anything is packaged.
-  const ships = require('./vscodeignore').compile(ignore);
+  // the local build of packages/validator. The pinned @vscode/vsce decides what
+  // ships (scripts/vsce-ls.js runs its listFiles on a placeholder skeleton), so
+  // .vscodeignore is judged exactly as `vsce package` judges it, before any build.
   const tsModules = dir => (exists(dir) ? fs.readdirSync(path.join(ROOT, dir)) : [])
     .filter(f => f.endsWith('.ts')).map(f => f.replace(/\.ts$/, ''));
   const engineSrc = tsModules('packages/validator/src');
@@ -245,19 +242,32 @@ function auditPackaging() {
     'packages/validator/dist/index.js',
     ...engineSrc.flatMap(m => [`packages/validator/src/${m}.ts`, `packages/validator/dist/src/${m}.js`]),
     ...engineData.flatMap(m => [`packages/validator/data/${m}.ts`, `packages/validator/dist/data/${m}.js`]),
-    'node_modules/pinescript-v6-validator/dist/index.js',
   ];
-  const dropped = runtime.filter(f => !ships(f));
-  const duplicated = secondEngine.filter(f => ships(f));
-  if (dropped.length) {
+  let listed;
+  try {
+    listed = new Set(JSON.parse(execFileSync(process.execPath,
+      [path.join(ROOT, 'scripts/vsce-ls.js'), ...runtime, ...secondEngine],
+      { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })));
+  } catch (err) {
+    fail('packaging', `could not ask vsce which files ship (scripts/vsce-ls.js): ${(err.stderr || err.message).toString().split('\n')[0]}`);
+    listed = null;
+  }
+  const ships = f => listed && listed.has(f);
+  const dropped = listed ? runtime.filter(f => !ships(f)) : [];
+  const duplicated = listed ? secondEngine.filter(f => ships(f)) : [];
+  if (!listed) {
+    // already failed above
+  } else if (dropped.length) {
     fail('packaging', `.vscodeignore excludes runtime files the extension loads — it would fail on activation: ${dropped.join(', ')}`);
   } else {
-    pass('packaging', `.vscodeignore keeps all ${runtime.length} runtime engine/entry files (evaluated with vsce rules)`);
+    pass('packaging', `vsce ships all ${runtime.length} runtime engine/entry files`);
   }
-  if (duplicated.length) {
+  if (!listed) {
+    // already failed above
+  } else if (duplicated.length) {
     fail('packaging', `.vscodeignore lets a second engine copy ship: ${duplicated.join(', ')}`);
   } else {
-    pass('packaging', 'no second engine copy ships (packages/, node_modules engine excluded)');
+    pass('packaging', `vsce ships none of ${secondEngine.length} second-engine paths (packages/validator sources and build)`);
   }
 
   // The engine's presence in the VSIX is proved on the real artefact, not on this

@@ -141,6 +141,7 @@
     "@modelcontextprotocol/sdk": "^1.19.1",
     "@types/node": "^20.11.30",
     "@types/vscode": "^1.88.0",
+    "@vscode/vsce": "2.32.0",
     "cheerio": "^1.1.2",
     "playwright": "^1.48.0",
     "typescript": "^5.4.5"

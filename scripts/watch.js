@@ -17,7 +17,8 @@
  * The sync is driven by tsc's own end-of-cycle report, not by a filesystem watcher,
  * so it behaves the same on Linux, macOS and Windows and on every supported Node
  * version. Each sync copies into a staging directory beside dist/engine and swaps
- * it in, so dist/engine is never a half-copied mix of two builds.
+ * it in (scripts/engine-sync.js), so dist/engine is never a half-copied mix of two
+ * builds, and a failed swap restores the last good build.
  *
  * PINE_WATCH_ROOT overrides the project root (used by scripts/watch-smoke.js).
  * No dependencies beyond typescript. Ctrl-C (or SIGTERM) stops both watchers.
@@ -58,18 +59,22 @@ process.on('uncaughtException', err => {
   shutdown(1);
 });
 
-// ── Staged sync: dist/engine is always one complete build ────────────────────
+// ── Staged sync (scripts/engine-sync.js): last good build kept on failure ─────
+const { syncEngine: stagedSync } = require('./engine-sync');
+let syncs = 0;
 function syncEngine(reason) {
-  const tag = `${process.pid}-${Date.now()}`;
-  const staging = `${ENGINE}.staging-${tag}`;
-  const old = `${ENGINE}.old-${tag}`;
-  fs.mkdirSync(path.dirname(ENGINE), { recursive: true });
-  fs.cpSync(PKG_DIST, staging, { recursive: true });
-  const hadEngine = fs.existsSync(ENGINE);
-  if (hadEngine) fs.renameSync(ENGINE, old);
-  fs.renameSync(staging, ENGINE);
-  if (hadEngine) fs.rmSync(old, { recursive: true, force: true });
-  console.log(`[watch] dist/engine synced from packages/validator/dist (${reason})`);
+  stagedSync(PKG_DIST, ENGINE);
+  syncs += 1;
+  console.log(`[watch] sync #${syncs}: dist/engine synced from packages/validator/dist (${reason})`);
+}
+function trySync(reason) {
+  try { syncEngine(reason); }
+  catch (err) {
+    const state = fs.existsSync(path.join(ENGINE, 'index.js'))
+      ? 'dist/engine left at the last good build'
+      : 'dist/engine is MISSING — run `npm run build`';
+    console.error(`[watch] sync failed (${err.message}); ${state}`);
+  }
 }
 
 function run(args, label, onLine) {
@@ -104,8 +109,7 @@ run(['-w', '--preserveWatchOutput', '-p', path.join(ROOT, 'packages/validator')]
   const m = CYCLE_END.exec(line);
   if (!m) return;
   if (Number(m[1]) === 0) {
-    try { syncEngine('engine rebuilt'); }
-    catch (err) { console.error(`[watch] sync failed, dist/engine left at the last good build: ${err.message}`); }
+    trySync('engine rebuilt');
   } else {
     console.log(`[watch] engine has ${m[1]} error(s); dist/engine left at the last good build`);
   }

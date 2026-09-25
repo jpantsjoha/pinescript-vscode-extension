@@ -4,8 +4,9 @@
  *
  *   node scripts/verify-vsix.js <file.vsix>
  *
- * 1. Reads the archive listing BEFORE extracting: rejects absolute, `..`, backslash
- *    and symlink entries; asserts the one engine ships (dist/engine/index.js, every
+ * 1. Reads the archive listing BEFORE extracting: rejects absolute, `..`, backslash,
+ *    and any entry that is not a regular file or directory (symlink, device, FIFO,
+ *    socket, unknown); asserts the one engine ships (dist/engine/index.js, every
  *    packages/validator/src module as dist/engine/src/*.js, every data file as
  *    dist/engine/data/*.js); rejects a second engine in any layout
  *    (extension/packages/**, node_modules/pinescript-v6-validator, or any file named
@@ -45,11 +46,12 @@ if (modes.length !== entries.length) {
   fail(`archive listing is inconsistent (${entries.length} names, ${modes.length} modes) — refusing to extract`);
 }
 
-// Unsafe paths: absolute, drive-letter, backslash, `..` segments, symlinks.
+// Unsafe entries: absolute, drive-letter, backslash, `..` segments, and any type other
+// than a regular file or directory (symlink, block, char, FIFO, socket, unknown) — fail closed.
 const unsafe = entries.filter((e, i) =>
   e.startsWith('/') || /^[A-Za-z]:/.test(e) || e.includes('\\') ||
-  e.split('/').some(seg => seg === '..') || modes[i] === 'l');
-for (const e of unsafe) fail(`unsafe archive entry (absolute, traversal, backslash or symlink): ${JSON.stringify(e)}`);
+  e.split('/').some(seg => seg === '..') || !['-', 'd'].includes(modes[i]));
+for (const e of unsafe) fail(`unsafe archive entry (absolute, traversal, backslash, or not a regular file/directory): ${JSON.stringify(e)}`);
 
 const has = p => entries.includes(`extension/${p}`);
 const modules = dir => fs.readdirSync(path.join(ROOT, dir)).filter(f => f.endsWith('.ts')).map(f => f.replace(/\.ts$/, '.js'));
