@@ -341,6 +341,44 @@ test('declared names suppress completions end to end (#46 review)', () => {
   assert.ok(without.length > 0, 'unshadowed xloc. lost its built-ins');
 });
 
+// ── PR #46 delta review round 2: declaration line, typed globals, tuples ──
+
+test('a declaration after the cursor does not shadow (#46 delta review 2)', () => {
+  // `xloc.` on a line BEFORE `xloc = 1` must still offer the 2 built-ins;
+  // only a declaration on an earlier line shadows.
+  const after = getDeclaredNames('indicator("")\nxloc.\nxloc = 1');
+  assert.strictEqual(getNamespaceCompletionData('xloc', after, 1).length, 2,
+    'xloc = 1 declared after the cursor suppressed the built-in namespace');
+  // The same declaration before the cursor still shadows.
+  const before = getDeclaredNames('xloc = 1\nxloc.');
+  assert.strictEqual(getNamespaceCompletionData('xloc', before, 1).length, 0,
+    'xloc = 1 declared before the cursor did not shadow the built-in namespace');
+});
+
+test('typed global declarations shadow the built-in namespace (#46 delta review 2)', () => {
+  // The built-in type keyword must not cause the declaration to be discarded.
+  for (const decl of [
+    'float xloc = 1.0',
+    'var float xloc = 1.0',
+    'array<float> xloc = array.new<float>()',
+    'Foo xloc = Foo.new()',
+  ]) {
+    const count = getNamespaceCompletionData('xloc', getDeclaredNames(`${decl}\nxloc.`), 1).length;
+    assert.strictEqual(count, 0,
+      `'${decl}' did not shadow the built-in namespace (${count} completions)`);
+  }
+});
+
+test('multiline global tuples shadow the built-in namespace (#46 delta review 2)', () => {
+  const doc = '[xloc,\n    upper,\n    lower] = ta.bb(close, 20, 2)\nxloc.';
+  const names = getDeclaredNames(doc);
+  for (const n of ['xloc', 'upper', 'lower']) {
+    assert.ok(names.has(n), `multiline tuple element '${n}' not collected`);
+  }
+  assert.strictEqual(getNamespaceCompletionData('xloc', names, 3).length, 0,
+    'multiline global tuple did not shadow the built-in namespace');
+});
+
 test('chart.point is a module, never a variable (#46 review)', () => {
   const point = getNamespaceCompletionData('chart').find(d => d.label === 'point');
   assert.ok(point, 'chart.point missing from chart. completions');

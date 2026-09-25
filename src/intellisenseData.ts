@@ -325,14 +325,17 @@ export function getAllCompletionData(): CompletionData[] {
  * Member completions for one namespace (after typing `ns.`).
  *
  * `declaredNames` is the set of names the current document declares at GLOBAL
- * scope (see getDeclaredNames). When the namespace's ROOT segment is such a
- * name — a global variable, tuple element, UDT/enum or import alias like
- * `xloc = 1` — the built-in namespace is shadowed and no built-in members are
- * offered (PR #46 review). Parameters, block locals, loop variables and `:=`
- * reassignments never shadow (delta review).
+ * scope (see getDeclaredNames) — either a bare set or a name → declaration
+ * line map. When the namespace's ROOT segment is such a name — a global
+ * variable, tuple element, UDT/enum or import alias like `xloc = 1` — the
+ * built-in namespace is shadowed and no built-in members are offered
+ * (PR #46 review). Parameters, block locals, loop variables and `:=`
+ * reassignments never shadow (delta review). With `cursorLine`, only a
+ * declaration on an EARLIER line shadows: `xloc.` above `xloc = 1` still
+ * offers the built-ins (delta review round 2).
  */
-export function getNamespaceCompletionData(namespace: string, declaredNames?: ReadonlySet<string>): CompletionData[] {
-  if (isShadowedNamespace(namespace, declaredNames)) return [];
+export function getNamespaceCompletionData(namespace: string, declaredNames?: DeclaredNames, cursorLine?: number): CompletionData[] {
+  if (isShadowedNamespace(namespace, declaredNames, cursorLine)) return [];
   const byLabel = new Map<string, CompletionData>();
   const nsData = V6_NAMESPACES[namespace];
 
@@ -400,16 +403,23 @@ export function getNamespaceCompletionData(namespace: string, declaredNames?: Re
 // A user name shadows a built-in namespace ONLY when it is declared at GLOBAL
 // scope (indent 0) by a statement-level declaration: `name = ...`,
 // `var|varip [Type] name = ...`, `Type name = ...`, a global tuple
-// `[a, b] = ...`, a `type`/`enum` name, or an import alias. Function/method
-// parameters, locals inside indented blocks (if/for/while/switch/function
-// bodies), loop variables and `:=` reassignments NEVER shadow — wrongly
-// hiding real completions is worse than occasionally showing them.
-// Bracket depth is tracked ACROSS lines (strings and comments blanked first)
-// so a named argument on a continuation line of a wrapped call —
-// `line.new(\n    first_point = ..., xloc = xloc.bar_time)` — is never read
-// as a declaration. Two deliberate blanking rules: a commented-out `xloc = 1`
-// must not suppress `xloc.` completions, and a string containing `xloc = 1`
-// must not either.
+// `[a, b] = ...` (possibly wrapped across lines), a `type`/`enum` name, or an
+// import alias. Function/method parameters, locals inside indented blocks
+// (if/for/while/switch/function bodies), loop variables and `:=`
+// reassignments NEVER shadow — wrongly hiding real completions is worse than
+// occasionally showing them. Bracket depth is tracked ACROSS lines (strings
+// and comments blanked first) so a named argument on a continuation line of a
+// wrapped call — `line.new(\n    first_point = ..., xloc = xloc.bar_time)` —
+// is never read as a declaration. Two deliberate blanking rules: a
+// commented-out `xloc = 1` must not suppress `xloc.` completions, and a
+// string containing `xloc = 1` must not either.
+//
+// Each declaration is stored with its 0-based line so the provider can shadow
+// only when the declaration precedes the completion line (delta review
+// round 2): `xloc.` on a line above `xloc = 1` must still offer the built-ins.
+
+/** Names a document declares: a bare set (line-unaware) or name → 0-based declaration line. */
+export type DeclaredNames = ReadonlySet<string> | ReadonlyMap<string, number>;
 
 /** Reserved words never count as declarations (same rule as the validator). */
 function isReservedKeywordName(word: string): boolean {
@@ -431,43 +441,58 @@ function blankStringsAndComments(line: string): string {
 }
 
 /**
- * Every GLOBAL-scope statement-level name the document declares. Used to
+ * Every GLOBAL-scope statement-level name the document declares, mapped to
+ * the 0-based line of its declaration (the first declaration wins). Used to
  * suppress built-in namespace completions when a user name shadows the
  * namespace root (`xloc = 1` at indent 0, then `xloc.`). Only indent-0 lines
  * outside any open bracket are considered, so parameters, block locals, loop
  * variables, `:=` reassignments and named arguments in wrapped calls are
- * never collected.
+ * never collected. A global tuple destructuring that wraps across lines —
+ * `[xloc,\n    upper,\n    lower] = ta.bb(...)` — is joined before matching.
  */
-export function getDeclaredNames(documentText: string): Set<string> {
-  const names = new Set<string>();
+export function getDeclaredNames(documentText: string): Map<string, number> {
+  const names = new Map<string, number>();
+  const declare = (n: string, line: number) => { if (!names.has(n)) names.set(n, line); };
   let depth = 0; // open `(`/`[` at the START of the line, tracked across lines
-  for (const rawLine of blankMultilineStrings(documentText).split('\n')) {
-    const line = blankStringsAndComments(rawLine);
+  const lines = blankMultilineStrings(documentText).split('\n').map(blankStringsAndComments);
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    const startLine = i;
     const isGlobal = depth === 0 && line.length > 0 && line[0] !== ' ' && line[0] !== '\t';
     if (isGlobal) {
+      // A global tuple destructuring may wrap across lines; join it (up to
+      // the closing `]`) before matching. Joining keeps the same characters,
+      // so the bracket-depth update below is unaffected.
+      if (line[0] === '[') {
+        while (!line.includes(']') && i + 1 < lines.length) {
+          i++;
+          line += ' ' + lines[i].trim();
+        }
+      }
       // Statement-level assignment: `x = 1`, `float x = 1`, `var Foo x = ...`,
       // `array<float> xs = ...`. `:=` never declares; `==`/`=>` never match.
       // A leading "type" token that is a keyword (`for font = 0 to 9`) is not
-      // a declaration either.
+      // a declaration either. Built-in TYPE names are not keywords here —
+      // `float x = 1` is a valid typed declaration (delta review round 2).
       const stmtDecl = line.match(/^(?:var\s+|varip\s+)?(?:([A-Za-z_][\w.]*(?:<[^>]*>)?)\s+)?([A-Za-z_]\w*)\s*=(?![=>])/);
       if (stmtDecl && !isReservedKeywordName(stmtDecl[2])
           && !(stmtDecl[1] && isReservedKeywordName(stmtDecl[1].split(/[<.]/)[0]))) {
-        names.add(stmtDecl[2]);
+        declare(stmtDecl[2], startLine);
       }
       // Global tuple destructuring: `[a, b] = f()`.
       const tupleDecl = line.match(/^\[([^\]]+)\]\s*=(?![=>])/);
       if (tupleDecl) {
         for (const n of tupleDecl[1].split(',').map(t => t.trim())) {
-          if (/^[A-Za-z_]\w*$/.test(n) && !isReservedKeywordName(n)) names.add(n);
+          if (/^[A-Za-z_]\w*$/.test(n) && !isReservedKeywordName(n)) declare(n, startLine);
         }
       }
       // Library imports bind a namespace prefix: `import user/lib/1 as ta2`
       // binds `ta2`, and the same import without `as` binds the last segment.
       const importDecl = line.match(/^import\s+(?:[a-zA-Z_]\w*\/)*([a-zA-Z_]\w*)\/\d+(?:\s+as\s+([a-zA-Z_]\w*))?/);
-      if (importDecl) names.add(importDecl[2] || importDecl[1]);
+      if (importDecl) declare(importDecl[2] || importDecl[1], startLine);
       // User-defined type / enum names (`type Foo`, `enum Bar`).
       const typeDecl = line.match(/^(?:export\s+)?(?:type|enum)\s+([a-zA-Z_]\w*)/);
-      if (typeDecl) names.add(typeDecl[1]);
+      if (typeDecl) declare(typeDecl[1], startLine);
     }
     // Bracket depth carries into the next line, so continuation lines of a
     // wrapped call are never treated as global statements.
@@ -482,11 +507,19 @@ export function getDeclaredNames(documentText: string): Set<string> {
 /**
  * True when the namespace's ROOT segment is declared by the script, so the
  * built-in namespace of the same name is shadowed (`strategy = 1` shadows
- * both `strategy.` and `strategy.closedtrades.`).
+ * both `strategy.` and `strategy.closedtrades.`). Given a name → declaration
+ * line map and a `cursorLine`, only a declaration on an EARLIER line shadows;
+ * a bare set (no line information) shadows unconditionally.
  */
-export function isShadowedNamespace(namespace: string, declaredNames?: ReadonlySet<string>): boolean {
+export function isShadowedNamespace(namespace: string, declaredNames?: DeclaredNames, cursorLine?: number): boolean {
   if (!declaredNames) return false;
-  return declaredNames.has(namespace.split('.')[0]);
+  const root = namespace.split('.')[0];
+  if (declaredNames instanceof Map) {
+    const declaredLine = declaredNames.get(root);
+    if (declaredLine === undefined) return false;
+    return cursorLine === undefined || declaredLine < cursorLine;
+  }
+  return declaredNames.has(root);
 }
 
 /**
