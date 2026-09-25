@@ -135,3 +135,32 @@ test('findings 7+8: trigger-character value items carry the same sortText/presel
   assert.strictEqual(items[0].sortText, '0_000');
   assert.strictEqual(items[0].preselect, true);
 });
+
+// 0.6.5 release audit: '(' that groups an expression is not a call.
+test('trigger "(" after a call name offers that call\'s parameters', () => {
+  const line = 'plot(';
+  const items = getTriggerCharacterCompletionItems(line, line.length, 0, undefined, '(');
+  assert.ok(items.some(i => /^title=?$/.test(String(i.label && i.label.label || i.label))), 'plot( should offer title=');
+});
+
+test('trigger "(" that groups an expression offers nothing', () => {
+  const line = 'plot((';
+  const items = getTriggerCharacterCompletionItems(line, line.length, 0, undefined, '(');
+  assert.deepStrictEqual(items, [], 'a grouping paren must not pop up plot parameters');
+});
+
+// Multi-line context: the provider passes the wrapped statement, and the
+// replacement range must still use the cursor column on the cursor's line.
+test('wrapped call: range uses the real cursor column, not the context length', () => {
+  const { statementContext } = require('../dist/src/intellisenseData.js');
+  const lines = ['plotshape(', '    close, style=sh'];
+  const ctx = statementContext(lines, 1, lines[1].length);
+  const items = getNamedArgumentValueItems(ctx, ctx.length, 1, lines[1].length);
+  const ranged = items.filter(i => i.range);
+  assert.ok(ranged.length > 0, 'expected ranged shape.* value items on the wrapped line');
+  for (const item of ranged) {
+    const r = item.range.replace || item.range;
+    assert.deepStrictEqual([r.start.line, r.start.character, r.end.line, r.end.character], [1, 17, 1, 19],
+      `${item.label}: range must cover "sh" on the cursor line`);
+  }
+});

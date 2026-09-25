@@ -358,7 +358,10 @@ export class AccurateValidator {
     // a comma inside a call never starts a segment, so named arguments still never
     // count as declarations (review finding, 2026-09-24).
     for (const segment of this.statementSegments(line)) {
-      const stmtDecl = segment.match(/^\s*(?:var\s+|varip\s+)?(?:[A-Za-z_][\w.]*(?:<[^>]*>)?\s+)?([A-Za-z_]\w*)\s*:?=(?!=)/);
+      // `[var|varip] [const|input|simple|series] [Type] name =` — the type
+      // qualifier was missing, so `series Holder xloc = ...` was not declared and
+      // `xloc.value` was checked as built-in xloc.* (release audit, 2026-09-25).
+      const stmtDecl = segment.match(/^\s*(?:var\s+|varip\s+)?(?:(?:const|input|simple|series)\s+)?(?:[A-Za-z_][\w.]*(?:<[^>]*>)?\s+)?([A-Za-z_]\w*)\s*:?=(?!=)/);
       if (stmtDecl && !this.isReservedKeyword(stmtDecl[1])) this.declaredLocals.add(stmtDecl[1]);
     }
     // Tuple destructuring: `[a, b] = f()`.
@@ -1077,7 +1080,8 @@ export class AccurateValidator {
       // timeframe_gaps=true,\n timeframe="D")` does not warn (review finding
       // f3 on #42) — but never the raw statement text, so a nested call's
       // argument cannot leak in (finding d1 on #43).
-      this.validateSpecialCases(functionName, topLevelNamedArgs);
+      const positionalCount = args.filter(a => !/^\s*[A-Za-z_]\w*\s*=(?!=)/.test(a)).length;
+      this.validateSpecialCases(functionName, topLevelNamedArgs, positionalCount);
     }
   }
 
@@ -1293,7 +1297,8 @@ export class AccurateValidator {
    */
   private validateSpecialCases(
     functionName: string,
-    namedArgs: Array<{ name: string; line: number; column: number }>
+    namedArgs: Array<{ name: string; line: number; column: number }>,
+    positionalCount = 0
   ): void {
     // plotshape: a top-level "shape" argument (should be "style=")
     // plotchar: a top-level "shape" argument (should be "char=")
@@ -1311,10 +1316,16 @@ export class AccurateValidator {
       }
     }
 
-    // indicator/strategy: timeframe_gaps without timeframe
-    if (functionName === 'indicator' || functionName === 'strategy') {
+    // indicator: timeframe_gaps without timeframe. `timeframe` is indicator()'s
+    // 8th parameter, so eight or more positional arguments supply it
+    // (`indicator("x", "", true, format.inherit, 2, scale.right, 500, "D",
+    // timeframe_gaps=true)` is valid; release audit, 2026-09-25). strategy() has
+    // no timeframe parameter at all. This is now the only timeframe_gaps check;
+    // documentChecks carried a duplicate that warned twice.
+    const INDICATOR_TIMEFRAME_SLOT = 8;
+    if (functionName === 'indicator') {
       const gaps = namedArgs.find(a => a.name === 'timeframe_gaps');
-      if (gaps && !namedArgs.some(a => a.name === 'timeframe')) {
+      if (gaps && !namedArgs.some(a => a.name === 'timeframe') && positionalCount < INDICATOR_TIMEFRAME_SLOT) {
         this.addError(
           gaps.line,
           gaps.column,

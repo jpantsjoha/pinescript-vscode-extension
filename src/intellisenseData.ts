@@ -279,13 +279,15 @@ function referenceMemberKind(fqn: string): CompletionKind {
 /** All top-level completions: variables, functions, keywords, namespace hints. */
 export function getAllCompletionData(): CompletionData[] {
   const items: CompletionData[] = [];
-  // A label is offered once. Precedence: variable > function > keyword > module.
-  // (The reference lists `time`, `dayofmonth`, ... as functions, but v6-manual's
-  // variables are the better completion; `input` is both a keyword and a namespace.)
+  // A label is offered once PER KIND. `time` is both a variable and a function
+  // (`time("D")`), and `array` is both a type keyword and a namespace: keying on
+  // the label alone hid `time()` and the `array.` namespace entry, which v0.6.4
+  // offered (0.6.5 release audit). Same-kind duplicates are still collapsed.
   const seen = new Set<string>();
   const push = (item: CompletionData) => {
-    if (seen.has(item.label)) return;
-    seen.add(item.label);
+    const key = `${item.kind}:${item.label}`;
+    if (seen.has(key)) return;
+    seen.add(key);
     items.push(item);
   };
 
@@ -474,7 +476,9 @@ export function getDeclaredNames(documentText: string): Map<string, number> {
       // A leading "type" token that is a keyword (`for font = 0 to 9`) is not
       // a declaration either. Built-in TYPE names are not keywords here —
       // `float x = 1` is a valid typed declaration (delta review round 2).
-      const stmtDecl = line.match(/^(?:var\s+|varip\s+)?(?:([A-Za-z_][\w.]*(?:<[^>]*>)?)\s+)?([A-Za-z_]\w*)\s*=(?![=>])/);
+      // `[var|varip] [const|input|simple|series] [Type] name =` (qualifier added
+      // in the 0.6.5 release audit: `series Holder xloc = ...` must shadow).
+      const stmtDecl = line.match(/^(?:var\s+|varip\s+)?(?:(?:const|input|simple|series)\s+)?(?:([A-Za-z_][\w.]*(?:<[^>]*>)?)\s+)?([A-Za-z_]\w*)\s*=(?![=>])/);
       if (stmtDecl && !isReservedKeywordName(stmtDecl[2])
           && !(stmtDecl[1] && isReservedKeywordName(stmtDecl[1].split(/[<.]/)[0]))) {
         declare(stmtDecl[2], startLine);
@@ -620,9 +624,15 @@ export function getHoverData(symbol: string): HoverData | undefined {
     item = manualNamespaceItem(ns, name);
   }
   if (item) {
+    // A built-in variable that is also a function (`time`, `time_close`, ...):
+    // show both, since the hover cannot tell `time` from `time("D")`.
+    const alsoFn = !symbol.includes('.') && V6_VARIABLES[symbol] ? REFERENCE[symbol] : undefined;
+    const fnNote = alsoFn
+      ? `\n\nAlso a function: \`${firstSyntax(alsoFn)}\`${alsoFn.description ? ' ' + alsoFn.description : ''}`
+      : '';
     return {
       syntax: item.syntax,
-      description: item.description,
+      description: (item.description || '') + fnNote,
       returns: item.returns,
       type: item.type,
       example: item.example,
@@ -816,27 +826,102 @@ export function getParameterInfo(functionName: string): ParameterInfo[] {
  * blankStringsAndComments (whole-document declaration scanning), an unclosed
  * string at the cursor is blanked as well.
  */
-function blankStringsAndCommentsBeforeCursor(text: string): string {
-  const noStrings = text.replace(STRING_LITERAL_RE, m => m[0] + ' '.repeat(Math.max(0, m.length - 1)));
-  const comment = noStrings.indexOf('//');
-  return comment < 0 ? noStrings : noStrings.slice(0, comment) + ' '.repeat(noStrings.length - comment);
-}
-
-/** True when the cursor sits inside a (same-line) string literal or a `//` comment. */
-function isInsideStringOrComment(beforeCursor: string): boolean {
-  let quote: string | null = null;
-  for (let i = 0; i < beforeCursor.length; i++) {
-    const ch = beforeCursor[i];
-    if (quote) {
-      if (ch === '\\') { i++; continue; }
-      if (ch === quote) quote = null;
+/**
+ * One pass over the context text, tracking string and comment state across
+ * lines: a `"""` or `'''` multiline string can span lines, while `"..."`,
+ * `'...'` and `//` comments end at their line. Each string keeps its opening
+ * quote and its contents become spaces, so lengths and offsets are preserved.
+ * `state` is what the cursor (the end of the text) sits inside.
+ */
+function scanStringsAndComments(text: string): { blanked: string; state: 'code' | 'string' | 'comment'; quote: string; triple: boolean } {
+  const out = text.split('');
+  let state: 'code' | 'string' | 'comment' = 'code';
+  let quote = '';
+  let triple = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (state === 'comment') {
+      if (ch === '\n') state = 'code';
+      else out[i] = ' ';
+    } else if (state === 'string') {
+      if (ch === '\n') {
+        if (!triple) state = 'code';
+        continue;
+      }
+      if (!triple && ch === '\\') {
+        out[i] = ' ';
+        if (i + 1 < text.length && text[i + 1] !== '\n') out[++i] = ' ';
+        continue;
+      }
+      out[i] = ' ';
+      if (triple ? text.startsWith(quote.repeat(3), i) : ch === quote) {
+        if (triple) { out[i + 1] = ' '; out[i + 2] = ' '; i += 2; }
+        state = 'code';
+      }
     } else if (ch === '"' || ch === "'") {
+      state = 'string';
       quote = ch;
-    } else if (ch === '/' && beforeCursor[i + 1] === '/') {
-      return true;
+      triple = text.startsWith(ch.repeat(3), i);
+      if (triple) { out[i + 1] = ' '; out[i + 2] = ' '; i += 2; }
+    } else if (ch === '/' && text[i + 1] === '/') {
+      state = 'comment';
+      out[i] = ' ';
     }
   }
-  return quote !== null;
+  return { blanked: out.join(''), state, quote, triple };
+}
+
+function blankStringsAndCommentsBeforeCursor(text: string): string {
+  return scanStringsAndComments(text).blanked;
+}
+
+/**
+ * The text a completion or signature-help request should analyse: the current
+ * line up to the cursor, preceded by up to `maxLines` earlier lines, so a call
+ * wrapped across lines (`plot(\n    close,\n    |`) is still found. Known limit:
+ * a call opened more than `maxLines` lines above the cursor is not found, so
+ * completion falls back to the global list (a miss, never a wrong suggestion).
+ * Pass the document's lines from the top: the lines above the window are
+ * scanned (not analysed) so a `"""` string that opens above it and runs into
+ * it is still read as a string. Earlier
+ * statements are balanced, so the backward scan passes over them. Pure: the
+ * provider passes the document's lines.
+ */
+export function statementContext(lines: string[], lineIndex: number, character: number, maxLines = 30): string {
+  const start = Math.max(0, lineIndex - maxLines);
+  const before = lines.slice(start, lineIndex);
+  const current = (lines[lineIndex] || '').slice(0, character);
+  const window = before.length ? before.join('\n') + '\n' + current : current;
+  if (start === 0) return window;
+  // Carry a multiline string that is still open where the window starts: an
+  // opening triple quote on a line of its own puts the scan in the same state.
+  const above = scanStringsAndComments(lines.slice(0, start).join('\n') + '\n');
+  return above.state === 'string' && above.triple ? above.quote.repeat(3) + '\n' + window : window;
+}
+
+/**
+ * True when the '(' just before the cursor opens a CALL (a name, or a generic
+ * constructor like array.new<float>, directly before it) rather than grouping
+ * an expression: `plot((close + open` must not pop up plot's parameters when
+ * the inner '(' is typed (0.6.5 release audit).
+ */
+export function isCallParenBeforeCursor(text: string): boolean {
+  const blanked = blankStringsAndCommentsBeforeCursor(text).replace(/\s+$/, '');
+  if (!blanked.endsWith('(')) return false;
+  const head = blanked.slice(0, -1);
+  const m = head.match(/([A-Za-z_][\w.]*)\s*(?:<[^<>()]*(?:<[^<>()]*>[^<>()]*)*>)?\s*$/);
+  // `if (`, `and (`, `switch (` group an expression; a keyword is never a call.
+  return !!m && !CALL_KEYWORDS.has(m[1]);
+}
+
+const CALL_KEYWORDS = new Set([
+  'if', 'else', 'for', 'while', 'switch', 'and', 'or', 'not', 'return', 'in', 'to', 'by',
+  'var', 'varip', 'import', 'export', 'method', 'type', 'enum', 'const', 'simple', 'series',
+]);
+
+/** True when the cursor sits inside a string literal (multiline included) or a `//` comment. */
+function isInsideStringOrComment(beforeCursorText: string): boolean {
+  return scanStringsAndComments(beforeCursorText).state !== 'code';
 }
 
 /**

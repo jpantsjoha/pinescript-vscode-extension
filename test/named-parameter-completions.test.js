@@ -384,3 +384,73 @@ test('finding 10: 1,000 getNamedParameterCompletions calls finish well under 200
   const ms = Number(process.hrtime.bigint() - t0) / 1e6;
   assert.ok(ms < 200, `1,000 calls took ${ms.toFixed(1)} ms (bound: 200 ms)`);
 });
+
+// 0.6.5 release audit: helpers behind multi-line context and the '(' guard.
+{
+  const d = require('../dist/src/intellisenseData.js');
+
+  test('statementContext joins earlier lines and cuts the current line at the cursor', () => {
+    const lines = ['x = 1', 'plot(close,', '     color=color.red, lin', 'after'];
+    assert.strictEqual(d.statementContext(lines, 2, 26), 'x = 1\nplot(close,\n     color=color.red, lin');
+    assert.strictEqual(d.statementContext(lines, 0, 1), 'x');
+    assert.strictEqual(d.statementContext(lines, 2, 5, 1), 'plot(close,\n     ');
+  });
+
+  test('a wrapped call resolves to the open call across lines', () => {
+    const ctx = d.statementContext(['plot(close,', '     '], 1, 5);
+    assert.strictEqual(d.findFunctionCallName(ctx, ctx.length), 'plot');
+    assert.strictEqual(d.calculateActiveParameter(ctx), 1);
+  });
+
+  test('parens in strings and comments on earlier lines are ignored', () => {
+    const ctx = d.statementContext(['s = "(" // (', 'plot(close, '], 1, 12);
+    assert.strictEqual(d.findFunctionCallName(ctx, ctx.length), 'plot');
+  });
+
+  test('isCallParenBeforeCursor tells a call from a grouping paren', () => {
+    assert.strictEqual(d.isCallParenBeforeCursor('plot('), true);
+    assert.strictEqual(d.isCallParenBeforeCursor('ta.sma ('), true);
+    assert.strictEqual(d.isCallParenBeforeCursor('array.new<float>('), true);
+    assert.strictEqual(d.isCallParenBeforeCursor('x = ('), false);
+    assert.strictEqual(d.isCallParenBeforeCursor('plot(('), false);
+    assert.strictEqual(d.isCallParenBeforeCursor('// plot('), false);
+    assert.strictEqual(d.isCallParenBeforeCursor('s = "plot('), false);
+    for (const kw of ['if (', 'x = a and (', 'while (', 'switch (', 'not (']) {
+      assert.strictEqual(d.isCallParenBeforeCursor(kw), false, `${kw} is not a call`);
+    }
+    assert.strictEqual(d.isCallParenBeforeCursor('x = input('), true, 'input() is a function');
+    assert.strictEqual(d.isCallParenBeforeCursor('f(a)('), false);
+  });
+
+  test('a finished multiline string does not leak its parens into the context', () => {
+    const lines = ['msg = """line one', 'plot(', 'line three"""', 'x = close', ''];
+    const ctx = d.statementContext(lines, 4, 0);
+    assert.strictEqual(d.findFunctionCallName(ctx, ctx.length), null);
+    assert.deepStrictEqual(d.getNamedParameterCompletions(ctx, ctx.length), []);
+    // Control: the same text as code IS an open call.
+    const code = d.statementContext(['plot(', 'x'], 1, 1);
+    assert.strictEqual(d.findFunctionCallName(code, code.length), 'plot');
+  });
+
+  test('a multiline string opened above the 30-line window is still a string', () => {
+    const filler = Array.from({ length: 35 }, (_, i) => `line ${i}`);
+    // False popup: the string's own `plot(` must not read as an open call.
+    const popup = ['msg = """start', ...filler, 'plot(', 'end"""', 'x = close', ''];
+    const c1 = d.statementContext(popup, popup.length - 1, 0);
+    assert.strictEqual(d.findFunctionCallName(c1, c1.length), null);
+    // False miss: after the string closes, a real open call must be found.
+    const miss = ['msg = """start', ...filler, 'end"""', 'plot(close, ', ''];
+    const c2 = d.statementContext(miss, miss.length - 2, 'plot(close, '.length);
+    assert.strictEqual(d.findFunctionCallName(c2, c2.length), 'plot');
+    // A string that closed above the window changes nothing.
+    const closed = ['msg = """a"""', ...filler, 'plot(close, '];
+    const c3 = d.statementContext(closed, closed.length - 1, 'plot(close, '.length);
+    assert.strictEqual(d.findFunctionCallName(c3, c3.length), 'plot');
+  });
+
+  test('the cursor inside an open multiline string offers no parameter names', () => {
+    const lines = ['plot(close, title="""a', 'b '];
+    const ctx = d.statementContext(lines, 1, 2);
+    assert.deepStrictEqual(d.getNamedParameterCompletions(ctx, ctx.length), []);
+  });
+}

@@ -120,6 +120,22 @@ for (const relativePath of GOLDEN_FILES) {
   });
 }
 
+test('Golden corpus: committed fixtures raise no warnings either', () => {
+  // Errors fail above. The committed fixtures are exemplars, so a warning on them
+  // is a false positive too; a count that creeps up means a check got noisier.
+  const offenders = [];
+  for (const relativePath of FIXTURE_FILES) {
+    const absolutePath = path.join(REPO_ROOT, relativePath);
+    if (!fs.existsSync(absolutePath)) continue;
+    const source = fs.readFileSync(absolutePath, 'utf8');
+    for (const d of allDiagnostics(source).filter(e => e.severity === 1)) {
+      offenders.push(`${relativePath}:${d.line} ${d.message}`);
+    }
+  }
+  assert.deepStrictEqual(offenders, [],
+    'Committed fixtures produced warnings:\n  ' + offenders.slice(0, 10).join('\n  '));
+});
+
 test('Golden corpus: validation stays within the 100ms performance budget', () => {
   const largest = path.join(REPO_ROOT, 'test/fixtures/corpus/syntax-surface.pine');
   if (!fs.existsSync(largest)) return;

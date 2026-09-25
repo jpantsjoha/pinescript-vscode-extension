@@ -9,8 +9,7 @@ import {
   getHoverData,
   getNamedParameterCompletions,
   getNamedArgumentValueCompletions,
-  getNamedArgumentValuePrefix
-} from './intellisenseData';
+  getNamedArgumentValuePrefix, isCallParenBeforeCursor } from './intellisenseData';
 
 // Re-export so existing imports of V6_KEYWORDS from this module keep working.
 export { V6_KEYWORDS };
@@ -172,7 +171,7 @@ export function getNamedParameterCompletionItems(line: string, character: number
 // must survive a typed prefix (`style=sh`, `style=shape.ci`): filterText is
 // the full label and the range replaces exactly the typed prefix after `=`,
 // so the editor's filtering lets `sh` match `shape.circle` (finding 8).
-export function getNamedArgumentValueItems(line: string, character: number, lineNumber = 0): vscode.CompletionItem[] {
+export function getNamedArgumentValueItems(line: string, character: number, lineNumber = 0, rangeCharacter?: number): vscode.CompletionItem[] {
   const values = getNamedArgumentValueCompletions(line, character);
   if (values.length === 0) return [];
   const prefix = getNamedArgumentValuePrefix(line, character);
@@ -181,7 +180,10 @@ export function getNamedArgumentValueItems(line: string, character: number, line
     item.sortText = `0_${String(index).padStart(3, '0')}`;
     item.preselect = index === 0;
     item.filterText = data.label;
-    item.range = new vscode.Range(lineNumber, character - prefix.length, lineNumber, character);
+    // `line` may hold earlier context lines; the replaced range is always on
+    // the cursor's line, measured from the cursor's own column.
+    const col = rangeCharacter ?? character;
+    item.range = new vscode.Range(lineNumber, col - prefix.length, lineNumber, col);
     return item;
   });
 }
@@ -191,8 +193,10 @@ export function getNamedArgumentValueItems(line: string, character: number, line
 // declaration-order pinning and re-trigger command). Empty anywhere else, so
 // typing a comma in a tuple/array/declaration/comment never pops the global
 // completion list.
-export function getTriggerCharacterCompletionItems(line: string, character: number, lineNumber = 0): vscode.CompletionItem[] {
-  const values = getNamedArgumentValueItems(line, character, lineNumber);
+export function getTriggerCharacterCompletionItems(line: string, character: number, lineNumber = 0, rangeCharacter?: number, triggerCharacter?: string): vscode.CompletionItem[] {
+  // A grouping '(' — `plot((close + open` — is not a call: offer nothing.
+  if (triggerCharacter === '(' && !isCallParenBeforeCursor(line.slice(0, character))) return [];
+  const values = getNamedArgumentValueItems(line, character, lineNumber, rangeCharacter);
   if (values.length > 0) return values;
   return getNamedParameterCompletionItems(line, character);
 }

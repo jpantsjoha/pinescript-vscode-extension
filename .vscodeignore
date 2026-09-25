@@ -13,6 +13,8 @@ secrets.json
 .git/**
 .gitignore
 .gitattributes
+.gitleaksignore
+.githooks/**
 .claude/**
 
 # Dependencies.

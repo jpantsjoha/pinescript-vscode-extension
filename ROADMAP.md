@@ -39,7 +39,7 @@ progress** · **shipped**.
 Verified already fixed and closed 2026-09-23: #7 (nested call arity), #8 (comment
 parsed as code), #15 (UDT `.new()`).
 
-## Shipped on main, awaiting release
+## Shipped in 0.6.5 (2026-09-25)
 
 | Item | Issue | Branch / PR |
 |---|---|---|
@@ -47,6 +47,7 @@ parsed as code), #15 (UDT `.new()`).
 | Misspelled constant-namespace members and unknown namespaces after `=` are errors; the member list is complete (371 names) and swept by a test | [#37](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/37) | PR #41 |
 | Statements wrapped across lines keep their declarations, arity checks and argument-level error locations | [#42](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/42) | PR #43 |
 | Built-in constants and variables complete after a namespace dot, with hover descriptions and line-aware shadowing | [#45](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/45) | PR #46 |
+| Named-parameter completions and value suggestions, including wrapped calls | [#13](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/13) | PR #51 |
 
 ## Decided — the AST path
 
@@ -63,7 +64,7 @@ from scratch. Git history keeps the old code.
 - Remove the duplicated syntactic validator: `src/parser/{accurateValidator,documentChecks}.ts` and `v6/` copy the engine package; import them from it instead.
 
 **Editor / IntelliSense**
-- [#13](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/13) No IntelliSense on named parameters
+- [#49](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/49) Quick fixes: one-click corrections for common diagnostics
 - [#5](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/5) Variable refactor support wanted
 
 **Data / tooling**
@@ -73,8 +74,8 @@ from scratch. Git history keeps the old code.
 
 ## Next up (recommended order)
 
-1. Remove the duplicated syntactic validator (import it from the engine).
-2. #13 named-parameter IntelliSense.
+1. #49 quick fixes for common diagnostics.
+2. Remove the duplicated syntactic validator (import it from the engine).
 3. #12 narrow cast rule.
 
 ## Related

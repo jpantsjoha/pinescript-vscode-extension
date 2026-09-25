@@ -46,7 +46,7 @@ mistakes one paste at a time. This extension moves that feedback into your edito
      [Open VSX](https://open-vsx.org/extension/jpantsjoha/pinescript-v6-extension).
    - Offline: download the `.vsix` from
      [Releases](https://github.com/jpantsjoha/pinescript-vscode-extension/releases) and run
-     `code --install-extension pinescript-v6-extension-0.6.4.vsix`.
+     `code --install-extension pinescript-v6-extension-0.6.5.vsix`.
 2. **Open or create a `.pine` file.** Highlighting and checks start immediately; there is
    nothing to configure.
 3. **Paste this and watch the checks work:**
@@ -108,6 +108,9 @@ Compile errors cannot be silenced.
 - **Completions, signature help and hover for all 475 built-in functions** in
   TradingView's v6 reference; signature help shows every documented overload. Type
   `ta.vwap(` and signature help lists each of its forms as you fill in the arguments.
+- **Parameter names complete inside a call.** Type `plot(close, ` and the list offers
+  `title=`, `color=`, `linewidth=` and the rest still unfilled; after `style=` it offers
+  the constants that fit.
 - **Constants and variables complete after a namespace dot.** Type `plot.`, `xloc.`,
   `shape.`, `location.`, `size.`, `display.`, `session.` or `strategy.commission.` and
   the list offers that namespace's members, each with its description on hover.
@@ -171,10 +174,9 @@ the finished line.
 
 ## What's new
 
-**Unreleased on main**: the full v6 reference in IntelliSense, constant completions after
-a namespace dot, misspelled-constant and unknown-namespace errors, and checks that read
-wrapped statements as one. See the [CHANGELOG highlights](./CHANGELOG.md) until the next
-release folds them in.
+**0.6.5**: the full v6 reference in IntelliSense, parameter-name completions inside
+calls, constant completions after a namespace dot, misspelled-constant and
+unknown-namespace errors, and checks that read wrapped statements as one.
 
 **0.6.4**: current with TradingView's September 2026 Pine v6 reference
 (`request.footprint()`, `footprint.*`, `volume_row.*`), every documented overload accepted,

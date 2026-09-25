@@ -221,7 +221,7 @@ describe('Published npm package', { skip: SKIP && 'SKIP_PACKAGE_TEST=1' }, () =>
           `\n  the "files" field is wrong.`;
 
         if (entry.expect === null) {
-          const real = diagnostics.filter(d => d.checkId || d.severity === 0);
+          const real = diagnostics.filter(d => d.checkId || d.severity === 0 || d.severity === 1);
           assert.strictEqual(real.length, 0,
             'This code is CORRECT and must produce no findings.' + context);
         } else {

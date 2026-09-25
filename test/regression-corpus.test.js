@@ -32,7 +32,8 @@ function runCase(validate, entry) {
     `\n\n  Got: ${ids.join(', ') || '(nothing)'}`;
 
   if (entry.expect === null) {
-    const real = diagnostics.filter(d => d.checkId || d.severity === 0);
+    // Errors AND warnings: a yellow squiggle on correct code is still noise.
+    const real = diagnostics.filter(d => d.checkId || d.severity === 0 || d.severity === 1);
     assert.strictEqual(real.length, 0,
       `This code is CORRECT and must produce no findings.` + context +
       `\n  A false positive on working code is worse than a miss — it teaches ` +

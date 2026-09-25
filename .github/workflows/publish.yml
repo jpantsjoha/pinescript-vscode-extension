@@ -14,6 +14,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # Both registries or neither: check every publishing credential before
+    # anything is published, so a missing token cannot leave a split release
+    # (Marketplace live, Open VSX behind).
+    - name: Preflight publishing credentials
+      env:
+        VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        OVSX_PAT: ${{ secrets.OVSX_PAT }}
+      run: |
+        missing=""
+        [ -n "$VSCE_PAT" ] || missing="$missing VSCE_PAT"
+        [ -n "$OVSX_PAT" ] || missing="$missing OVSX_PAT"
+        if [ -n "$missing" ]; then
+          echo "::error::Missing publishing secret(s):$missing. Nothing was published."
+          exit 1
+        fi
+
     - name: Checkout code
       uses: actions/checkout@v4
 
@@ -44,20 +60,12 @@ jobs:
         VSCE_PAT: ${{ secrets.VSCE_PAT }}
       run: vsce publish -p "$VSCE_PAT" --packagePath "pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix"
 
-    # Open VSX serves Cursor, Windsurf, VSCodium, Gitpod and Theia. Skipped with a
-    # warning rather than failed when no token is configured, so a missing optional
-    # token cannot fail a release that reached the Marketplace (same as c4x).
+    # Open VSX serves Cursor, Windsurf, VSCodium, Gitpod and Theia. Its token was
+    # checked in the preflight step, before the Marketplace publish.
     - name: Publish to Open VSX
       env:
         OVSX_PAT: ${{ secrets.OVSX_PAT }}
-      run: |
-        VSIX="pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix"
-        if [ -z "$OVSX_PAT" ]; then
-          echo "::warning::OVSX_PAT is not set, so Open VSX was skipped. Publish it by hand:"
-          echo "  npx ovsx publish $VSIX -p \$OVSX_PAT"
-          exit 0
-        fi
-        npx --yes ovsx publish "$VSIX" -p "$OVSX_PAT"
+      run: npx --yes ovsx publish "pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix" -p "$OVSX_PAT"
 
     - name: Upload VSIX to release
       uses: softprops/action-gh-release@v1
