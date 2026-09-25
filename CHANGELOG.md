@@ -43,6 +43,11 @@ on typos, and wrapped statements read as one.
   longer warns, and the warning, when right, appears once instead of twice.
 - Typing a grouping `(` inside a call, as in `plot((close + open) / 2`, no longer
   pops up the outer call's parameters.
+- Brackets inside a `"""` multiline string no longer make completions think a call
+  is open. Known limit: a call opened more than 30 lines above the cursor falls back
+  to ordinary completions.
+- A release now checks both registry tokens before publishing anything, so the
+  Marketplace and Open VSX cannot end up on different versions.
 - `time` completes as both the variable and the `time()` function, and `array` as
   both the type and the namespace; hover on `time` mentions both.
 

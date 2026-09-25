@@ -415,5 +415,26 @@ test('finding 10: 1,000 getNamedParameterCompletions calls finish well under 200
     assert.strictEqual(d.isCallParenBeforeCursor('plot(('), false);
     assert.strictEqual(d.isCallParenBeforeCursor('// plot('), false);
     assert.strictEqual(d.isCallParenBeforeCursor('s = "plot('), false);
+    for (const kw of ['if (', 'x = a and (', 'while (', 'switch (', 'not (']) {
+      assert.strictEqual(d.isCallParenBeforeCursor(kw), false, `${kw} is not a call`);
+    }
+    assert.strictEqual(d.isCallParenBeforeCursor('x = input('), true, 'input() is a function');
+    assert.strictEqual(d.isCallParenBeforeCursor('f(a)('), false);
+  });
+
+  test('a finished multiline string does not leak its parens into the context', () => {
+    const lines = ['msg = """line one', 'plot(', 'line three"""', 'x = close', ''];
+    const ctx = d.statementContext(lines, 4, 0);
+    assert.strictEqual(d.findFunctionCallName(ctx, ctx.length), null);
+    assert.deepStrictEqual(d.getNamedParameterCompletions(ctx, ctx.length), []);
+    // Control: the same text as code IS an open call.
+    const code = d.statementContext(['plot(', 'x'], 1, 1);
+    assert.strictEqual(d.findFunctionCallName(code, code.length), 'plot');
+  });
+
+  test('the cursor inside an open multiline string offers no parameter names', () => {
+    const lines = ['plot(close, title="""a', 'b '];
+    const ctx = d.statementContext(lines, 1, 2);
+    assert.deepStrictEqual(d.getNamedParameterCompletions(ctx, ctx.length), []);
   });
 }

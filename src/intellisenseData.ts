@@ -826,20 +826,61 @@ export function getParameterInfo(functionName: string): ParameterInfo[] {
  * blankStringsAndComments (whole-document declaration scanning), an unclosed
  * string at the cursor is blanked as well.
  */
+/**
+ * One pass over the context text, tracking string and comment state across
+ * lines: a `"""` or `'''` multiline string can span lines, while `"..."`,
+ * `'...'` and `//` comments end at their line. Each string keeps its opening
+ * quote and its contents become spaces, so lengths and offsets are preserved.
+ * `state` is what the cursor (the end of the text) sits inside.
+ */
+function scanStringsAndComments(text: string): { blanked: string; state: 'code' | 'string' | 'comment' } {
+  const out = text.split('');
+  let state: 'code' | 'string' | 'comment' = 'code';
+  let quote = '';
+  let triple = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (state === 'comment') {
+      if (ch === '\n') state = 'code';
+      else out[i] = ' ';
+    } else if (state === 'string') {
+      if (ch === '\n') {
+        if (!triple) state = 'code';
+        continue;
+      }
+      if (!triple && ch === '\\') {
+        out[i] = ' ';
+        if (i + 1 < text.length && text[i + 1] !== '\n') out[++i] = ' ';
+        continue;
+      }
+      out[i] = ' ';
+      if (triple ? text.startsWith(quote.repeat(3), i) : ch === quote) {
+        if (triple) { out[i + 1] = ' '; out[i + 2] = ' '; i += 2; }
+        state = 'code';
+      }
+    } else if (ch === '"' || ch === "'") {
+      state = 'string';
+      quote = ch;
+      triple = text.startsWith(ch.repeat(3), i);
+      if (triple) { out[i + 1] = ' '; out[i + 2] = ' '; i += 2; }
+    } else if (ch === '/' && text[i + 1] === '/') {
+      state = 'comment';
+      out[i] = ' ';
+    }
+  }
+  return { blanked: out.join(''), state };
+}
+
 function blankStringsAndCommentsBeforeCursor(text: string): string {
-  // Per physical line: the context can now span a wrapped statement's earlier
-  // lines, and a string or `//` comment never continues past its own line.
-  return text.split('\n').map(line => {
-    const noStrings = line.replace(STRING_LITERAL_RE, m => m[0] + ' '.repeat(Math.max(0, m.length - 1)));
-    const comment = noStrings.indexOf('//');
-    return comment < 0 ? noStrings : noStrings.slice(0, comment) + ' '.repeat(noStrings.length - comment);
-  }).join('\n');
+  return scanStringsAndComments(text).blanked;
 }
 
 /**
  * The text a completion or signature-help request should analyse: the current
  * line up to the cursor, preceded by up to `maxLines` earlier lines, so a call
- * wrapped across lines (`plot(\n    close,\n    |`) is still found. Earlier
+ * wrapped across lines (`plot(\n    close,\n    |`) is still found. Known limit:
+ * a call opened more than `maxLines` lines above the cursor is not found, so
+ * completion falls back to the global list (a miss, never a wrong suggestion). Earlier
  * statements are balanced, so the backward scan passes over them. Pure: the
  * provider passes the document's lines.
  */
@@ -860,26 +901,19 @@ export function isCallParenBeforeCursor(text: string): boolean {
   const blanked = blankStringsAndCommentsBeforeCursor(text).replace(/\s+$/, '');
   if (!blanked.endsWith('(')) return false;
   const head = blanked.slice(0, -1);
-  return /[A-Za-z_][\w.]*\s*(?:<[^<>()]*(?:<[^<>()]*>[^<>()]*)*>)?\s*$/.test(head);
+  const m = head.match(/([A-Za-z_][\w.]*)\s*(?:<[^<>()]*(?:<[^<>()]*>[^<>()]*)*>)?\s*$/);
+  // `if (`, `and (`, `switch (` group an expression; a keyword is never a call.
+  return !!m && !CALL_KEYWORDS.has(m[1]);
 }
 
-/** True when the cursor sits inside a (same-line) string literal or a `//` comment. */
+const CALL_KEYWORDS = new Set([
+  'if', 'else', 'for', 'while', 'switch', 'and', 'or', 'not', 'return', 'in', 'to', 'by',
+  'var', 'varip', 'import', 'export', 'method', 'type', 'enum', 'const', 'simple', 'series',
+]);
+
+/** True when the cursor sits inside a string literal (multiline included) or a `//` comment. */
 function isInsideStringOrComment(beforeCursorText: string): boolean {
-  // Only the cursor's own line matters; earlier context lines are irrelevant.
-  const beforeCursor = beforeCursorText.slice(beforeCursorText.lastIndexOf('\n') + 1);
-  let quote: string | null = null;
-  for (let i = 0; i < beforeCursor.length; i++) {
-    const ch = beforeCursor[i];
-    if (quote) {
-      if (ch === '\\') { i++; continue; }
-      if (ch === quote) quote = null;
-    } else if (ch === '"' || ch === "'") {
-      quote = ch;
-    } else if (ch === '/' && beforeCursor[i + 1] === '/') {
-      return true;
-    }
-  }
-  return quote !== null;
+  return scanStringsAndComments(beforeCursorText).state !== 'code';
 }
 
 /**

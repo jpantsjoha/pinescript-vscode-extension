@@ -153,13 +153,14 @@ test('trigger "(" that groups an expression offers nothing', () => {
 // replacement range must still use the cursor column on the cursor's line.
 test('wrapped call: range uses the real cursor column, not the context length', () => {
   const { statementContext } = require('../dist/src/intellisenseData.js');
-  const lines = ['plot(close,', '     ti'];
-  const ctx = statementContext(lines, 1, 7);
-  const items = getTriggerCharacterCompletionItems(ctx, ctx.length, 1, 7, ',');
-  for (const item of items) {
-    if (!item.range) continue;
+  const lines = ['plotshape(', '    close, style=sh'];
+  const ctx = statementContext(lines, 1, lines[1].length);
+  const items = getNamedArgumentValueItems(ctx, ctx.length, 1, lines[1].length);
+  const ranged = items.filter(i => i.range);
+  assert.ok(ranged.length > 0, 'expected ranged shape.* value items on the wrapped line');
+  for (const item of ranged) {
     const r = item.range.replace || item.range;
-    assert.strictEqual(r.end.line, 1);
-    assert.strictEqual(r.end.character, 7);
+    assert.deepStrictEqual([r.start.line, r.start.character, r.end.line, r.end.character], [1, 17, 1, 19],
+      `${item.label}: range must cover "sh" on the cursor line`);
   }
 });
