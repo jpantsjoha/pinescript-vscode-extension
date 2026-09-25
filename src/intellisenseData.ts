@@ -732,11 +732,13 @@ export function calculateActiveParameter(text: string): number {
 //
 // Inside a call's argument list (`plot(close, ⎸`) the parameter NAMES of the
 // called function are offered as `name=` items, drawn from the full reference
-// and unioned across all overloads. Parameters already supplied by name in
-// the current call are excluded; positional arguments are ignored on purpose
-// (deciding which positional slot the user is filling is out of scope). After
-// a `name=` whose values come from a constant namespace (`style=` → shape.*,
-// `xloc=` → xloc.*, ...) the namespace's constants are offered instead.
+// and unioned across all overloads. Parameters already supplied are excluded,
+// whether by name (`title="t"`) or positionally: with N positional arguments
+// before the cursor, every overload whose signature accepts N positional args
+// still fits, and a name stays offered iff some fitting overload lists it
+// beyond the filled slots (union of per-overload remainders). After a `name=`
+// whose values come from a constant namespace (`style=` → shape.*, `xloc=` →
+// xloc.*, ...) the namespace's constants are offered instead.
 
 export interface ParameterInfo {
   name: string;
@@ -791,43 +793,90 @@ function isInsideString(beforeCursor: string): boolean {
 }
 
 /**
- * Parameter names already supplied as `name=` in the COMPLETE top-level
- * argument segments before the cursor (everything up to the last top-level
- * comma; the segment being typed does not count). Strings are blanked first
- * so `title="a=b"` never registers `b`, and nested calls stay below top
- * level. `==`/`=>` comparisons never match.
+ * The COMPLETE top-level argument segments before the cursor (everything up
+ * to the last top-level comma; the segment being typed does not count).
+ * Strings are blanked before splitting so commas and `=` inside them are
+ * inert, and nested calls stay below top level. Returns the names supplied as
+ * `name=` (`==`/`=>` comparisons never match) and the count of positional
+ * segments — any non-empty segment not shaped like `name=`. A positional
+ * segment after a named one is invalid Pine and simply counts as positional.
  */
-function namedArgsBeforeCursor(inner: string): Set<string> {
+function argsBeforeCursor(inner: string): { named: Set<string>; positional: number } {
   const blanked = inner.replace(/"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?/g, m => ' '.repeat(m.length));
   const named = new Set<string>();
+  let positional = 0;
   let depth = 0;
   let current = '';
-  const scan = (segment: string) => {
+  let currentRaw = '';
+  const scan = (segment: string, raw: string) => {
     const m = segment.match(/^\s*([A-Za-z_]\w*)\s*=(?![=>])/);
     if (m) named.add(m[1]);
+    else if (raw.trim()) positional++;
   };
-  for (const ch of blanked) {
+  for (let i = 0; i < blanked.length; i++) {
+    const ch = blanked[i];
     if (ch === '(' || ch === '[') depth++;
     else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
-    if (ch === ',' && depth === 0) { scan(current); current = ''; }
-    else current += ch;
+    if (ch === ',' && depth === 0) { scan(current, currentRaw); current = ''; currentRaw = ''; }
+    else { current += ch; currentRaw += inner[i]; }
   }
-  return named;
+  return { named, positional };
+}
+
+/**
+ * Parameter names already filled POSITIONALLY before the cursor: with N
+ * positional arguments, each overload whose signature accepts N positional
+ * args (length ≥ N, or a trailing `...`) can still fit the call, and its
+ * first N slots are taken. A name stays offered iff some fitting overload
+ * lists it beyond slot N (union of per-overload remainders); names the
+ * required/optional inventories add outside any signature (`...` extras like
+ * plot's trackprice) are never positionally filled. When no overload can
+ * accept N positional args, nothing is excluded.
+ */
+function positionallyFilledParams(functionName: string, positional: number): Set<string> {
+  const filled = new Set<string>();
+  if (positional <= 0) return filled;
+  const entry = REFERENCE[functionName];
+  if (!entry) return filled;
+  const signatures = entry.overloads && entry.overloads.length > 0
+    ? entry.overloads.map(o => o.signature)
+    : [entry.syntax || entry.signature || ''];
+  const inFittingSignatures = new Set<string>();
+  const remainders = new Set<string>();
+  let anyFit = false;
+  for (const sig of signatures) {
+    const fragments = parseSignatureParams(sig);
+    const variadic = fragments.some(f => f.trim() === '...');
+    const params = fragments
+      .map(paramName)
+      .filter(n => /^[A-Za-z_]\w*$/.test(n));
+    if (!variadic && params.length < positional) continue;
+    anyFit = true;
+    for (const n of params) inFittingSignatures.add(n);
+    for (const n of params.slice(positional)) remainders.add(n);
+  }
+  if (!anyFit) return filled;
+  for (const p of getParameterInfo(functionName)) {
+    if (inFittingSignatures.has(p.name) && !remainders.has(p.name)) filled.add(p.name);
+  }
+  return filled;
 }
 
 /**
  * `name=` completions for the argument list the cursor is in, in declaration
- * order, excluding names already supplied in the current call. Empty outside
- * a call, inside a string, or for a function the reference does not list.
+ * order, excluding names already supplied in the current call by name or
+ * positionally. Empty outside a call, inside a string, or for a function the
+ * reference does not list.
  */
 export function getNamedParameterCompletions(line: string, character: number): CompletionData[] {
   const beforeCursor = line.substring(0, character);
   if (isInsideString(beforeCursor)) return [];
   const call = openCallAt(beforeCursor);
   if (!call) return [];
-  const named = namedArgsBeforeCursor(beforeCursor.slice(call.open + 1));
+  const { named, positional } = argsBeforeCursor(beforeCursor.slice(call.open + 1));
+  const filled = positionallyFilledParams(call.name, positional);
   return getParameterInfo(call.name)
-    .filter(p => !named.has(p.name))
+    .filter(p => !named.has(p.name) && !filled.has(p.name))
     .map(p => ({
       label: `${p.name}=`,
       kind: 'field',
