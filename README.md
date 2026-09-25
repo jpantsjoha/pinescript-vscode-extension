@@ -106,14 +106,13 @@ Compile errors cannot be silenced.
 ## Editing features
 
 - **Completions, signature help and hover for all 475 built-in functions** in
-  TradingView's v6 reference, with every documented overload. Type `ta.vwap(` and
-  signature help lists each of its forms as you fill in the arguments.
-- **Constants and variables complete after a namespace dot.** Type `xloc.`, `shape.`,
-  `location.`, `size.`, `display.`, `session.` or `strategy.commission.` and the list
-  offers that namespace's members, including the `plot.style_*` forms, each with its
-  description on hover.
-- **Misspelled constants are flagged.** `color.purplee` is underlined as an error, just
-  as TradingView rejects it.
+  TradingView's v6 reference; signature help shows every documented overload. Type
+  `ta.vwap(` and signature help lists each of its forms as you fill in the arguments.
+- **Constants and variables complete after a namespace dot.** Type `plot.`, `xloc.`,
+  `shape.`, `location.`, `size.`, `display.`, `session.` or `strategy.commission.` and
+  the list offers that namespace's members, each with its description on hover.
+- **Misspelled constants and unknown namespaces are flagged.** `color.purplee` is
+  underlined as an error, just as TradingView rejects it.
 - **Wrapped statements are read as one.** Split a call across lines and the argument
   checks still apply, and names declared on the wrapped lines stay defined.
 - **Syntax highlighting** for v6, including `type`, `enum` and `method`.
@@ -173,8 +172,9 @@ the finished line.
 ## What's new
 
 **Unreleased on main**: the full v6 reference in IntelliSense, constant completions after
-a namespace dot, misspelled-constant errors and checks that read wrapped statements as
-one. See the [CHANGELOG highlights](./CHANGELOG.md) until the next release folds them in.
+a namespace dot, misspelled-constant and unknown-namespace errors, and checks that read
+wrapped statements as one. See the [CHANGELOG highlights](./CHANGELOG.md) until the next
+release folds them in.
 
 **0.6.4**: current with TradingView's September 2026 Pine v6 reference
 (`request.footprint()`, `footprint.*`, `volume_row.*`), every documented overload accepted,

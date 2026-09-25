@@ -13,8 +13,8 @@ Merged on main, not yet in a tagged release.
 
 ### Highlights
 
-- IntelliSense now covers all 475 built-in functions in the v6 reference, with every
-  documented overload in completions, signature help and hover.
+- Completions, signature help and hover for all 475 built-in functions in the v6
+  reference; signature help shows every documented overload.
 - Constants and variables complete after a namespace dot (`xloc.`, `shape.`,
   `strategy.commission.`, ...), with their descriptions on hover.
 - A misspelled constant such as `color.purplee`, and an unknown namespace, are now
