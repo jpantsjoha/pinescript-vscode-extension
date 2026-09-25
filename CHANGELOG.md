@@ -74,6 +74,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrapped in or followed by another expression, and any call whose expression may
   continue on the next line. Return types come from the v6 reference; casting rules
   from the type-system docs.
+- Quick fixes (#49). The lightbulb offers one-click corrections for diagnostics the
+  extension already reports: a misspelled namespace constant (only when exactly one
+  documented member is within two edits), `shape=` renamed to `style=` on `plotshape`
+  (and to `char=` on `plotchar` when the value is a string), `ignore_invalid_symbol=true`
+  for S10, `expr[1]` with `lookahead=barmerge.lookahead_on` for S1, `// pine-ignore: S<n>`
+  for any semantic check, and `//@version=6` when a script declares no version. Each fix
+  is tested by applying it and re-validating through all three diagnostic sources.
+  Semantic diagnostics now carry their check id (`S1`..`S10`) as the diagnostic code.
 
 ## [0.6.5] - 2026-09-25
 
