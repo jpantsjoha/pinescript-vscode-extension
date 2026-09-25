@@ -6,7 +6,10 @@ import {
   DeclaredNames,
   getAllCompletionData,
   getNamespaceCompletionData,
-  getHoverData
+  getHoverData,
+  getNamedParameterCompletions,
+  getNamedArgumentValueCompletions,
+  getNamedArgumentValuePrefix
 } from './intellisenseData';
 
 // Re-export so existing imports of V6_KEYWORDS from this module keep working.
@@ -19,6 +22,7 @@ const KIND_MAP: Record<CompletionData['kind'], vscode.CompletionItemKind> = {
   module: vscode.CompletionItemKind.Module,
   color: vscode.CompletionItemKind.Color,
   constant: vscode.CompletionItemKind.Constant,
+  field: vscode.CompletionItemKind.Field,
 };
 
 // Build the rich markdown documentation shared by completions and hover.
@@ -146,6 +150,51 @@ export function getNamespaceCompletions(namespace: string, declaredNames?: Decla
 // Get all completions (no namespace context)
 export function getAllCompletions(): vscode.CompletionItem[] {
   return getAllCompletionData().map(completionFromData);
+}
+
+// `name=` parameter completions for the argument list the cursor is in
+// (issue #13). Declaration order is pinned via sortText, and accepting an
+// item re-triggers suggest so `style=` immediately offers its constants.
+export function getNamedParameterCompletionItems(line: string, character: number): vscode.CompletionItem[] {
+  return getNamedParameterCompletions(line, character).map((data, index) => {
+    const item = completionFromData(data);
+    item.sortText = `0_${String(index).padStart(3, '0')}`;
+    item.command = { command: 'editor.action.triggerSuggest', title: 'Trigger suggest' };
+    return item;
+  });
+}
+
+// Constant completions for the value position after `name=` (issue #13).
+// They must rank FIRST: VS Code sorts by sortText || label, so unpinned items
+// (`abs`, `alert`, `array.*`, `close`) bury `shape.*` hundreds of entries
+// down — pin declaration order with a sortText that precedes every plain
+// label and preselect the first item (PR #51 review, finding 7). And they
+// must survive a typed prefix (`style=sh`, `style=shape.ci`): filterText is
+// the full label and the range replaces exactly the typed prefix after `=`,
+// so the editor's filtering lets `sh` match `shape.circle` (finding 8).
+export function getNamedArgumentValueItems(line: string, character: number, lineNumber = 0): vscode.CompletionItem[] {
+  const values = getNamedArgumentValueCompletions(line, character);
+  if (values.length === 0) return [];
+  const prefix = getNamedArgumentValuePrefix(line, character);
+  return values.map((data, index) => {
+    const item = completionFromData(data);
+    item.sortText = `0_${String(index).padStart(3, '0')}`;
+    item.preselect = index === 0;
+    item.filterText = data.label;
+    item.range = new vscode.Range(lineNumber, character - prefix.length, lineNumber, character);
+    return item;
+  });
+}
+
+// The ONLY items a '(' or ',' trigger may return (PR #51 review): constant
+// values after `name=`, else the call's `name=` parameters (with their
+// declaration-order pinning and re-trigger command). Empty anywhere else, so
+// typing a comma in a tuple/array/declaration/comment never pops the global
+// completion list.
+export function getTriggerCharacterCompletionItems(line: string, character: number, lineNumber = 0): vscode.CompletionItem[] {
+  const values = getNamedArgumentValueItems(line, character, lineNumber);
+  if (values.length > 0) return values;
+  return getNamedParameterCompletionItems(line, character);
 }
 
 // Get hover information for a symbol

@@ -5,7 +5,10 @@ import {
   getAllCompletions,
   getNamespaceCompletions,
   getHoverInfo,
-  createCompletionItem
+  createCompletionItem,
+  getNamedParameterCompletionItems,
+  getNamedArgumentValueItems,
+  getTriggerCharacterCompletionItems
 } from './completions';
 import { getDeclaredNames, isShadowedNamespace } from './intellisenseData';
 import { VersionedLruCache } from './declaredNamesCache';
@@ -100,9 +103,20 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.languages.registerCompletionItemProvider(
       'pine',
       {
-        provideCompletionItems(document, position) {
+        provideCompletionItems(document, position, _token, context) {
           const line = document.lineAt(position.line).text;
           const beforeCursor = line.substring(0, position.character);
+
+          // '(' and ',' are trigger characters, so this provider fires on every
+          // paren and comma in the document (tuples, arrays, grouping, var
+          // lists, generics, definitions, comments). On those triggers return
+          // ONLY argument-list items — named parameters or `name=` constants —
+          // and nothing (never the global list) anywhere else (PR #51 review).
+          // Typed/invoked completion falls through to the full logic below.
+          if (context.triggerKind === vscode.CompletionTriggerKind.TriggerCharacter &&
+              (context.triggerCharacter === '(' || context.triggerCharacter === ',')) {
+            return getTriggerCharacterCompletionItems(line, position.character, position.line);
+          }
 
           // Check if we're completing after a namespace dot. Identifiers may
           // contain underscores/digits and the chain may be nested:
@@ -128,6 +142,21 @@ export function activate(context: vscode.ExtensionContext) {
 
           // Return all completions (includes built-ins, keywords, and namespace hints)
           const items = getAllCompletions();
+
+          // Named-argument context (issue #13): inside a call, lead with the
+          // function's parameter names as `name=` items; after a `name=` whose
+          // values come from a constant namespace (even with a typed prefix),
+          // lead with those constants instead. In a value position after
+          // `name =` the parameter items are already empty (a value goes
+          // there, not another name) and the global list MUST still be
+          // returned — variables and built-ins are valid values (PR #51
+          // delta review, finding 1).
+          const valueItems = getNamedArgumentValueItems(line, position.character, position.line);
+          if (valueItems.length > 0) {
+            items.unshift(...valueItems);
+          } else {
+            items.unshift(...getNamedParameterCompletionItems(line, position.character));
+          }
 
           // Optional HTTP suggestions
           const cfg = vscode.workspace.getConfiguration();
@@ -172,7 +201,7 @@ export function activate(context: vscode.ExtensionContext) {
           });
         }
       },
-      '.' // trigger on dot
+      '.', '(', ',' // trigger on dot, and on entering/continuing an argument list
     )
   );
 
