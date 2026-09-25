@@ -447,7 +447,7 @@ pinescript-vscode-extension/
 
 ```bash
 # 1. Fix bug in code
-vim src/parser/accurateValidator.ts
+vim packages/validator/src/accurateValidator.ts
 
 # 2. Run tests locally
 npm test

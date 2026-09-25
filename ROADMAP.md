@@ -63,14 +63,14 @@ from scratch. Git history keeps the old code.
 |---|---|---|
 | 0.6.3 – 0.6.5 | Accuracy and IntelliSense: false positives fixed, the full v6 reference in the editor, parameter-name completions | **shipped** 2026-09-25 |
 | engine 0.4.2 | CLI, MCP server and agent plugin get the 0.6.5 fixes | **blocked** on operator npm 2FA (#54) |
-| 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the syntactic validator imported rather than copied (#55) | not started |
+| 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the syntactic validator imported rather than copied (#55) | in progress: #55 built on `feat/55-single-engine` |
 | later | Types without an AST: narrow cast rule (#12); rename (#5) | not started |
 
 ## Not started — open issues
 
 **Engine and delivery**
 - [#54](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/54) Publish engine 0.4.2. The npm 0.4.1 engine fails 27 of 107 regression cases the 0.6.5 editor passes, so `validate-cli.js`, the MCP server and pinescript-plugin still show fixed false positives.
-- [#55](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/55) One engine: import `AccurateValidator`, `documentChecks` and the v6 data from the package instead of copying them into `src/parser/` and `v6/`.
+- [#55](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/55) One engine: import `AccurateValidator`, `documentChecks` and the v6 data from the package instead of copying them into `src/parser/` and `v6/`. **Built** on `feat/55-single-engine` (PR pending review): the copies are deleted, everything loads `dist/engine` (the local package build), and the extension no longer depends on the npm engine at runtime.
 
 **Validator**
 - [#12](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/12) No error on an invalid cast (`int x = input.float(...)`). Needs types; a narrow declared-type vs `input.*` return-type rule is possible without an AST.
@@ -89,7 +89,7 @@ from scratch. Git history keeps the old code.
 
 1. #54 publish engine 0.4.2 — the only item that reaches CLI, MCP and agent users now; needs JP's npm 2FA, about 10 minutes.
 2. #49 quick fixes — the most visible user value left: one click for a misspelled constant, a wrong parameter name, a missing `ignore_invalid_symbol`, a repainting `request.security`.
-3. #55 one engine — removes the double-fix cost and the lag that #54 had to repair.
+3. #55 one engine — built on `feat/55-single-engine`; merge after review. Removes the double-fix cost and the lag that #54 had to repair.
 4. #12 narrow cast rule.
 
 ## Related

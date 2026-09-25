@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — one engine (#55)
+
+- The extension, IntelliSense, `validate-cli.js`, the MCP server and the tests now
+  load one engine: `packages/validator`, compiled locally and copied into
+  `dist/engine/` at build time. The copies in `src/parser/` (`accurateValidator.ts`,
+  `documentChecks.ts`) and the six duplicated `v6/` data files are deleted;
+  `src/engine.ts` is the single loader.
+- The VSIX ships the local engine build, not the published npm package, so it
+  carries the code that will be published to npm at the next release cut. The
+  extension no longer has a runtime dependency on `pinescript-v6-validator`.
+- `validate-cli.js` always runs the local engine build; `--local-engine` is
+  accepted and ignored.
+- No diagnostic changes: identical output on every `.pine` file in the repo against
+  the 0.6.5 build, and all 107 regression cases pass through the CLI.
+- `test/engine-parity.test.js` now fails the build if a copy of an engine module
+  reappears in `src/` or `v6/`, if a source file imports around `src/engine.ts`, if
+  the build bundles the npm package, or if `dist/engine` differs from the local
+  engine build.
+
 ## [0.6.5] - 2026-09-25
 
 IntelliSense for the whole v6 reference, parameter-name completions, stricter checks

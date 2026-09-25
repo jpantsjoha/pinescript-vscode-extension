@@ -563,7 +563,7 @@ Both point at the same server file, so they see identical validation results.
 
 - **VS Code MCP Docs:** https://code.visualstudio.com/docs/copilot/customization/mcp-servers
 - **MCP Server Browser:** https://code.visualstudio.com/mcp
-- **Validator implementation:** `../src/parser/accurateValidator.ts` and `../src/parser/documentChecks.ts`
+- **Validator implementation:** `../packages/validator/src/accurateValidator.ts` and `../packages/validator/src/documentChecks.ts` (one engine, loaded from `dist/engine`)
 - **Architecture and JSON-RPC reference:** `../docs/guides/mcp-integration.md`
 
 ---

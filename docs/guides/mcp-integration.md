@@ -41,10 +41,10 @@ MCP (Model Context Protocol) is an open protocol that enables AI assistants to i
                                                    └───────────────────────┘
 ```
 
-Same three diagnostic sources the VS Code extension runs (`src/parser/accurateValidator.ts`,
-`src/parser/documentChecks.ts`, and the engine's `runSemanticChecks` from the published
-`pinescript-v6-validator` package), so an MCP client and the editor cannot disagree about a
-file. This was not always true — see Troubleshooting below.
+Same three diagnostic sources the VS Code extension runs (`AccurateValidator`,
+`runDocumentChecks` and `runSemanticChecks`), loaded from the same engine build in
+`dist/engine/` (the local build of `packages/validator`), so an MCP client and the editor
+cannot disagree about a file. This was not always true — see Troubleshooting below.
 
 ---
 

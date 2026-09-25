@@ -57,17 +57,18 @@ This matters because it already went wrong: the document checks lived inline in
 A green test run meant nothing for half the diagnostics a user saw.
 
 **If you add a diagnostic source, wire it into both.** `scripts/audit.js` fails the
-build otherwise. Note its limit: it enumerates `src/parser/` modules plus the engine
-import, so a NEW check added inside the engine package is not covered by that guard —
-the golden corpus is what catches those.
+build otherwise. Note its limit: it reads the engine exports `extension.ts` imports
+from `./engine` (plus `engine.*Checks(` calls), so a NEW check added inside an
+existing engine function is not covered by that guard — the golden corpus is what
+catches those.
 
 ## Before you change validation logic
 
 ```bash
 npm run build && npm test          # all tests; golden corpus must stay at 0 errors
 npm run audit                      # harness, packaging, version, diagnostic coverage
-node validate-cli.js <file.pine>   # headless single-file check, published engine
-node validate-cli.js --local-engine <f>   # run the working-tree engine, not the published one
+node validate-cli.js <file.pine>   # headless single-file check: the local engine build in dist/engine,
+                                   # the same code the VSIX ships (--local-engine is accepted and ignored)
 ```
 
 `test/golden-corpus.test.js` validates real scripts that compile on TradingView.
@@ -82,18 +83,25 @@ Three diagnostic sources ship. A fourth, AST-based path
 input (`ast.body is not iterable`) and its import had already been removed from
 `extension.ts`. Git history keeps it if it is ever worth repairing.
 
-**Caveat on ADR-0001.** Semantic checks are genuinely consumed from the engine. The
-SYNTACTIC validator is not: `src/parser/accurateValidator.ts` and
-`documentChecks.ts` are near-identical copies of the package sources, and `v6/`
-duplicates `packages/validator/data/`. `test/engine-parity.test.js` fails the build
-if they drift. Migrating them to the package is outstanding work, not a solved
-problem — do not repeat the claim that nothing is copied.
+**One engine (ADR-0001, issue #55).** Every diagnostic source and the v6 reference
+dataset live in `packages/validator` and nowhere else. `npm run build` compiles it
+(`tsc -p packages/validator`) and copies that LOCAL build into `dist/engine/`; the
+extension (through `src/engine.ts`), IntelliSense, `validate-cli.js`, the MCP server
+and the tests all load `dist/engine/`. The VSIX ships that same code — never the
+published npm package, which lags the working tree until the next release cut (npm
+0.4.1 fails 27 of 107 regression cases the local source passes). The extension has
+no runtime dependency on `pinescript-v6-validator`. `test/engine-parity.test.js`
+fails the build if a copy reappears in `src/` or `v6/`, if anything imports around
+`src/engine.ts`, or if `dist/engine` differs from the package build.
 
 | File | Status |
 |---|---|
-| `src/parser/accurateValidator.ts` | The live validator. Regex-over-lines, no AST. |
-| `src/parser/documentChecks.ts` | **Ships.** Whole-document heuristics, runs alongside AccurateValidator. |
-| `pinescript-v6-validator` (npm) | **Ships.** Semantic checks S1-S3, S5-S10 (S4 specified, not built). Genuinely consumed — `dist/engine/`, never copied into `src/`. |
+| `packages/validator/src/accurateValidator.ts` | **Ships.** The live validator. Regex-over-lines, no AST. |
+| `packages/validator/src/documentChecks.ts` | **Ships.** Whole-document heuristics, runs alongside AccurateValidator. |
+| `packages/validator/src/semanticChecks.ts` | **Ships.** Semantic checks S1-S3, S5-S10 (S4 specified, not built). |
+| `packages/validator/data/` | **Ships** (compiled, as `dist/engine/data/`). The reference dataset. |
+| `src/engine.ts` | The one loader: types from the package declarations, code from `dist/engine/`. |
+| `v6/v6-manual.ts` | Extension-only IntelliSense descriptions. Not engine data. |
 
 Consequence: `AccurateValidator` has no AST, so it cannot do type inference.
 Type inference is out of scope until an AST path is rebuilt from scratch — do not
@@ -102,7 +110,8 @@ validator.
 
 ## Data layer
 
-`v6/parameter-requirements-merged.ts` = `{...GENERATED, ...MANUAL}` — manual wins.
+All paths below are in `packages/validator/data/`.
+`parameter-requirements-merged.ts` = `{...GENERATED, ...MANUAL}` — manual wins.
 
 - `parameter-requirements-generated.ts` — crawled **2026-09-23**, 475 functions, every
   overload the reference lists. Regenerate with `npm run crawl` (`scripts/crawl-v6-reference.js`);

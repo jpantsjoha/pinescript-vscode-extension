@@ -21,23 +21,24 @@ both directions — it silences the false positive AND still catches the real er
 
 **Three diagnostic sources ship**, all wired into `validate-cli.js` and
 `test/golden-corpus.test.js`:
-1. `src/parser/accurateValidator.ts` — signatures, arity, namespaces. Regex-over-lines,
-   no AST, so it cannot do type inference.
-2. `src/parser/documentChecks.ts` — whole-document heuristics.
-3. `pinescript-v6-validator` (the published engine, `packages/validator/`) —
-   semantic checks S1-S3, S5-S10 (S4 is specified but not built; S10 is an
-   info-level hint, not a warning).
+1. `packages/validator/src/accurateValidator.ts` — signatures, arity, namespaces.
+   Regex-over-lines, no AST, so it cannot do type inference.
+2. `packages/validator/src/documentChecks.ts` — whole-document heuristics.
+3. `packages/validator/src/semanticChecks.ts` — semantic checks S1-S3, S5-S10 (S4 is
+   specified but not built; S10 is an info-level hint, not a warning).
+
+All three come from one engine, `packages/validator`, built locally into
+`dist/engine/`; the editor, the CLI and the MCP server load the same files.
 
 **Validate before trusting generated code:**
 ```bash
 npm run build                             # required once after any TypeScript change
-node validate-cli.js <file.pine>          # published engine — same as the editor
-node validate-cli.js --local-engine <f>   # working-tree engine, after an engine edit
+node validate-cli.js <file.pine>          # dist/engine — the same engine the editor runs
 npm test                                  # full suite; golden corpus must stay at 0 errors
 ```
 Exit code 0 means no severity-0 errors.
 
-**Where the data lives** — `v6/parameter-requirements-merged.ts` =
+**Where the data lives** — `packages/validator/data/parameter-requirements-merged.ts` =
 `{...GENERATED, ...MANUAL}`, manual wins:
 
 | File | Role |
