@@ -23,6 +23,19 @@ import { runDocumentChecks } from './parser/documentChecks';
 // npm package. Same single source; avoids shipping node_modules in the VSIX.
 const engine = require('../engine/index.js');
 
+// getDeclaredNames scans the whole document; completion requests repeat on
+// every keystroke after `ns.`. Cache the result per document URI + version so
+// a document is rescanned only after an edit (PR #46 delta review). The pure
+// collector stays vscode-free; the cache lives here next to the provider.
+let declaredNamesCache: { key: string; names: Set<string> } | undefined;
+function getDeclaredNamesCached(document: vscode.TextDocument): Set<string> {
+  const key = `${document.uri.toString()}#${document.version}`;
+  if (declaredNamesCache?.key !== key) {
+    declaredNamesCache = { key, names: getDeclaredNames(document.getText()) };
+  }
+  return declaredNamesCache.names;
+}
+
 export function activate(context: vscode.ExtensionContext) {
   // Optional: ensure files.associations maps *.pine -> pine
   {
@@ -90,9 +103,11 @@ export function activate(context: vscode.ExtensionContext) {
           const namespaceMatch = beforeCursor.match(/([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*)\.\s*$/);
           if (namespaceMatch) {
             const namespace = namespaceMatch[1];
-            // A user-declared name shadows the built-in namespace:
-            // `xloc = 1` then `xloc.` must not offer xloc.bar_index.
-            const declaredNames = getDeclaredNames(document.getText());
+            // A name declared at global scope shadows the built-in namespace:
+            // `xloc = 1` then `xloc.` must not offer xloc.bar_index. The scan
+            // is whole-document, so cache it per document version (PR #46
+            // delta review) instead of rescanning on every keystroke.
+            const declaredNames = getDeclaredNamesCached(document);
             if (isShadowedNamespace(namespace, declaredNames)) {
               return [];
             }

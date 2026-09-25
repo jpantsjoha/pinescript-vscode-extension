@@ -324,11 +324,12 @@ export function getAllCompletionData(): CompletionData[] {
 /**
  * Member completions for one namespace (after typing `ns.`).
  *
- * `declaredNames` is the set of names the current document declares (see
- * getDeclaredNames). When the namespace's ROOT segment is user-declared —
- * a variable, UDT, tuple name, parameter or import alias like `xloc = 1` —
- * the built-in namespace is shadowed and no built-in members are offered
- * (PR #46 review).
+ * `declaredNames` is the set of names the current document declares at GLOBAL
+ * scope (see getDeclaredNames). When the namespace's ROOT segment is such a
+ * name — a global variable, tuple element, UDT/enum or import alias like
+ * `xloc = 1` — the built-in namespace is shadowed and no built-in members are
+ * offered (PR #46 review). Parameters, block locals, loop variables and `:=`
+ * reassignments never shadow (delta review).
  */
 export function getNamespaceCompletionData(namespace: string, declaredNames?: ReadonlySet<string>): CompletionData[] {
   if (isShadowedNamespace(namespace, declaredNames)) return [];
@@ -394,15 +395,21 @@ export function getNamespaceCompletionData(namespace: string, declaredNames?: Re
   return [...byLabel.values()];
 }
 
-// ── Declared-name collection (namespace shadowing, PR #46 review) ──
+// ── Declared-name collection (namespace shadowing, PR #46 delta review) ──
 //
-// getDeclaredNames mirrors the declaration rules of
-// AccurateValidator.collectDeclaredVariables: statement-level assignments
-// (typed, var/varip, `:=`), tuple destructuring, function/method names and
-// their parameters, loop variables, type/enum names and import aliases. One
-// deliberate difference: strings and comments are blanked FIRST — a
-// commented-out `xloc = 1` must not suppress `xloc.` completions, and a
-// string containing `xloc = 1` must not either.
+// A user name shadows a built-in namespace ONLY when it is declared at GLOBAL
+// scope (indent 0) by a statement-level declaration: `name = ...`,
+// `var|varip [Type] name = ...`, `Type name = ...`, a global tuple
+// `[a, b] = ...`, a `type`/`enum` name, or an import alias. Function/method
+// parameters, locals inside indented blocks (if/for/while/switch/function
+// bodies), loop variables and `:=` reassignments NEVER shadow — wrongly
+// hiding real completions is worse than occasionally showing them.
+// Bracket depth is tracked ACROSS lines (strings and comments blanked first)
+// so a named argument on a continuation line of a wrapped call —
+// `line.new(\n    first_point = ..., xloc = xloc.bar_time)` — is never read
+// as a declaration. Two deliberate blanking rules: a commented-out `xloc = 1`
+// must not suppress `xloc.` completions, and a string containing `xloc = 1`
+// must not either.
 
 /** Reserved words never count as declarations (same rule as the validator). */
 function isReservedKeywordName(word: string): boolean {
@@ -423,104 +430,50 @@ function blankStringsAndComments(line: string): string {
   return at === -1 ? noStrings : noStrings.slice(0, at) + ' '.repeat(noStrings.length - at);
 }
 
-/** Statement segments of one line: split at `=>` and at depth-0 commas. */
-function statementSegments(line: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let angle = 0;
-  let cur = '';
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '(' || ch === '[') depth++;
-    else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
-    // `map<string, float> m = ...`: a generic type's comma is not a separator.
-    // Only array/matrix/map take a type list, so a comparison `<` never opens one.
-    else if (ch === '<' && /\b(?:array|matrix|map)(?:\.new)?$/.test(line.slice(0, i))) angle++;
-    else if (ch === '>' && angle > 0) angle--;
-    if (depth === 0 && angle === 0 && ch === '=' && line[i + 1] === '>') { out.push(cur); cur = ''; i++; continue; }
-    if (depth === 0 && angle === 0 && ch === ',') { out.push(cur); cur = ''; continue; }
-    cur += ch;
-  }
-  out.push(cur);
-  return out;
-}
-
-/** Split a parameter list on top-level commas; `map<string, float> m` is ONE parameter. */
-function splitDeclParams(list: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let angle = 0;
-  let cur = '';
-  for (let i = 0; i < list.length; i++) {
-    const ch = list[i];
-    if (ch === '(' || ch === '[') depth++;
-    else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
-    // Pine's only generic type templates are array<>, matrix<> and map<> (plus
-    // the `.new<type>()` constructors). Any other `<` is a comparison.
-    else if (ch === '<' && /\b(?:array|matrix|map)(?:\.new)?$/.test(list.slice(0, i))) angle++;
-    else if (ch === '>' && angle > 0) angle--;
-    if (ch === ',' && depth === 0 && angle === 0) { out.push(cur); cur = ''; continue; }
-    cur += ch;
-  }
-  if (cur.trim()) out.push(cur);
-  return out;
-}
-
 /**
- * Every name the document declares. Used to suppress built-in namespace
- * completions when a user name shadows the namespace root (`xloc = 1` then
- * `xloc.`). File-wide, like the validator: a parameter name declared in one
- * function suppresses everywhere — over-suppression hides a completion, the
- * safe direction; under-suppression offers `xloc.bar_index` for a number.
+ * Every GLOBAL-scope statement-level name the document declares. Used to
+ * suppress built-in namespace completions when a user name shadows the
+ * namespace root (`xloc = 1` at indent 0, then `xloc.`). Only indent-0 lines
+ * outside any open bracket are considered, so parameters, block locals, loop
+ * variables, `:=` reassignments and named arguments in wrapped calls are
+ * never collected.
  */
 export function getDeclaredNames(documentText: string): Set<string> {
   const names = new Set<string>();
+  let depth = 0; // open `(`/`[` at the START of the line, tracked across lines
   for (const rawLine of blankMultilineStrings(documentText).split('\n')) {
     const line = blankStringsAndComments(rawLine);
-
-    // Statement-level declaration: `x = 1`, `float x = 1`, `var Foo x = ...`,
-    // `array<float> xs = ...`, `x := 2`.
-    for (const segment of statementSegments(line)) {
-      const stmtDecl = segment.match(/^\s*(?:var\s+|varip\s+)?(?:[A-Za-z_][\w.]*(?:<[^>]*>)?\s+)?([A-Za-z_]\w*)\s*:?=(?!=)/);
-      if (stmtDecl && !isReservedKeywordName(stmtDecl[1])) names.add(stmtDecl[1]);
-    }
-    // Tuple destructuring: `[a, b] = f()`.
-    const tupleDecl = line.match(/^\s*\[([^\]]+)\]\s*=(?!=)/);
-    if (tupleDecl) {
-      for (const n of tupleDecl[1].split(',').map(t => t.trim())) {
-        if (/^[A-Za-z_]\w*$/.test(n) && !isReservedKeywordName(n)) names.add(n);
+    const isGlobal = depth === 0 && line.length > 0 && line[0] !== ' ' && line[0] !== '\t';
+    if (isGlobal) {
+      // Statement-level assignment: `x = 1`, `float x = 1`, `var Foo x = ...`,
+      // `array<float> xs = ...`. `:=` never declares; `==`/`=>` never match.
+      // A leading "type" token that is a keyword (`for font = 0 to 9`) is not
+      // a declaration either.
+      const stmtDecl = line.match(/^(?:var\s+|varip\s+)?(?:([A-Za-z_][\w.]*(?:<[^>]*>)?)\s+)?([A-Za-z_]\w*)\s*=(?![=>])/);
+      if (stmtDecl && !isReservedKeywordName(stmtDecl[2])
+          && !(stmtDecl[1] && isReservedKeywordName(stmtDecl[1].split(/[<.]/)[0]))) {
+        names.add(stmtDecl[2]);
       }
-    }
-    // Loop counters: `for i = 0 to 9`.
-    const forDecl = line.match(/^\s*for\s+([A-Za-z_]\w*)\s*=/);
-    if (forDecl) names.add(forDecl[1]);
-    // Library imports bind a namespace prefix: `import user/lib/1 as ta2` binds
-    // `ta2`, and the same import without `as` binds the last path segment.
-    const importDecl = line.match(/^\s*import\s+(?:[a-zA-Z_][a-zA-Z0-9_]*\/)*([a-zA-Z_][a-zA-Z0-9_]*)\/\d+(?:\s+as\s+([a-zA-Z_][a-zA-Z0-9_]*))?/);
-    if (importDecl) names.add(importDecl[2] || importDecl[1]);
-    // User-defined type / enum names (`type Foo`, `enum Bar`).
-    const typeDecl = line.match(/^\s*(?:export\s+)?(?:type|enum)\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
-    if (typeDecl) names.add(typeDecl[1]);
-    // `for element in collection` / `for [index, element] in collection`.
-    const forInDecl = line.match(/^\s*for\s+(?:\[([^\]]+)\]|([a-zA-Z_][a-zA-Z0-9_]*))\s+in\s+/);
-    if (forInDecl) {
-      const bound = forInDecl[1] ? forInDecl[1].split(',') : [forInDecl[2]];
-      for (const name of bound) {
-        const iterator = name.trim();
-        if (iterator && !isReservedKeywordName(iterator)) names.add(iterator);
+      // Global tuple destructuring: `[a, b] = f()`.
+      const tupleDecl = line.match(/^\[([^\]]+)\]\s*=(?![=>])/);
+      if (tupleDecl) {
+        for (const n of tupleDecl[1].split(',').map(t => t.trim())) {
+          if (/^[A-Za-z_]\w*$/.test(n) && !isReservedKeywordName(n)) names.add(n);
+        }
       }
+      // Library imports bind a namespace prefix: `import user/lib/1 as ta2`
+      // binds `ta2`, and the same import without `as` binds the last segment.
+      const importDecl = line.match(/^import\s+(?:[a-zA-Z_]\w*\/)*([a-zA-Z_]\w*)\/\d+(?:\s+as\s+([a-zA-Z_]\w*))?/);
+      if (importDecl) names.add(importDecl[2] || importDecl[1]);
+      // User-defined type / enum names (`type Foo`, `enum Bar`).
+      const typeDecl = line.match(/^(?:export\s+)?(?:type|enum)\s+([a-zA-Z_]\w*)/);
+      if (typeDecl) names.add(typeDecl[1]);
     }
-    // Function and method definitions: `f(params) =>` — the NAME and every
-    // PARAMETER are declared.
-    const fnDef = line.match(/^\s*(?:export\s+)?(?:method\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)\s*=>/);
-    if (fnDef) {
-      names.add(fnDef[1]);
-      for (const param of splitDeclParams(fnDef[2])) {
-        // `int n = 3` -> `int n`; `array<float> xs` -> `xs`; `series float x` -> `x`
-        const decl = param.split('=')[0].trim();
-        const name = decl.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*$/);
-        if (name && !isReservedKeywordName(name[1])) names.add(name[1]);
-      }
+    // Bracket depth carries into the next line, so continuation lines of a
+    // wrapped call are never treated as global statements.
+    for (const ch of line) {
+      if (ch === '(' || ch === '[') depth++;
+      else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
     }
   }
   return names;
