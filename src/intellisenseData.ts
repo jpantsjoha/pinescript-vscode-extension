@@ -7,27 +7,32 @@
  * extension host). src/completions.ts and src/signatureHelp.ts are thin
  * converters from these structures to vscode API objects.
  *
- * Sources, in precedence order:
- *  - v6/parameter-requirements-merged.ts (PINE_FUNCTIONS_MERGED): the full 475
+ * Sources, in precedence order. The reference data is the engine's own dataset,
+ * loaded through src/engine.ts; only v6-manual.ts is extension-only:
+ *  - packages/validator/data/parameter-requirements-merged.ts (PINE_FUNCTIONS_MERGED): the full 475
  *    function reference crawled from TradingView, with manual overrides. This is
  *    the authority on WHICH functions exist and their signatures/overloads.
  *  - v6/v6-manual.ts (V6_VARIABLES / V6_FUNCTIONS / V6_NAMESPACES): the hand
  *    list. Authority for variables and keywords, and the fallback for
  *    descriptions/examples the crawl does not carry (51 merged entries are
  *    signature-only manual overrides with no description).
- *  - v6/reference-names.ts (REFERENCE_NAMES): the 371 namespaced constants and
+ *  - packages/validator/data/reference-names.ts (REFERENCE_NAMES): the 371 namespaced constants and
  *    built-in variables the reference documents (xloc.bar_index, shape.circle,
  *    strategy.commission.percent, ...). Authority on WHICH of these exist.
- *  - v6/pine-constants-complete.ts (NAMESPACE_CONSTANTS, STRATEGY_VARIABLES):
+ *  - packages/validator/data/pine-constants-complete.ts (NAMESPACE_CONSTANTS, STRATEGY_VARIABLES):
  *    member lists per constant namespace, and the constant/variable split for
  *    strategy.*.
  */
 
 import { V6_VARIABLES, V6_FUNCTIONS, V6_NAMESPACES, PineItem } from '../v6/v6-manual';
-import { PINE_FUNCTIONS_MERGED } from '../v6/parameter-requirements-merged';
-import { REFERENCE_NAMES, REFERENCE_NAME_DESCRIPTIONS } from '../v6/reference-names';
-import { NAMESPACE_CONSTANTS, STRATEGY_VARIABLES } from '../v6/pine-constants-complete';
-import { KEYWORDS } from '../v6/pine-builtins-complete';
+import {
+  PINE_FUNCTIONS_MERGED,
+  REFERENCE_NAMES,
+  REFERENCE_NAME_DESCRIPTIONS,
+  NAMESPACE_CONSTANTS,
+  STRATEGY_VARIABLES,
+  KEYWORDS,
+} from './engine';
 
 // Keywords for Pine Script v6
 export const V6_KEYWORDS = [

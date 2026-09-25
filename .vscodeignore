@@ -56,9 +56,8 @@ GEMINI.md
 # Scripts & Tools
 scripts/**
 
-# v6/ TypeScript sources are compiled into dist/v6/ at build time, and the built
-# extension resolves them there (dist/src/parser -> ../../v6 -> dist/v6). Shipping
-# the .ts originals adds ~800KB of dead weight to every install.
+# v6/ holds only extension-only IntelliSense data now (v6-manual.ts); tsc compiles
+# it into dist/v6/. The reference dataset lives in the engine (dist/engine/data/).
 v6/**
 
 # Diagram sources: the README uses the PNG renders; the SVGs are for editing only.
@@ -96,7 +95,12 @@ qa-*.js
 # Compiled tests — built by tsc, never needed at runtime
 dist/test/**
 
-# Engine package: source and config are development-only. Its compiled output is
-# NOT shipped either — the extension imports from its own dist/, and duplicating
-# 800KB of identical data would double the VSIX for nothing.
+# Engine package (issue #55): sources, config and packages/validator/dist are
+# development-only. The build copies packages/validator/dist into dist/engine/,
+# and THAT is the one engine the VSIX ships — shipping packages/ too would put
+# 800KB of identical code and data in the VSIX twice.
 packages/**
+
+# The engine's TypeScript declarations are for npm consumers and for type-checking
+# src/engine.ts; nothing loads them at runtime.
+dist/engine/**/*.d.ts

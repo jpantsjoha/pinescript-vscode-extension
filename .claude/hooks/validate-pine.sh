@@ -18,7 +18,7 @@ case "$file_path" in
 esac
 
 [ -f "$file_path" ] || exit 0
-[ -f "$REPO_ROOT/dist/src/parser/accurateValidator.js" ] || exit 0
+[ -f "$REPO_ROOT/dist/engine/index.js" ] || exit 0
 
 # Resolve to an absolute path BEFORE cd, or a relative path from the hook payload
 # would be looked up against the repo root instead of the caller's directory.

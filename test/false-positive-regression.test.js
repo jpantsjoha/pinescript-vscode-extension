@@ -13,7 +13,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 
-const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
+const { AccurateValidator } = require('../dist/engine/src/accurateValidator.js');
 
 /** Severity-0 (Error) diagnostics only; warnings are advisory. */
 function errorsFor(source) {
@@ -252,14 +252,14 @@ test('FP: v6 API added after the reference scrape is accepted', () => {
 });
 
 //──────────────────────────────────────────────────────────
-// Whole-document heuristics (src/parser/documentChecks.ts)
+// Whole-document heuristics (packages/validator/src/documentChecks.ts)
 //
 // These ran inline in extension.ts, invisible to the CLI and to every test, and
 // produced 28 false `alertcondition` errors across the TradingView-verified
 // corpus — on files this suite simultaneously certified as clean.
 //──────────────────────────────────────────────────────────
 
-const { runDocumentChecks } = require('../dist/src/parser/documentChecks.js');
+const { runDocumentChecks } = require('../dist/engine/src/documentChecks.js');
 
 function docErrors(source) {
   return runDocumentChecks(source).filter(e => e.severity === 0);

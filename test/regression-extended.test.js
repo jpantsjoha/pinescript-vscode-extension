@@ -27,7 +27,7 @@ if (!fs.existsSync(vscodeModulePath)) {
 fs.writeFileSync(vscodeIndexPath, `module.exports = { DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 }};`);
 fs.writeFileSync(path.join(vscodeModulePath, 'package.json'), JSON.stringify({ name: 'vscode', version: '1.0.0', main: 'index.js' }));
 
-const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
+const { AccurateValidator } = require('../dist/engine/src/accurateValidator.js');
 
 test('Regression: Missing required parameters', () => {
   const validator = new AccurateValidator();

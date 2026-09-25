@@ -17,8 +17,8 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
-const { runDocumentChecks } = require('../dist/src/parser/documentChecks.js');
+const { AccurateValidator } = require('../dist/engine/src/accurateValidator.js');
+const { runDocumentChecks } = require('../dist/engine/src/documentChecks.js');
 
 /**
  * The editor emits diagnostics from TWO independent sources. Gating only the

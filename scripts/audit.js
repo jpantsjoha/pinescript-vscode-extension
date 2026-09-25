@@ -224,16 +224,17 @@ function auditPackaging() {
     pass('packaging', `entry point ${main} is not excluded by .vscodeignore`);
   }
 
-  // The compiled data the validator loads at runtime must survive packaging.
-  // Excluding dist/v6/ would ship an extension that dies at activation, so this
-  // must be able to FAIL — the previous form had no else branch and was inert.
-  const excludesRuntimeData = /^dist\/v6/m.test(ignore) || /^dist\/\*\*/m.test(ignore);
-  if (excludesRuntimeData) {
-    fail('packaging', '.vscodeignore excludes dist/v6/, which the validator loads at runtime — the extension would fail on activation');
-  } else if (/^v6\/\*\*/m.test(ignore)) {
-    pass('packaging', 'v6/ TypeScript sources excluded; compiled dist/v6/ ships instead');
+  // The engine (validator code + reference data) loads at runtime from dist/engine/,
+  // the local build of packages/validator. Excluding it would ship an extension
+  // that dies at activation, so this must be able to FAIL — the previous form had
+  // no else branch and was inert.
+  const excludesEngine = /^dist\/engine\/?(\*\*|data|src|index)?\s*$/m.test(ignore) || /^dist\/\*\*/m.test(ignore);
+  if (excludesEngine) {
+    fail('packaging', '.vscodeignore excludes dist/engine/, which the extension loads at runtime — it would fail on activation');
+  } else if (/^v6\/\*\*/m.test(ignore) && /^packages\/\*\*/m.test(ignore)) {
+    pass('packaging', 'v6/ and packages/ sources excluded; the compiled engine ships once, in dist/engine/');
   } else {
-    warn('packaging', 'v6/ TypeScript sources are shipped in the VSIX; only dist/v6/ is needed at runtime');
+    warn('packaging', 'v6/ or packages/ sources are shipped in the VSIX; only dist/engine/ is needed at runtime');
   }
 
   // Credentials must never be packaged. vsce reads the working tree, so a gitignored
@@ -284,7 +285,7 @@ function auditVersionConsistency() {
 // 6. Pine v6 reference-data currency
 //──────────────────────────────────────────────────────────
 function auditDataCurrency() {
-  const generated = 'v6/parameter-requirements-generated.ts';
+  const generated = 'packages/validator/data/parameter-requirements-generated.ts';
   if (!exists(generated)) {
     fail('v6 data', `${generated} missing — the validator has no signature data`);
     return;
@@ -297,8 +298,8 @@ function auditDataCurrency() {
   }
 
   const ageDays = Math.floor((Date.now() - new Date(stamp[1])) / 86400000);
-  const hasManualCatchUp = exists('v6/parameter-requirements.ts') &&
-    read('v6/parameter-requirements.ts').includes('MODERN_V6_FUNCTIONS');
+  const manual = 'packages/validator/data/parameter-requirements.ts';
+  const hasManualCatchUp = exists(manual) && read(manual).includes('MODERN_V6_FUNCTIONS');
 
   if (ageDays > 180 && !hasManualCatchUp) {
     fail('v6 data', `reference scraped ${stamp[1]} (${ageDays}d ago) with no manual catch-up layer`);
@@ -318,25 +319,20 @@ function auditDataCurrency() {
 // false alertcondition errors survived a green test run.
 //──────────────────────────────────────────────────────────
 function auditDiagnosticCoverage() {
-  const parserDir = 'src/parser';
-  if (!exists(parserDir)) return;
-
-  // A diagnostic source is any module the extension imports AND that returns
-  // diagnostics — identified by exporting a validate/check entry point.
+  // Since issue #55 every diagnostic source lives in ONE engine (packages/validator),
+  // loaded by the extension through src/engine.ts. A source is any engine export
+  // extension.ts takes that returns diagnostics: a Validator class or a *Checks
+  // function (runDocumentChecks, runSemanticChecks via engine.runSemanticChecks).
   const extension = exists('src/extension.ts') ? read('src/extension.ts') : '';
-  const sources = fs.readdirSync(path.join(ROOT, parserDir))
-    .filter(f => f.endsWith('.ts'))
-    .filter(f => {
-      const body = read(`${parserDir}/${f}`);
-      return /export (class|function) \w*(Validator|Checks|runDocumentChecks)/.test(body);
-    })
-    .map(f => f.replace(/\.ts$/, ''))
-    .filter(name => new RegExp(`from '\\./parser/${name}'`).test(extension));
-
-  // Since ADR-0001 the semantic checks live in the published engine rather than
-  // src/parser/, so they are named by their package import instead of a local file.
-  if (/pinescript-v6-validator|engine\/index\.js/.test(extension)) {
-    sources.push('runSemanticChecks');
+  const sources = [];
+  const named = extension.match(/import\s*\{([^}]*)\}\s*from\s*'\.\/engine'/);
+  if (named) {
+    for (const name of named[1].split(',').map(n => n.trim()).filter(Boolean)) {
+      if (/Validator$|Checks$/.test(name)) sources.push(name);
+    }
+  }
+  for (const m of extension.matchAll(/engine\.(\w*Checks)\(/g)) {
+    if (!sources.includes(m[1])) sources.push(m[1]);
   }
 
   if (!sources.length) {
@@ -372,7 +368,10 @@ function auditDiagnosticCoverage() {
 // suite passed on the author's machine and failed in CI.
 //──────────────────────────────────────────────────────────
 function auditEnginePortability() {
-  const engineModules = ['src/parser/accurateValidator.ts', 'src/parser/documentChecks.ts'];
+  const engineDir = 'packages/validator/src';
+  const engineModules = exists(engineDir)
+    ? fs.readdirSync(path.join(ROOT, engineDir)).filter(f => f.endsWith('.ts')).map(f => `${engineDir}/${f}`)
+    : [];
   const coupled = engineModules.filter(m => exists(m) && /from 'vscode'/.test(read(m)));
 
   if (coupled.length) {
