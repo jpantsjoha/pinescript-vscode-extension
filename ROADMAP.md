@@ -79,7 +79,7 @@ inference. Git history keeps the old code.
 - [#12](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/12) No error on an invalid cast (`int x = input.float(...)`). **In progress — built on `feat/12-cast-rule`, PR #57 approved, not merged:** a narrow declared-type vs direct `input.*()` return-type rule, no AST; general type inference stays out of scope.
 
 **Editor / IntelliSense**
-- [#49](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/49) Quick fixes: **done** on `feat/49-quick-fixes` (six fixes, each re-validated through all three sources; ships with 0.7.0)
+- [#49](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/49) Quick fixes: **done** on `feat/49-quick-fixes` (five fixes, each re-validated through all three sources; S1 gets only the ignore action; ships with 0.7.0)
 - [#5](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/5) Variable refactor support wanted
 
 **Known limits, not scheduled**

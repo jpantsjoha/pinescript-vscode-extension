@@ -1,7 +1,9 @@
 // Quick fixes (issue #49): a thin vscode wrapper over quickFixData.ts, which holds
 // every edit computation and is tested without vscode.
 import * as vscode from 'vscode';
-import { computeQuickFixes, DiagnosticInput } from './quickFixData';
+import { computeQuickFixes, DiagnosticInput, PINE_DIAGNOSTIC_SOURCE } from './quickFixData';
+
+export { PINE_DIAGNOSTIC_SOURCE };
 
 export class PineQuickFixProvider implements vscode.CodeActionProvider {
   static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
@@ -11,7 +13,8 @@ export class PineQuickFixProvider implements vscode.CodeActionProvider {
     _range: vscode.Range | vscode.Selection,
     context: vscode.CodeActionContext
   ): vscode.CodeAction[] {
-    const diagnostics = context.diagnostics;
+    // Only this extension's diagnostics; another provider's may share the range.
+    const diagnostics = context.diagnostics.filter(d => d.source === PINE_DIAGNOSTIC_SOURCE);
     if (diagnostics.length === 0) return [];
     const inputs: DiagnosticInput[] = diagnostics.map(d => ({
       range: {
@@ -20,6 +23,7 @@ export class PineQuickFixProvider implements vscode.CodeActionProvider {
       },
       message: d.message,
       code: typeof d.code === 'object' ? d.code.value : d.code,
+      source: d.source,
     }));
     return computeQuickFixes(document.getText(), inputs).map(fix => {
       const action = new vscode.CodeAction(fix.title, vscode.CodeActionKind.QuickFix);

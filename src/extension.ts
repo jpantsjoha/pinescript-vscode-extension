@@ -13,7 +13,7 @@ import {
 import { getDeclaredNames, isShadowedNamespace, statementContext } from './intellisenseData';
 import { VersionedLruCache } from './declaredNamesCache';
 import { createSignatureHelpProvider } from './signatureHelp';
-import { PineQuickFixProvider } from './codeActions';
+import { PineQuickFixProvider, PINE_DIAGNOSTIC_SOURCE } from './codeActions';
 // NOTE: the extension imports ONLY the validators it runs. A dead AST validator
 // (parser/lexer/ComprehensiveValidator) was imported here but never called; it was
 // deleted on 2026-09-23. scripts/audit.js fails the build if a diagnostic source
@@ -297,6 +297,7 @@ export function activate(context: vscode.ExtensionContext) {
       console.error('[Pine Validator] Document check error:', e);
     }
 
+    for (const d of diags) d.source = PINE_DIAGNOSTIC_SOURCE; // quick fixes act only on these
     diagCollection.set(doc.uri, diags);
   };
 

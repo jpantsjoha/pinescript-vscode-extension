@@ -104,12 +104,27 @@ test('editor diagnostics -> quick fixes end to end (S1 code carried, WorkspaceEd
   const titles = actions.map(a => a.title);
   assert.ok(titles.includes('Change to color.purple'), titles.join(' | '));
   assert.ok(titles.includes('Ignore S1 on this line'), titles.join(' | '));
-  const confirmed = actions.find(a => /confirmed bar/.test(a.title));
-  assert.ok(confirmed, titles.join(' | '));
-  assert.strictEqual(confirmed.kind, 'quickfix');
-  assert.deepStrictEqual(confirmed.diagnostics, [s1]);
-  assert.deepStrictEqual(confirmed.edit.edits.map(e => e.newText), ['[1], lookahead=barmerge.lookahead_on']);
-  assert.strictEqual(confirmed.edit.edits[0].range.start.line, 2);
+  assert.ok(!titles.some(t => /confirmed bar|lookahead/.test(t)), `no S1 rewrite: ${titles.join(' | ')}`);
+  assert.ok(diags.every(d => d.source === 'pine'), 'every published diagnostic carries source "pine"');
+  const ignore = actions.find(a => a.title === 'Ignore S1 on this line');
+  assert.strictEqual(ignore.kind, 'quickfix');
+  assert.strictEqual(ignore.isPreferred, false);
+  assert.deepStrictEqual(ignore.diagnostics, [s1]);
+  assert.deepStrictEqual(ignore.edit.edits.map(e => e.newText), [' // pine-ignore: S1']);
+  assert.strictEqual(ignore.edit.edits[0].range.start.line, 2);
+});
+
+test('a foreign-source diagnostic in context gets no action', () => {
+  const text = '//@version=6\nindicator("qf")\nplot(close, color=color.purplee)\n';
+  const document = doc(text);
+  const quiet = console.log; console.log = () => {};
+  captured.onOpen(document);
+  console.log = quiet;
+  const ours = captured.diagnostics.get(document.uri).find(d => /purplee/.test(d.message));
+  const foreign = Object.assign(new Diagnostic(ours.range, ours.message, 0), { source: 'another-linter' });
+  const { provider } = captured.codeActions[0];
+  assert.strictEqual(provider.provideCodeActions(document, ours.range, { diagnostics: [ours] }).length, 1);
+  assert.deepStrictEqual(provider.provideCodeActions(document, ours.range, { diagnostics: [foreign] }), []);
 });
 
 test('no diagnostics in context -> no actions', () => {

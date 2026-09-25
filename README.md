@@ -118,11 +118,12 @@ Compile errors cannot be silenced.
   underlined as an error, just as TradingView rejects it.
 - **Quick fixes on the lightbulb** (Ctrl+. / Cmd+.) for problems the extension already
   reports: `color.purplee` becomes `color.purple` when exactly one documented name is
-  close; `plotshape(shape=...)` becomes `style=`; a hard-coded external feed gets
-  `ignore_invalid_symbol=true`; a repainting `request.security(..., close)` becomes
-  `close[1]` with `lookahead=barmerge.lookahead_on`; any semantic check can be silenced
-  on its line with `// pine-ignore: S<n>`; a script with no version gets `//@version=6`.
-  No action is offered when the right edit is not clear.
+  close; `plotshape(shape=shape.circle)` becomes `style=`; a hard-coded external feed
+  gets `ignore_invalid_symbol=true`; any semantic check can be silenced on its line with
+  `// pine-ignore: S<n>`; a script with no version gets `//@version=6`. No action is
+  offered when the right edit is not clear. A repainting `request.security` (S1) gets
+  only the ignore action: whether `close[1]` with `lookahead_on` is correct depends on
+  the chart timeframe and the expression, which the text cannot show.
 - **Wrapped statements are read as one.** Split a call across lines and the argument
   checks still apply, and names declared on the wrapped lines stay defined.
 - **Syntax highlighting** for v6, including `type`, `enum` and `method`.

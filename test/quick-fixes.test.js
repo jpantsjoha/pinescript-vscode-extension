@@ -34,6 +34,7 @@ function diagnostics(source) {
     },
     message: e.message,
     code: e.checkId,
+    source: 'pine', // what extension.ts stamps on every diagnostic it publishes
   }));
 }
 
@@ -133,6 +134,14 @@ test('plotshape with both shape= and style=: no rename (would duplicate)', () =>
   assert.deepStrictEqual(titles(src).filter(t => /Rename/.test(t)), []);
 });
 
+test('plotshape shape=color.red: no rename (the value is not a style; color= was probably meant)', () => {
+  for (const value of ['color.red', 'myShape', 'shape.nonesuch']) {
+    const src = `${HEAD}myShape = shape.circle\nplotshape(true, shape=${value})\n`;
+    assert.ok(diagnostics(src).some(byMessage(/Invalid parameter "shape"/)), `${value}: diagnostic present`);
+    assert.deepStrictEqual(titles(src).filter(t => /Rename/.test(t)), [], value);
+  }
+});
+
 test('two sources reporting shape= yield one action, not two', () => {
   const src = `${HEAD}plotshape(close > open, shape=shape.circle)\n`;
   assert.strictEqual(titles(src).filter(t => t === 'Rename parameter to style').length, 1);
@@ -159,6 +168,34 @@ test('S10: request.security_lower_tf', () => {
     byCheck('S10'), 'Add ignore_invalid_symbol=true');
 });
 
+test('S10: a stale diagnostic gets no add when the flag is already supplied positionally or by name', () => {
+  const flagged = `${HEAD}d = request.security("FRED:X", "D", close[1], barmerge.gaps_off, barmerge.lookahead_on)\nplot(d)\n`;
+  const s10 = diagnostics(flagged).find(byCheck('S10'));
+  assert.ok(s10, 'S10 present before the flag is added');
+  const variants = {
+    'security, positional slot 5': `${HEAD}d = request.security("FRED:X", "D", close[1], barmerge.gaps_off, barmerge.lookahead_on, true)\nplot(d)\n`,
+    'security, by name': `${HEAD}d = request.security("FRED:X", "D", close[1], barmerge.gaps_off, barmerge.lookahead_on, ignore_invalid_symbol=false)\nplot(d)\n`,
+  };
+  for (const [name, src] of Object.entries(variants)) {
+    assert.ok(!diagnostics(src).some(byCheck('S10')), `${name}: the engine agrees the flag is supplied`);
+    assert.deepStrictEqual(computeQuickFixes(src, [s10]).filter(f => /ignore_invalid/.test(f.title)), [], name);
+  }
+  // security_lower_tf: slot 3.
+  const lowFlagged = `${HEAD}v = request.security_lower_tf("BINANCE:BTCUSDT", "1", close)\nplot(array.size(v))\n`;
+  const lowS10 = diagnostics(lowFlagged).find(byCheck('S10'));
+  const lowPositional = `${HEAD}v = request.security_lower_tf("BINANCE:BTCUSDT", "1", close, true)\nplot(array.size(v))\n`;
+  assert.deepStrictEqual(computeQuickFixes(lowPositional, [lowS10]).filter(f => /ignore_invalid/.test(f.title)), []);
+});
+
+test('isPreferred only on the unambiguous fixes (single misspelling candidate, version insert)', () => {
+  const preferred = src => fixesFor(src).fixes.map(f => [f.title, f.isPreferred]);
+  assert.deepStrictEqual(preferred(`${HEAD}plot(close, color=color.purplee)\n`), [['Change to color.purple', true]]);
+  assert.deepStrictEqual(preferred('indicator("qf")\nplot(close)\n'), [['Insert //@version=6', true]]);
+  assert.deepStrictEqual(preferred(`${HEAD}plotshape(close > open, shape=shape.circle)\n`), [['Rename parameter to style', false]]);
+  assert.deepStrictEqual(preferred(`${HEAD}m = request.security("FRED:X", "D", close[1], lookahead=barmerge.lookahead_on)\nplot(m)\n`),
+    [['Add ignore_invalid_symbol=true', false], ['Ignore S10 on this line', false]]);
+});
+
 test('S10: no action once ignore_invalid_symbol is present (diagnostic absent)', () => {
   const src = `${HEAD}m2 = request.security("FRED:M2SL", "D", close[1], lookahead=barmerge.lookahead_on, ignore_invalid_symbol=false)\nplot(m2)\n`;
   assert.ok(!diagnostics(src).some(byCheck('S10')));
@@ -169,30 +206,74 @@ test('S10: no action once ignore_invalid_symbol is present (diagnostic absent)',
 // 4. S1 repainting
 //──────────────────────────────────────────────────────────
 
-test('S1: close -> close[1] with lookahead_on', () => {
-  assertFix(`${HEAD}d = request.security(syminfo.tickerid, "D", close)\nplot(d)\n`,
-    byCheck('S1'), 'Read the confirmed bar: close[1] with lookahead=barmerge.lookahead_on',
-    `${HEAD}d = request.security(syminfo.tickerid, "D", close[1], lookahead=barmerge.lookahead_on)\nplot(d)\n`);
-});
-
-test('S1: wrapped call with gaps and a ta.* expression', () => {
-  assertFix(`${HEAD}d = request.security(syminfo.tickerid,\n\t "W",\n\t ta.sma(close, 20),\n\t barmerge.gaps_off)\nplot(d)\n`,
-    byCheck('S1'), 'Read the confirmed bar: ta.sma(close, 20)[1] with lookahead=barmerge.lookahead_on',
-    `${HEAD}d = request.security(syminfo.tickerid,\n\t "W",\n\t ta.sma(close, 20)[1],\n\t barmerge.gaps_off, lookahead=barmerge.lookahead_on)\nplot(d)\n`);
-});
-
-test('S1: no rewrite for a tuple, a tuple-returning ta.* call, or a user function', () => {
-  for (const expr of ['[open, close]', 'ta.macd(close, 12, 26, 9)', 'myCalc()']) {
-    const src = `${HEAD}myCalc() => close\nd = request.security(syminfo.tickerid, "D", ${expr})\n`;
-    assert.ok(diagnostics(src).some(byCheck('S1')), `${expr}: S1 present`);
-    assert.deepStrictEqual(titles(src).filter(t => /confirmed bar/.test(t)), [], expr);
+// S1 gets ONLY the ignore action. `expr[1]` + lookahead_on is right for a higher
+// timeframe and a live expression, and neither can be proven from the text.
+test('S1: only "Ignore S1", never a rewrite, never preferred (review blockers on #58)', () => {
+  const cases = {
+    'higher timeframe': `${HEAD}d = request.security(syminfo.tickerid, "D", close)\nplot(d)\n`,
+    'same timeframe': `${HEAD}same = request.security(syminfo.tickerid, timeframe.period, close)\nplot(same)\n`,
+    'lower timeframe': `${HEAD}low = request.security(syminfo.tickerid, "1", close)\nplot(low)\n`,
+    'pre-offset alias': `${HEAD}settled = close[1]\ndaily = request.security(syminfo.tickerid, "D", settled)\nplot(daily)\n`,
+    '3-arg ta.vwap tuple': `${HEAD}[v, upper, lower] = request.security(\n\t syminfo.tickerid, "D",\n\t ta.vwap(close, timeframe.change("D"), 2.0))\nplot(v)\n`,
+    'lower_tf': `${HEAD}arr = request.security_lower_tf(syminfo.tickerid, "1", close)\nplot(array.size(arr))\n`,
+  };
+  for (const [name, src] of Object.entries(cases)) {
+    const { diags, fixes } = fixesFor(src);
+    const s1 = diags.findIndex(byCheck('S1'));
+    assert.ok(s1 >= 0, `${name}: S1 present`);
+    const forS1 = fixes.filter(f => f.diagnosticIndex === s1);
+    assert.deepStrictEqual(forS1.map(f => f.title), ['Ignore S1 on this line'], name);
+    assert.strictEqual(forS1[0].isPreferred, false, `${name}: ignore is never preferred`);
   }
 });
 
-test('S1 on request.security_lower_tf: no lookahead rewrite (it has no lookahead parameter)', () => {
-  const src = `${HEAD}v = request.security_lower_tf(syminfo.tickerid, "1", close)\nplot(array.size(v))\n`;
-  assert.ok(diagnostics(src).some(byCheck('S1')), 'S1 present');
-  assert.deepStrictEqual(titles(src).filter(t => /confirmed bar/.test(t)), []);
+test('S1: the ignore action silences it and adds nothing', () => {
+  assertFix(`${HEAD}d = request.security(syminfo.tickerid, "D", close)\nplot(d)\n`,
+    byCheck('S1'), 'Ignore S1 on this line',
+    `${HEAD}d = request.security(syminfo.tickerid, "D", close) // pine-ignore: S1\nplot(d)\n`);
+});
+
+//──────────────────────────────────────────────────────────
+// Stale and foreign diagnostics
+//──────────────────────────────────────────────────────────
+
+test('foreign-source diagnostic: no action even with our exact message', () => {
+  const src = `${HEAD}plot(close, color=color.purplee)\n`;
+  const ours = diagnostics(src).find(byMessage(/'purplee'/));
+  assert.ok(computeQuickFixes(src, [ours]).length === 1, 'our own diagnostic gets the fix');
+  assert.deepStrictEqual(computeQuickFixes(src, [{ ...ours, source: 'other-linter' }]), []);
+  assert.deepStrictEqual(computeQuickFixes(src, [{ ...ours, source: undefined }]), []);
+});
+
+test('stale range beyond the line end: no action (never spills into the next line)', () => {
+  // The diagnostic was on a longer line 2; the user shortened it. Character 40 of
+  // "x = 1" must not resolve into line 3's request.security call.
+  const src = `${HEAD}x = 1\nm = request.security("FRED:M2SL", "D", close[1], lookahead=barmerge.lookahead_on)\nplot(m + x)\n`;
+  const s10 = diagnostics(src).find(byCheck('S10'));
+  assert.ok(s10, 'S10 present on line 3');
+  const stale = { ...s10, range: { start: { line: 2, character: 40 }, end: { line: 2, character: 51 } } };
+  assert.deepStrictEqual(computeQuickFixes(src, [stale]).filter(f => /ignore_invalid/.test(f.title)), []);
+  const staleMisspell = { range: { start: { line: 2, character: 20 }, end: { line: 2, character: 27 } },
+    message: "Unknown color constant or function 'purplee'", source: 'pine' };
+  assert.deepStrictEqual(computeQuickFixes(src, [staleMisspell]), []);
+});
+
+test('range whose token no longer matches: no action', () => {
+  // Diagnostic says 'purplee'; the text there now reads 'purple2' / a shape= that moved.
+  const src = `${HEAD}plot(close, color=color.purple2)\nplotshape(close > open, style=shape.circle)\nm = request.security(syminfo.tickerid, "D", close[1], lookahead=barmerge.lookahead_on)\nplot(m)\n`;
+  const at = (line, ch, len) => ({ start: { line, character: ch }, end: { line, character: ch + len } });
+  const stale = [
+    { range: at(2, 24, 7), message: "Unknown color constant or function 'purplee'", source: 'pine' },
+    { range: at(3, 24, 5), message: 'Invalid parameter "shape". Did you mean "style"?', source: 'pine' },
+    { range: at(4, 21, 11), message: '[S10] feed', code: 'S10', source: 'pine' },
+  ];
+  assert.deepStrictEqual(computeQuickFixes(src, stale).filter(f => !/^Ignore/.test(f.title)).map(f => f.title), []);
+});
+
+test('ignore: a code without our [S<n>] message prefix gets no action', () => {
+  const src = `${HEAD}plot(close)\n`;
+  const d = { range: { start: { line: 2, character: 0 }, end: { line: 2, character: 4 } }, message: 'something else', code: 'S1', source: 'pine' };
+  assert.deepStrictEqual(computeQuickFixes(src, [d]), []);
 });
 
 //──────────────────────────────────────────────────────────
@@ -232,7 +313,7 @@ test('ignore: S10 in a wrapped call goes on the literal\'s line', () => {
 test('ignore: offered for every semantic check id, never for a syntactic diagnostic', () => {
   const src = `${HEAD}plot(close, color=color.xyzzy)\n`;
   assert.deepStrictEqual(titles(src).filter(t => /Ignore/.test(t)), []);
-  const fake = [{ range: { start: { line: 2, character: 0 }, end: { line: 2, character: 4 } }, message: 'x', code: 'S7' }];
+  const fake = [{ range: { start: { line: 2, character: 0 }, end: { line: 2, character: 4 } }, message: '[S7] x', code: 'S7', source: 'pine' }];
   assert.deepStrictEqual(computeQuickFixes(src, fake).map(f => f.title), ['Ignore S7 on this line']);
 });
 

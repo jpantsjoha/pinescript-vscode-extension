@@ -13,12 +13,17 @@ import { REFERENCE_NAMES } from '../v6/reference-names';
 export interface Position { line: number; character: number }
 export interface Range { start: Position; end: Position }
 
+/** `Diagnostic.source` on every diagnostic this extension publishes. */
+export const PINE_DIAGNOSTIC_SOURCE = 'pine';
+
 /** The parts of a vscode.Diagnostic the fixes read. */
 export interface DiagnosticInput {
   range: Range;
   message: string;
   /** Semantic checks carry their id (`S1`..`S10`) here. */
   code?: string | number;
+  /** Only diagnostics from PINE_DIAGNOSTIC_SOURCE are acted on. */
+  source?: string;
 }
 
 export interface EditSpec { range: Range; newText: string }
@@ -59,9 +64,16 @@ class Doc {
     if (end > start && this.text[end - 1] === '\r') end--;
     return this.text.slice(start, end);
   }
+  /** -1 unless the position lies on its line (a stale range must not spill into the next). */
   offsetAt(pos: Position): number {
     if (pos.line < 0 || pos.line >= this.starts.length) return -1;
+    if (pos.character < 0 || pos.character > this.lineText(pos.line).length) return -1;
     return this.starts[pos.line] + pos.character;
+  }
+  /** Both ends of `range` on their lines, start not after end. */
+  validRange(range: Range): boolean {
+    const a = this.offsetAt(range.start), b = this.offsetAt(range.end);
+    return a >= 0 && b >= a;
   }
   positionAt(offset: number): Position {
     let lo = 0, hi = this.starts.length - 1;
@@ -203,8 +215,11 @@ function fixMisspelledMember(doc: Doc, d: DiagnosticInput): Omit<QuickFix, 'diag
   if (!m) return [];
   const [, ns, member] = m;
   const start = doc.offsetAt(d.range.start);
+  // Re-verify against the CURRENT text: the whole token, preceded by `ns.`.
   if (start < 0 || doc.text.slice(start, start + member.length) !== member) return [];
+  if (/[A-Za-z0-9_]/.test(doc.text[start + member.length] ?? '')) return [];
   if (doc.text.slice(start - ns.length - 1, start) !== `${ns}.`) return [];
+  if (/[A-Za-z0-9_.]/.test(doc.text[start - ns.length - 2] ?? '')) return [];
   const suggestion = suggestMember(ns, member);
   if (!suggestion) return [];
   return [{
@@ -237,11 +252,19 @@ function fixShapeParameter(doc: Doc, d: DiagnosticInput): Omit<QuickFix, 'diagno
   if (args.some(a => a.name === correct)) return [];
   // plotchar's `char` takes a string; renaming `shape=shape.xcross` to `char=` would
   // swap a reported error for a silent type error. Only a string literal qualifies.
-  if (correct === 'char' && !/^["']/.test(doc.text.slice(arg.valueStart, arg.end))) return [];
+  const value = doc.text.slice(arg.valueStart, arg.end);
+  if (correct === 'char' && !/^["']/.test(value)) return [];
+  // plotshape's `style` takes a shape.* constant (or its string). `shape=color.red`
+  // most likely meant `color=`, so anything else gets no rename.
+  if (correct === 'style') {
+    const member = /^shape\.([A-Za-z_][A-Za-z0-9_]*)$/.exec(value);
+    const isShape = member !== null && namespaceMembers('shape').has(member[1]);
+    if (!isShape && !/^(["'])[^"'\n]*\1$/.test(value)) return [];
+  }
   return [{
     title: `Rename parameter to ${correct}`,
     edits: [replaceSpan(doc, start, start + 'shape'.length, correct)],
-    isPreferred: true,
+    isPreferred: false,
   }];
 }
 
@@ -251,78 +274,59 @@ function fixShapeParameter(doc: Doc, d: DiagnosticInput): Omit<QuickFix, 'diagno
 
 const FEED_FUNCTIONS = /(?<![A-Za-z0-9_.])request\.(security_lower_tf|security|dividends|earnings|splits|financial)\s*$/;
 
+/**
+ * 0-based positional slot of `ignore_invalid_symbol`, from the v6 reference
+ * signatures (none of these functions is overloaded). A function missing here
+ * gets no action.
+ */
+const IGNORE_INVALID_SLOT: Record<string, number> = {
+  security: 5,          // symbol, timeframe, expression, gaps, lookahead, ignore_invalid_symbol, ...
+  security_lower_tf: 3, // symbol, timeframe, expression, ignore_invalid_symbol, ...
+  dividends: 4,         // ticker, field, gaps, lookahead, ignore_invalid_symbol, currency
+  earnings: 4,          // ticker, field, gaps, lookahead, ignore_invalid_symbol, currency
+  splits: 4,            // ticker, field, gaps, lookahead, ignore_invalid_symbol
+  financial: 4,         // symbol, financial_id, period, gaps, ignore_invalid_symbol, currency
+};
+
 function fixExternalFeed(doc: Doc, d: DiagnosticInput): Omit<QuickFix, 'diagnosticIndex'>[] {
   const start = doc.offsetAt(d.range.start);
   if (start < 0 || !/^["']/.test(doc.text[start] ?? '')) return [];
   const open = enclosingOpenParen(doc.masked, start);
   if (open < 0) return [];
-  if (!FEED_FUNCTIONS.test(doc.masked.slice(Math.max(0, open - 40), open))) return [];
+  const fn = FEED_FUNCTIONS.exec(doc.masked.slice(Math.max(0, open - 40), open));
+  if (!fn || IGNORE_INVALID_SLOT[fn[1]] === undefined) return [];
   const close = matchingClose(doc.masked, open);
   if (close < 0) return [];
   const args = callArgs(doc.masked, open, close);
-  if (args.length === 0 || args.some(a => a.name === 'ignore_invalid_symbol')) return [];
+  // The literal must still be the symbol argument, and an exchange-prefixed feed.
+  if (args.length === 0 || args[0].valueStart !== start) return [];
+  if (!/^(["'])[A-Za-z0-9_]+:[^\s"']+\1$/.test(doc.text.slice(args[0].valueStart, args[0].end))) return [];
+  if (args.some(a => a.name === 'ignore_invalid_symbol')) return [];
+  // Supplied positionally: every argument up to and including its slot is positional.
+  const firstNamed = args.findIndex(a => a.name !== undefined);
+  const positional = firstNamed === -1 ? args.length : firstNamed;
+  if (positional > IGNORE_INVALID_SLOT[fn[1]]) return [];
+  // A positional argument after a named one is not Pine; leave such a call alone.
+  if (args.slice(positional).some(a => a.name === undefined)) return [];
   const at = lastCodeCharEnd(doc.masked, open, close);
   const sep = doc.masked[at - 1] === ',' ? ' ' : ', ';
   return [{
     title: 'Add ignore_invalid_symbol=true',
     edits: [insertAt(doc, at, `${sep}ignore_invalid_symbol=true`)],
-    isPreferred: true,
+    isPreferred: false,
   }];
 }
 
 //──────────────────────────────────────────────────────────
-// 4. S1 — read the confirmed bar: expr[1] with lookahead_on
+// 4. S1 — no rewrite
 //──────────────────────────────────────────────────────────
 
-// S1 goes silent on an explicit lookahead OR a history offset. Adding
-// `lookahead=barmerge.lookahead_off` alone would silence it but change nothing:
-// lookahead_off is the default, and the realtime value still moves until the
-// higher-timeframe bar closes. The documented non-repainting idiom is `expr[1]`
-// with `lookahead=barmerge.lookahead_on`, so that is the fix offered.
-
-/** ta.* functions that return tuples: `[1]` on them does not compile. */
-const TUPLE_RETURNING = new Set(['ta.macd', 'ta.bb', 'ta.kc', 'ta.dmi', 'ta.supertrend']);
-
-function historyTarget(exprMasked: string): boolean {
-  // A plain or dotted identifier: close, hlc3, myValue, syminfo.mintick.
-  if (/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(exprMasked)) return true;
-  // A ta.*/math.* call whose closing paren ends the expression. User functions are
-  // excluded: one may return a tuple, and `[1]` on a tuple does not compile.
-  const call = /^((?:ta|math)\.[A-Za-z_][A-Za-z0-9_]*)\s*\(/.exec(exprMasked);
-  if (!call || TUPLE_RETURNING.has(call[1])) return false;
-  return matchingClose(exprMasked, call[0].length - 1) === exprMasked.length - 1;
-}
-
-function fixRepainting(doc: Doc, d: DiagnosticInput): Omit<QuickFix, 'diagnosticIndex'>[] {
-  const start = doc.offsetAt(d.range.start);
-  if (start < 0) return [];
-  const head = /^request\.security\s*\(/.exec(doc.masked.slice(start, start + 60));
-  if (!head) return [];   // request.security_lower_tf has no lookahead parameter
-  const open = start + head[0].length - 1;
-  const close = matchingClose(doc.masked, open);
-  if (close < 0) return [];
-  const args = callArgs(doc.masked, open, close);
-  if (args.some(a => a.name === 'lookahead')) return [];
-  const firstNamed = args.findIndex(a => a.name !== undefined);
-  const positional = firstNamed === -1 ? args.length : firstNamed;
-  if (positional > 4) return [];                      // slot 5 is lookahead, passed positionally
-  const expr = positional >= 3 ? args[2] : args.find(a => a.name === 'expression');
-  if (!expr) return [];
-  const exprMasked = doc.masked.slice(expr.valueStart, expr.end);
-  if (!historyTarget(exprMasked)) return [];
-  const at = lastCodeCharEnd(doc.masked, open, close);
-  const exprText = doc.text.slice(expr.valueStart, expr.end);
-  const lookahead = `${doc.masked[at - 1] === ',' ? ' ' : ', '}lookahead=barmerge.lookahead_on`;
-  return [{
-    title: `Read the confirmed bar: ${exprText}[1] with lookahead=barmerge.lookahead_on`,
-    // When the expression is the last argument both insertions land on one
-    // offset; a single edit keeps their order independent of the editor.
-    edits: expr.end === at
-      ? [insertAt(doc, at, `[1]${lookahead}`)]
-      : [insertAt(doc, expr.end, '[1]'), insertAt(doc, at, lookahead)],
-    isPreferred: true,
-  }];
-}
+// S1 gets only the ignore action. Whether `expr[1]` with lookahead_on is right
+// depends on facts the text cannot prove: that the requested timeframe is higher
+// than the chart's (on the same or a lower one the rewrite changes the value),
+// that the expression is not already an offset alias (`settled = close[1]`), and
+// that it does not return a tuple (`ta.vwap(src, anchor, mult)` does). A rewrite
+// that writes wrong Pine is worse than none.
 
 //──────────────────────────────────────────────────────────
 // 5. Any semantic check — `// pine-ignore: S<n>` on the line
@@ -333,6 +337,8 @@ const DIRECTIVE_HEAD = /\/\/\s*pine-ignore\b\s*:?\s*/;
 function fixIgnore(doc: Doc, d: DiagnosticInput, id: string): Omit<QuickFix, 'diagnosticIndex'>[] {
   const line = d.range.start.line;
   if (line < 0 || line >= doc.lineCount) return [];
+  // Engine messages lead with their id: `[S1] Possible repainting ...`.
+  if (!d.message.startsWith(`[${id}]`)) return [];
   const lineStart = doc.starts[line];
   const content = doc.lineText(line);
   // Search with strings blanked: a `//` or `pine-ignore` inside a literal is data.
@@ -390,11 +396,13 @@ export function computeQuickFixes(text: string, diagnostics: DiagnosticInput[]):
   const out: QuickFix[] = [];
   const seen = new Set<string>();
   diagnostics.forEach((d, diagnosticIndex) => {
+    // Foreign diagnostics (another extension, a linter) and stale ranges that no
+    // longer fit the current text get nothing.
+    if (d.source !== PINE_DIAGNOSTIC_SOURCE || !doc.validRange(d.range)) return;
     const fixes: Omit<QuickFix, 'diagnosticIndex'>[] = [];
     const id = semanticId(d);
     if (id) {
       if (id === 'S10') fixes.push(...fixExternalFeed(doc, d));
-      if (id === 'S1') fixes.push(...fixRepainting(doc, d));
       fixes.push(...fixIgnore(doc, d, id));
     } else {
       fixes.push(...fixMisspelledMember(doc, d), ...fixShapeParameter(doc, d), ...fixVersion(doc, d));
