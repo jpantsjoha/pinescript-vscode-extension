@@ -10,7 +10,7 @@ import {
   getNamedArgumentValueItems,
   getTriggerCharacterCompletionItems
 } from './completions';
-import { getDeclaredNames, isShadowedNamespace, isNamedArgumentValuePosition } from './intellisenseData';
+import { getDeclaredNames, isShadowedNamespace } from './intellisenseData';
 import { VersionedLruCache } from './declaredNamesCache';
 import { createSignatureHelpProvider } from './signatureHelp';
 // NOTE: the extension imports ONLY the validators it runs. A dead AST validator
@@ -146,17 +146,14 @@ export function activate(context: vscode.ExtensionContext) {
           // Named-argument context (issue #13): inside a call, lead with the
           // function's parameter names as `name=` items; after a `name=` whose
           // values come from a constant namespace (even with a typed prefix),
-          // lead with those constants instead (a value goes there, not
-          // another name).
+          // lead with those constants instead. In a value position after
+          // `name =` the parameter items are already empty (a value goes
+          // there, not another name) and the global list MUST still be
+          // returned — variables and built-ins are valid values (PR #51
+          // delta review, finding 1).
           const valueItems = getNamedArgumentValueItems(line, position.character, position.line);
           if (valueItems.length > 0) {
             items.unshift(...valueItems);
-          } else if (isNamedArgumentValuePosition(line, position.character)) {
-            // Cursor after `name =` (or a typed value prefix) inside a call:
-            // only a value belongs here, and this parameter has no known
-            // constants — offer nothing rather than parameter names (PR #51
-            // review, finding 2).
-            return [];
           } else {
             items.unshift(...getNamedParameterCompletionItems(line, position.character));
           }

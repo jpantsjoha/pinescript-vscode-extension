@@ -328,6 +328,51 @@ test('finding 10: getParameterInfo is memoized per function name', () => {
   assert.strictEqual(getParameterInfo('no.such.function'), getParameterInfo('no.such.function'), 'the empty result is cached too');
 });
 
+// ── PR #51 delta review findings ─────────────────────────────────────
+// The delta review found finding 2 was fixed with an over-zealous
+// short-circuit (a new defect) and remained open for multi-token values,
+// and that finding 5's comment blanking never reached the signature-help
+// active-parameter counter.
+
+// Delta finding 2: a value position is decided by the START of the current
+// argument (the segment after the last top-level comma, strings/comments
+// blanked), not by an anchor regex against the cursor. An expression with
+// operators (`length = 10 + `) is still the value of `length` — parameter
+// names must not be re-offered mid-expression.
+test('delta finding 2: after `name = <expr with operators>` no parameter names are offered', () => {
+  for (const line of ['ta.sma(close, length = 10 + ', 'plot(close, title = "test" + ', 'ta.sma(close, length = (10 + 2) * ']) {
+    assert.ok(isNamedArgumentValuePosition(line, line.length), `${line}⎸ is a value position`);
+    assert.deepStrictEqual(getNamedParameterCompletions(line, line.length), [], `${line}⎸ must offer no parameter names`);
+  }
+});
+
+test('delta finding 2: the name being filled counts as supplied — length= is not re-offered after the expression', () => {
+  const line = 'ta.sma(close, length = 10 + x, ';
+  const names = labels(getNamedParameterCompletions(line, line.length));
+  assert.ok(!names.includes('length='), `length= is supplied by the named segment: ${names.join(', ')}`);
+  assert.ok(!names.includes('source='), `source= is filled positionally: ${names.join(', ')}`);
+});
+
+test('delta finding 2: == / => in the current segment are still not a value position', () => {
+  for (const line of ['plot(close, x == 1 + ', 'plot(close, x == 10 + ', 'f(x) => x + ']) {
+    assert.ok(!isNamedArgumentValuePosition(line, line.length), `${line}⎸ is not a name= value position`);
+  }
+});
+
+// Delta finding 3: signature help's active-parameter counter must ignore
+// commas inside `//` comments, like every other argument-list scanner.
+test('delta finding 3: calculateActiveParameter ignores commas inside // comments', () => {
+  const { calculateActiveParameter } = require('../dist/src/intellisenseData.js');
+  const withComment = 'plot(close, // note, comma';
+  const withoutComment = 'plot(close, ';
+  assert.strictEqual(calculateActiveParameter(withoutComment), 1, 'the comma after close is the one real top-level comma');
+  assert.strictEqual(
+    calculateActiveParameter(withComment),
+    calculateActiveParameter(withoutComment),
+    `the comma inside the comment must not count: ${withComment}⎸`,
+  );
+});
+
 // Finding 10: per-keystroke budget. 1,000 completions on a typical line must
 // stay far below a frame; a generous 200 ms bound only trips on a real
 // regression (baseline before the regex/memoization fixes: ~10 ms).

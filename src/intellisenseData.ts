@@ -735,7 +735,9 @@ export function findFunctionCallName(line: string, character: number): string | 
 export function calculateActiveParameter(text: string): number {
   const call = openCallAt(text);
   const inner = call ? text.slice(call.open + 1) : text.replace(LEADING_UP_TO_PAREN_RE, '');
-  const blanked = inner.replace(STRING_LITERAL_RE, m => ' '.repeat(m.length));
+  // Blank comments as well as strings: a top-level comma inside a `//`
+  // comment must not move the active parameter (PR #51 delta review).
+  const blanked = blankStringsAndCommentsBeforeCursor(inner);
   let depth = 0;
   let paramIndex = 0;
   for (const ch of blanked) {
@@ -952,17 +954,39 @@ export function getNamedParameterCompletions(line: string, character: number): C
 }
 
 /**
- * True when the cursor sits after `name =` (optional spaces around `=`,
- * optional typed value prefix: `style=`, `style=sh`, `style=shape.ci`) inside
- * a call's argument list — a value position, where only value completions
- * (possibly none) apply. `==`/`=>` never match, and neither does an
+ * The argument segment being typed: everything between the last top-level
+ * comma before the cursor and the cursor, with strings and comments blanked.
+ * `open` is the index of the call's '('. A value position is decided by the
+ * START of this segment (`name=`), never by what follows — an expression
+ * with operators (`length = 10 + ⎸`) is still the value of `length`
+ * (PR #51 delta review, finding 2).
+ */
+function currentArgumentSegment(beforeCursor: string, open: number): string {
+  const inner = blankStringsAndCommentsBeforeCursor(beforeCursor).slice(open + 1);
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (ch === '(' || ch === '[') depth++;
+    else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+    else if (ch === ',' && depth === 0) start = i + 1;
+  }
+  return inner.slice(start);
+}
+
+/**
+ * True when the cursor sits in the value of a named argument — the current
+ * argument segment begins with `name =` (optional spaces, optional typed
+ * prefix or partial expression: `style=`, `style=sh`, `length = 10 + `)
+ * inside a call's argument list. `==`/`=>` never match, and neither does an
  * assignment outside a call (`x = ⎸` keeps the ordinary completions).
  */
 export function isNamedArgumentValuePosition(line: string, character: number): boolean {
   const beforeCursor = line.substring(0, character);
   if (isInsideStringOrComment(beforeCursor)) return false;
-  if (!NAME_VALUE_RE.test(beforeCursor)) return false;
-  return openCallAt(beforeCursor) !== null;
+  const call = openCallAt(beforeCursor);
+  if (!call) return false;
+  return NAMED_SEGMENT_RE.test(currentArgumentSegment(beforeCursor, call.open));
 }
 
 /**
