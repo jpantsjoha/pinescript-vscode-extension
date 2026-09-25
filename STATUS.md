@@ -4,6 +4,14 @@
 **Marketplace version**: 0.6.4 · **Open VSX**: 0.6.4 (first publish, 2026-09-24)
 **Engine on npm**: `pinescript-v6-validator@0.4.0`. 0.4.1 (re-crawled data) is built; publishing waits on `npm login` (session expired 2026-09-24). The extension bundles the new data itself.
 
+## 2026-09-25: wrapped statements and constant completions on main
+
+#42 (PR #43) and #45 (PR #46) merged: statements wrapped across lines keep their
+declarations and arity checks, and namespace-dot completions offer built-in
+constants and variables with hover descriptions. This branch also fixes the
+declared-names cache eviction order (#47). Main today: `npm test` 504 tests ·
+503 pass · 1 skip · 0 fail; `npm run audit` 22 pass · 0 fail.
+
 ## 2026-09-25: IntelliSense coverage and namespace checks on main
 
 #36 (PR #40) and #37 (PR #41) merged on 2026-09-24: completions, signature help and
@@ -16,7 +24,7 @@ statements keep declarations and arity) is in review as PR #43. Main today: `npm
 
 | Signal | State |
 |---|---|
-| `npm test` | 437 tests · 436 pass · 1 skip · 0 fail |
+| `npm test` | 504 tests · 503 pass · 1 skip · 0 fail |
 | `npm run audit` | 22 pass · 0 warn · 0 fail |
 | Golden corpus | 4 tracked fixtures + 7 gitignored `examples/*.pine`, 0 errors |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) |
