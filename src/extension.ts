@@ -8,6 +8,7 @@ import {
   createCompletionItem
 } from './completions';
 import { getDeclaredNames, isShadowedNamespace } from './intellisenseData';
+import { VersionedLruCache } from './declaredNamesCache';
 import { createSignatureHelpProvider } from './signatureHelp';
 // NOTE: the extension imports ONLY the validators it runs. A dead AST validator
 // (parser/lexer/ComprehensiveValidator) was imported here but never called; it was
@@ -29,25 +30,16 @@ const engine = require('../engine/index.js');
 // documents A → B → A do not rescan, an edit invalidates via
 // `document.version`, and closing a document drops its entry — a close/reopen
 // at the same version can never reuse stale data (PR #46 delta review 2).
-// The pure collector stays vscode-free; the cache lives here next to the
-// provider.
+// The pure collector stays vscode-free; the LRU mechanics live in
+// declaredNamesCache.ts so the eviction order is testable (issue #47).
 const DECLARED_NAMES_CACHE_LIMIT = 20;
-const declaredNamesCache = new Map<string, { version: number; names: Map<string, number> }>();
+const declaredNamesCache = new VersionedLruCache<Map<string, number>>(DECLARED_NAMES_CACHE_LIMIT);
 function getDeclaredNamesCached(document: vscode.TextDocument): Map<string, number> {
   const uri = document.uri.toString();
-  const hit = declaredNamesCache.get(uri);
-  if (hit && hit.version === document.version) {
-    // Refresh recency: reinsert so the LRU eviction below drops the oldest.
-    declaredNamesCache.delete(uri);
-    declaredNamesCache.set(uri, hit);
-    return hit.names;
-  }
+  const hit = declaredNamesCache.get(uri, document.version);
+  if (hit) return hit;
   const names = getDeclaredNames(document.getText());
-  declaredNamesCache.set(uri, { version: document.version, names });
-  if (declaredNamesCache.size > DECLARED_NAMES_CACHE_LIMIT) {
-    const oldest = declaredNamesCache.keys().next().value;
-    if (oldest !== undefined) declaredNamesCache.delete(oldest);
-  }
+  declaredNamesCache.set(uri, document.version, names);
   return names;
 }
 
