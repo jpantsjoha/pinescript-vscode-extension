@@ -10,6 +10,11 @@
  *        was a Warning, which a corpus null case would not catch.
  *   f5 — "No parameter named '...'" must land on the physical line and column
  *        of the bad argument, not on the call's first line.
+ *   d1 — the per-call special cases (plotshape/plotchar shape=, indicator
+ *        timeframe_gaps) must inspect only the call's OWN top-level argument
+ *        names: a nested call's argument named `shape` or `timeframe_gaps`
+ *        must produce NO diagnostic at all (delta review, 2026-09-25), and
+ *        the named-argument squiggle must start at the bad NAME.
  */
 
 'use strict';
@@ -82,5 +87,56 @@ describe('#43: wrapped statements — argument-level location and silence', () =
     assert.strictEqual(bad[0].column,
       'lbl = label.new(x=bar_index, y=close, text="Test", '.length,
       'single-line calls point at the argument too, not at label.new');
+  });
+
+  test('d1: the squiggle starts at the bad NAME, not the argument\'s leading whitespace', () => {
+    const code =
+      '//@version=6\n' +
+      'indicator("t")\n' +
+      'lbl = label.new(\n' +
+      '    x=bar_index, bogus_name=1\n' +
+      ')\n';
+    const diagnostics = validatePineScript(code);
+    const bad = diagnostics.filter(d =>
+      d.message.includes("No parameter named 'bogus_name'"));
+    assert.strictEqual(bad.length, 1, `expected exactly one named-parameter error, got ${JSON.stringify(diagnostics)}`);
+    // Line 4 is `    x=bar_index, bogus_name=1`; the name starts after `    x=bar_index, `.
+    assert.strictEqual(bad[0].line, 4);
+    assert.strictEqual(bad[0].column, '    x=bar_index, '.length,
+      'the underline begins at the first character of the bad name');
+  });
+
+  test('d1: a nested argument named shape inside a wrapped plotshape is fully silent', () => {
+    const code =
+      '//@version=6\n' +
+      'indicator("t")\n' +
+      'passthrough(float shape) => shape\n' +
+      'plotshape(\n' +
+      '    passthrough(\n' +
+      '        shape=close\n' +
+      '    ) > 0\n' +
+      ')\n';
+    const diagnostics = validatePineScript(code);
+    assert.deepStrictEqual(
+      diagnostics.map(d => `${d.severity}:${d.message}`),
+      [],
+      'shape= belongs to the NESTED passthrough call; only the call\'s own top-level ' +
+      'argument names may feed the plotshape special case.'
+    );
+  });
+
+  test('d1: a nested timeframe_gaps inside indicator(...) is fully silent', () => {
+    const code =
+      '//@version=6\n' +
+      'f(bool timeframe_gaps) => timeframe_gaps\n' +
+      'indicator("t", shorttitle=f(timeframe_gaps=true) ? "x" : "y")\n' +
+      'plot(close)\n';
+    const diagnostics = validatePineScript(code);
+    assert.deepStrictEqual(
+      diagnostics.map(d => `${d.severity}:${d.message}`),
+      [],
+      'timeframe_gaps= belongs to the nested f(); the indicator special case must only ' +
+      'see the indicator call\'s own top-level arguments.'
+    );
   });
 });

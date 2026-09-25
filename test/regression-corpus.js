@@ -903,6 +903,99 @@ const CASES = [
       'opener — the three-argument ta.sma escaped the arity check. Depth is now clamped at 0.',
   },
   {
+    name: '#43 d1: a nested call argument named shape is not plotshape\'s parameter (wrapped)',
+    code: IND + 'passthrough(float shape) => shape\nplotshape(\n    passthrough(\n        shape=close\n    ) > 0\n)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Codex delta review of #43: the plotshape/plotchar special case searched the whole ' +
+      'argument region for a "shape=" substring instead of inspecting the call\'s own ' +
+      'top-level arguments, so a NESTED call\'s named argument was reported as plotshape\'s ' +
+      'obsolete shape parameter. (The review\'s `myshape=` spelling was saved by a word ' +
+      'boundary; an argument literally named `shape` was not.)',
+  },
+  {
+    name: '#43 d1: a nested call argument named shape is not plotshape\'s parameter (one line)',
+    code: IND + 'passthrough(float shape) => shape\nplotshape(passthrough(shape=close) > 0)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'The same nested-argument leak on one physical line. This form fires on origin/main ' +
+      'too — the document-wide check predates the PR — so the fix is not just a delta ' +
+      'correction, it repairs a shipped false positive.',
+  },
+  {
+    name: '#43 d1: a nested call argument named shape is not plotchar\'s parameter either',
+    code: IND + 'passthrough(float shape) => shape\nplotchar(passthrough(shape=close) > 0)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'plotchar shares the plotshape special case; the leak and the fix are the same code.',
+  },
+  {
+    name: '#43 d1: a real top-level shape= argument in a WRAPPED plotshape still flags',
+    code: IND + 'plotshape(\n    close > open,\n    shape=shape.circle\n)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Paired "still flags" for the nested-leak fix: restricting the check to top-level ' +
+      'argument names must not silence the genuine case when the call itself is wrapped. ' +
+      '(The single-line form is the older "plotshape uses style=, not shape=" case.)',
+  },
+  {
+    name: '#43 d1: a nested timeframe_gaps does not warn on the enclosing indicator',
+    code: '//@version=6\nf(bool timeframe_gaps) => timeframe_gaps\nindicator("t", shorttitle=f(timeframe_gaps=true) ? "x" : "y")\nplot(close)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'The indicator/strategy special case substring-searched the joined statement for ' +
+      '"timeframe_gaps", so a NESTED call\'s argument warned that the enclosing indicator ' +
+      'was missing a timeframe it never needed. (The corpus tolerates bare warnings in ' +
+      'null cases, so test/wrapped-statement-location.test.js pins this silence.)',
+  },
+  {
+    name: '#43 d2: a column-0 named argument after a comma does not end the join',
+    code: IND + 'plot(\nclose,\ncolor=color.red,\nbogus=1\n)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Codex delta review of #43: `color=color.red,` at column 0 matched the assignment ' +
+      'pattern and ended the statement join, so the invalid `bogus` argument on the next ' +
+      'line was never seen. A trailing comma on the previous line is the continuation ' +
+      'signal. (Also the first case that checks plot\'s named arguments: plot\'s parameter ' +
+      'list is one of the manually verified specs, so `bogus` is a fact, not a guess.)',
+  },
+  {
+    name: '#43 d2: a column-0 wrapped VALID plot call stays silent',
+    code: IND + 'plot(\nclose,\ncolor=color.red\n)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Paired negative for the comma-continuation rule: once the join reaches the named ' +
+      'argument, plot\'s curated parameter list must accept it — and the continuation line ' +
+      'must not be collected as a statement-level declaration of `color` either.',
+  },
+  {
+    name: '#43 d2: a user function named plotter is not a plot statement',
+    code: IND + 'plotter(float a) => a\nlbl = label.new(\nplotter(close),\nbogus=1\n)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Codex delta review of #43: the `plot\\w*` pattern treated `plotter(close),` at ' +
+      'column 0 as a new plot statement, ending the join and hiding the invalid `bogus` ' +
+      'argument of label.new. Only the real plot family names count now.',
+  },
+  {
+    name: '#43 d3: a 60-line wrapped array.from produces no diagnostic',
+    code: IND + 'a = array.from(\n' + Array(58).fill('    close,').join('\n') + '\n    close\n)\nplot(a.size())\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Codex delta review of #43: the 50-line cap included the 51st line (off by one). ' +
+      'The cap exists so a huge wrapped call is skipped whole rather than validated ' +
+      'piecemeal; this case locks both the skip and the absence of any new diagnostic ' +
+      'from the lines the cut leaves behind.',
+  },
+  {
     name: '#43: a bad named argument on a continuation line is still named',
     code: IND + 'lbl = label.new(\n    x=bar_index,\n    y=close,\n    text="Test",\n    invalid_named_param=123\n)\n',
     expect: 'error',
