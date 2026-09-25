@@ -69,7 +69,7 @@ from scratch. Git history keeps the old code.
 ## Not started — open issues
 
 **Engine and delivery**
-- [#54](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/54) Publish engine 0.4.2. The npm 0.4.1 engine fails 27 of 107 regression cases the 0.6.5 editor passes, so `validate-cli.js`, the MCP server and pinescript-plugin still show fixed false positives.
+- [#54](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/54) Publish engine 0.4.2. The npm 0.4.1 engine fails 27 of 107 regression cases the 0.6.5 editor passes, so the external agent plugin (pinescript-plugin) still shows fixed false positives. The extension, `validate-cli.js` and the MCP server load the local engine build (#55) and do not wait on it.
 - [#55](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/55) One engine: import `AccurateValidator`, `documentChecks` and the v6 data from the package instead of copying them into `src/parser/` and `v6/`. **Built** on `feat/55-single-engine` (PR pending review): the copies are deleted, everything loads `dist/engine` (the local package build), and the extension no longer depends on the npm engine at runtime.
 
 **Validator**

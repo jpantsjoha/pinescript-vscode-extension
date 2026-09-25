@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   extension no longer has a runtime dependency on `pinescript-v6-validator`.
 - `validate-cli.js` always runs the local engine build; `--local-engine` is
   accepted and ignored.
+- `npm run watch` (`scripts/watch.js`) builds the engine first, watches
+  `packages/validator` and re-syncs `dist/engine/` on every change, alongside the
+  extension watcher.
+- CI runs `scripts/verify-vsix.js` after packaging: it lists the real VSIX entries,
+  asserts the engine ships exactly once, and executes the packaged `activate()`.
 - No diagnostic changes: identical output on every `.pine` file in the repo against
   the 0.6.5 build, and all 107 regression cases pass through the CLI.
 - `test/engine-parity.test.js` now fails the build if a copy of an engine module

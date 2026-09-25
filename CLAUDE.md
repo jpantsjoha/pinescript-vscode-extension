@@ -86,13 +86,19 @@ input (`ast.body is not iterable`) and its import had already been removed from
 **One engine (ADR-0001, issue #55).** Every diagnostic source and the v6 reference
 dataset live in `packages/validator` and nowhere else. `npm run build` compiles it
 (`tsc -p packages/validator`) and copies that LOCAL build into `dist/engine/`; the
-extension (through `src/engine.ts`), IntelliSense, `validate-cli.js`, the MCP server
-and the tests all load `dist/engine/`. The VSIX ships that same code — never the
+extension (through `src/engine.ts`), IntelliSense, `validate-cli.js` and the MCP
+server load `dist/engine/`. The tests exercise the same source and build: some load
+`dist/engine/`, some `packages/validator/dist/` (byte-identity between the two is
+enforced), and `test/npm-package.test.js` loads the packed-and-installed tarball.
+`npm run watch` rebuilds the engine and re-syncs `dist/engine/` on every validator
+edit (`scripts/watch.js`). The VSIX ships that same code — never the
 published npm package, which lags the working tree until the next release cut (npm
 0.4.1 fails 27 of 107 regression cases the local source passes). The extension has
 no runtime dependency on `pinescript-v6-validator`. `test/engine-parity.test.js`
 fails the build if a copy reappears in `src/` or `v6/`, if anything imports around
-`src/engine.ts`, or if `dist/engine` differs from the package build.
+`src/engine.ts`, or if `dist/engine` differs from the package build;
+`scripts/verify-vsix.js` (CI, after packaging) lists the real VSIX entries and
+executes the packaged `activate()`.
 
 | File | Status |
 |---|---|

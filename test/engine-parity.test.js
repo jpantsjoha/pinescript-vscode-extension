@@ -99,6 +99,9 @@ test('single engine: dist/engine is byte-identical to the packages/validator bui
   const pkgDist = path.join(ROOT, 'packages/validator/dist');
   const engineDist = path.join(ROOT, 'dist/engine');
   if (!fs.existsSync(engineDist) || !fs.existsSync(pkgDist)) {
+    // Locally a bare `node --test` before a build may skip; in CI the build always
+    // runs first, so absent output means the gate would be vacuous — fail instead.
+    assert.ok(!process.env.CI, 'dist/engine or packages/validator/dist is missing in CI — the build did not run');
     t.skip('not built — run `npm run build` (npm test does)');
     return;
   }

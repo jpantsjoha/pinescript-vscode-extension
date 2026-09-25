@@ -89,17 +89,22 @@ document the exception.
 
 ## Before releasing
 
-Order matters. The extension bundles the engine at build time, so an extension
-pinned ahead of what is published produces a VSIX whose engine cannot be installed —
-discovered at activation, on a user's machine.
+The extension bundles the LOCAL engine build (`packages/validator/dist` →
+`dist/engine/`) at build time and has no runtime dependency on the npm package
+(#55). Never re-add `pinescript-v6-validator` to the extension's `dependencies`, and
+never point the build back at `node_modules` — `test/engine-parity.test.js` and
+`test/npm-package.test.js` fail if you do. Publishing the engine to npm serves
+external consumers (pinescript-plugin), and it must carry the same source the VSIX
+ships.
 
-1. `npm test` — all green, no skips other than the one known skip
-2. Bump and publish **the engine** (`packages/validator`) first
-3. Bump the extension, pin the new engine version, rebuild, package
-4. In `jpantsjoha/pinescript-plugin`: `make gate`, which includes `make anchors` —
+1. `npm test` — all green, no skips
+2. Bump and publish **the engine** (`packages/validator`) to npm, from the same commit
+3. Bump the extension, rebuild, package (`npm run package`) — no engine pin to change
+4. `node scripts/verify-vsix.js build/<file>.vsix` — lists the VSIX entries, asserts
+   `dist/engine/` ships once, and executes the packaged `activate()`
+5. In `jpantsjoha/pinescript-plugin`: `make gate`, which includes `make anchors` —
    it resolves every check's `docAnchor` against real skill headings, using the
    **installed** engine, so it will fail until step 2 has actually landed on npm
-5. Verify the VSIX contains `dist/engine/`
 
 ## When a check changes
 

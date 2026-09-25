@@ -228,13 +228,29 @@ function auditPackaging() {
   // the local build of packages/validator. Excluding it would ship an extension
   // that dies at activation, so this must be able to FAIL — the previous form had
   // no else branch and was inert.
-  const excludesEngine = /^dist\/engine\/?(\*\*|data|src|index)?\s*$/m.test(ignore) || /^dist\/\*\*/m.test(ignore);
+  // Any pattern that would drop engine JavaScript: dist/engine, dist/engine/**,
+  // dist/engine/src/**, dist/engine/data/**, dist/engine/**/*.js, dist/engine/index.js,
+  // dist/**, dist/**/*.js ... Patterns that only drop declarations (*.d.ts) or maps
+  // are fine. vsce negations (!pattern) are not modelled; they re-include, never drop.
+  const excludesEngine = ignore.split('\n').map(l => l.trim())
+    .filter(l => l && !l.startsWith('#') && !l.startsWith('!'))
+    .filter(l => !/\.d\.ts$|\.map$/.test(l))
+    .some(l => /^(\*\*\/)?dist(\/\*\*)?(\/engine)?(\/|$)/.test(l) && /^(\*\*\/)?dist(\/(\*\*|engine)(\/.*)?)?\/?$|^(\*\*\/)?dist\/(\*\*|engine)\/.*\.js$/.test(l));
   if (excludesEngine) {
     fail('packaging', '.vscodeignore excludes dist/engine/, which the extension loads at runtime — it would fail on activation');
   } else if (/^v6\/\*\*/m.test(ignore) && /^packages\/\*\*/m.test(ignore)) {
     pass('packaging', 'v6/ and packages/ sources excluded; the compiled engine ships once, in dist/engine/');
   } else {
     warn('packaging', 'v6/ or packages/ sources are shipped in the VSIX; only dist/engine/ is needed at runtime');
+  }
+
+  // The engine's presence in the VSIX is proved on the real artefact, not on this
+  // file: CI must run scripts/verify-vsix.js after packaging (issue #55 review).
+  const ciYaml = exists('.github/workflows/ci.yml') ? read('.github/workflows/ci.yml') : '';
+  if (!exists('scripts/verify-vsix.js') || !/node scripts\/verify-vsix\.js/.test(ciYaml)) {
+    fail('packaging', 'CI does not run scripts/verify-vsix.js on the packaged VSIX — nothing proves the engine ships');
+  } else {
+    pass('packaging', 'CI lists the packaged VSIX entries and executes activate() (scripts/verify-vsix.js)');
   }
 
   // Credentials must never be packaged. vsce reads the working tree, so a gitignored

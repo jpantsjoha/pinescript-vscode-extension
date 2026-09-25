@@ -97,6 +97,9 @@ jobs:
         VSIX_SIZE=$(du -h build/pinescript-v6-extension-*.vsix | cut -f1)
         echo "✅ VSIX package created: $VSIX_SIZE"
 
+    - name: Verify packaged VSIX (entries + execute activate())
+      run: node scripts/verify-vsix.js build/pinescript-v6-extension-*.vsix
+
     - name: Upload VSIX artifact
       uses: actions/upload-artifact@v4
       with:
