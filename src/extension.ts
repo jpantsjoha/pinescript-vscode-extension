@@ -5,7 +5,9 @@ import {
   getAllCompletions,
   getNamespaceCompletions,
   getHoverInfo,
-  createCompletionItem
+  createCompletionItem,
+  getNamedParameterCompletionItems,
+  getNamedArgumentValueItems
 } from './completions';
 import { getDeclaredNames, isShadowedNamespace } from './intellisenseData';
 import { VersionedLruCache } from './declaredNamesCache';
@@ -129,6 +131,17 @@ export function activate(context: vscode.ExtensionContext) {
           // Return all completions (includes built-ins, keywords, and namespace hints)
           const items = getAllCompletions();
 
+          // Named-argument context (issue #13): inside a call, lead with the
+          // function's parameter names as `name=` items; right after a
+          // `name=` whose values come from a constant namespace, lead with
+          // those constants instead (a value goes there, not another name).
+          const valueItems = getNamedArgumentValueItems(line, position.character);
+          if (valueItems.length > 0) {
+            items.unshift(...valueItems);
+          } else {
+            items.unshift(...getNamedParameterCompletionItems(line, position.character));
+          }
+
           // Optional HTTP suggestions
           const cfg = vscode.workspace.getConfiguration();
           const enabled = cfg.get<boolean>('pine.httpSuggestions.enabled', false);
@@ -172,7 +185,7 @@ export function activate(context: vscode.ExtensionContext) {
           });
         }
       },
-      '.' // trigger on dot
+      '.', '(', ',' // trigger on dot, and on entering/continuing an argument list
     )
   );
 

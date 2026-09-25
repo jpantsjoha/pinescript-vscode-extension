@@ -6,7 +6,9 @@ import {
   DeclaredNames,
   getAllCompletionData,
   getNamespaceCompletionData,
-  getHoverData
+  getHoverData,
+  getNamedParameterCompletions,
+  getNamedArgumentValueCompletions
 } from './intellisenseData';
 
 // Re-export so existing imports of V6_KEYWORDS from this module keep working.
@@ -19,6 +21,7 @@ const KIND_MAP: Record<CompletionData['kind'], vscode.CompletionItemKind> = {
   module: vscode.CompletionItemKind.Module,
   color: vscode.CompletionItemKind.Color,
   constant: vscode.CompletionItemKind.Constant,
+  field: vscode.CompletionItemKind.Field,
 };
 
 // Build the rich markdown documentation shared by completions and hover.
@@ -146,6 +149,23 @@ export function getNamespaceCompletions(namespace: string, declaredNames?: Decla
 // Get all completions (no namespace context)
 export function getAllCompletions(): vscode.CompletionItem[] {
   return getAllCompletionData().map(completionFromData);
+}
+
+// `name=` parameter completions for the argument list the cursor is in
+// (issue #13). Declaration order is pinned via sortText, and accepting an
+// item re-triggers suggest so `style=` immediately offers its constants.
+export function getNamedParameterCompletionItems(line: string, character: number): vscode.CompletionItem[] {
+  return getNamedParameterCompletions(line, character).map((data, index) => {
+    const item = completionFromData(data);
+    item.sortText = `0_${String(index).padStart(3, '0')}`;
+    item.command = { command: 'editor.action.triggerSuggest', title: 'Trigger suggest' };
+    return item;
+  });
+}
+
+// Constant completions for the value position right after `name=` (issue #13).
+export function getNamedArgumentValueItems(line: string, character: number): vscode.CompletionItem[] {
+  return getNamedArgumentValueCompletions(line, character).map(completionFromData);
 }
 
 // Get hover information for a symbol

@@ -60,7 +60,7 @@ interface ReferenceEntry {
 
 const REFERENCE = PINE_FUNCTIONS_MERGED as unknown as Record<string, ReferenceEntry>;
 
-export type CompletionKind = 'function' | 'variable' | 'keyword' | 'module' | 'color' | 'constant';
+export type CompletionKind = 'function' | 'variable' | 'keyword' | 'module' | 'color' | 'constant' | 'field';
 
 export interface CompletionData {
   label: string;
@@ -726,4 +726,169 @@ export function calculateActiveParameter(text: string): number {
     else if (ch === ',' && depth === 0) paramIndex++;
   }
   return paramIndex;
+}
+
+// ── Named-parameter completions (issue #13) ─────────────────────────────
+//
+// Inside a call's argument list (`plot(close, ⎸`) the parameter NAMES of the
+// called function are offered as `name=` items, drawn from the full reference
+// and unioned across all overloads. Parameters already supplied by name in
+// the current call are excluded; positional arguments are ignored on purpose
+// (deciding which positional slot the user is filling is out of scope). After
+// a `name=` whose values come from a constant namespace (`style=` → shape.*,
+// `xloc=` → xloc.*, ...) the namespace's constants are offered instead.
+
+export interface ParameterInfo {
+  name: string;
+  type?: string;
+  description?: string;
+  required: boolean;
+}
+
+/**
+ * Every parameter of a function in declaration order, unioned across all
+ * overloads (`line.new` yields first_point/second_point AND x1..y2), with the
+ * per-parameter type/description the reference carries where available.
+ */
+export function getParameterInfo(functionName: string): ParameterInfo[] {
+  const entry = REFERENCE[functionName];
+  if (!entry) return [];
+  const docs = new Map<string, { type?: string; description?: string }>();
+  for (const p of entry.parameters || []) docs.set(p.name, { type: p.type, description: p.description });
+  const required = new Set(entry.requiredParams || []);
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const add = (n: string) => {
+    // Signature fragments like `...` or `source?` are not parameter names.
+    if (/^[A-Za-z_]\w*$/.test(n) && !seen.has(n)) { seen.add(n); names.push(n); }
+  };
+  const signatures = entry.overloads && entry.overloads.length > 0
+    ? entry.overloads.map(o => o.signature)
+    : [entry.syntax || entry.signature || ''];
+  for (const sig of signatures) {
+    for (const label of parseSignatureParams(sig)) add(paramName(label));
+  }
+  // The signature may end in `...`; the required/optional lists are the
+  // complete name inventory (plot: trackprice, histbase, ...).
+  for (const n of entry.requiredParams || []) add(n);
+  for (const n of entry.optionalParams || []) add(n);
+  return names.map(name => ({ name, required: required.has(name), ...docs.get(name) }));
+}
+
+/** True when the cursor sits inside a (same-line) string literal. */
+function isInsideString(beforeCursor: string): boolean {
+  let quote: string | null = null;
+  for (let i = 0; i < beforeCursor.length; i++) {
+    const ch = beforeCursor[i];
+    if (quote) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    }
+  }
+  return quote !== null;
+}
+
+/**
+ * Parameter names already supplied as `name=` in the COMPLETE top-level
+ * argument segments before the cursor (everything up to the last top-level
+ * comma; the segment being typed does not count). Strings are blanked first
+ * so `title="a=b"` never registers `b`, and nested calls stay below top
+ * level. `==`/`=>` comparisons never match.
+ */
+function namedArgsBeforeCursor(inner: string): Set<string> {
+  const blanked = inner.replace(/"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?/g, m => ' '.repeat(m.length));
+  const named = new Set<string>();
+  let depth = 0;
+  let current = '';
+  const scan = (segment: string) => {
+    const m = segment.match(/^\s*([A-Za-z_]\w*)\s*=(?![=>])/);
+    if (m) named.add(m[1]);
+  };
+  for (const ch of blanked) {
+    if (ch === '(' || ch === '[') depth++;
+    else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+    if (ch === ',' && depth === 0) { scan(current); current = ''; }
+    else current += ch;
+  }
+  return named;
+}
+
+/**
+ * `name=` completions for the argument list the cursor is in, in declaration
+ * order, excluding names already supplied in the current call. Empty outside
+ * a call, inside a string, or for a function the reference does not list.
+ */
+export function getNamedParameterCompletions(line: string, character: number): CompletionData[] {
+  const beforeCursor = line.substring(0, character);
+  if (isInsideString(beforeCursor)) return [];
+  const call = openCallAt(beforeCursor);
+  if (!call) return [];
+  const named = namedArgsBeforeCursor(beforeCursor.slice(call.open + 1));
+  return getParameterInfo(call.name)
+    .filter(p => !named.has(p.name))
+    .map(p => ({
+      label: `${p.name}=`,
+      kind: 'field',
+      detail: p.type || (p.required ? 'required' : 'optional'),
+      description: p.description,
+    }));
+}
+
+/** A constant namespace whose members are valid values, with an optional member prefix filter. */
+interface ConstantNamespaceSpec { ns: string; prefix?: string }
+
+/** Parameter name → constant namespaces, for parameters whose values are namespaced constants. */
+const PARAM_CONSTANT_NAMESPACES: Record<string, ConstantNamespaceSpec[]> = {
+  location: [{ ns: 'location' }],
+  size: [{ ns: 'size' }],
+  xloc: [{ ns: 'xloc' }],
+  yloc: [{ ns: 'yloc' }],
+  extend: [{ ns: 'extend' }],
+  display: [{ ns: 'display' }],
+  linestyle: [{ ns: 'hline', prefix: 'style_' }, { ns: 'line', prefix: 'style_' }],
+};
+
+/**
+ * `style` means a different constant namespace per function: shape.* for the
+ * plotshape family, plot.style_* for plot, line.style_* for line.new, ...
+ * Functions not listed offer nothing for `style=` — a wrong constant is
+ * worse than none.
+ */
+const STYLE_CONSTANT_NAMESPACES: Record<string, ConstantNamespaceSpec[]> = {
+  plot: [{ ns: 'plot', prefix: 'style_' }],
+  plotshape: [{ ns: 'shape' }],
+  plotchar: [{ ns: 'shape' }],
+  plotarrow: [{ ns: 'shape' }],
+  'line.new': [{ ns: 'line', prefix: 'style_' }],
+  'label.new': [{ ns: 'label', prefix: 'style_' }],
+};
+
+/**
+ * Constant completions for the value position right after `name=` inside a
+ * call (`plotshape(cond, style=⎸` → shape.circle, shape.triangleup, ...).
+ * Empty when the cursor is not after a `name=`, when the name is not a
+ * parameter of the open function, or when the parameter has no known
+ * constant namespace.
+ */
+export function getNamedArgumentValueCompletions(line: string, character: number): CompletionData[] {
+  const beforeCursor = line.substring(0, character);
+  if (isInsideString(beforeCursor)) return [];
+  const m = beforeCursor.match(/([A-Za-z_]\w*)\s*=$/);
+  if (!m) return [];
+  const call = openCallAt(beforeCursor);
+  if (!call) return [];
+  const param = m[1];
+  if (!getParameterInfo(call.name).some(p => p.name === param)) return [];
+  const specs = param === 'style' ? STYLE_CONSTANT_NAMESPACES[call.name] : PARAM_CONSTANT_NAMESPACES[param];
+  if (!specs) return [];
+  const items: CompletionData[] = [];
+  for (const { ns, prefix } of specs) {
+    for (const [name, fqn] of MEMBERS_BY_NAMESPACE.get(ns) ?? []) {
+      if (prefix && !name.startsWith(prefix)) continue;
+      items.push({ label: fqn, kind: 'constant', detail: fqn, description: REFERENCE_NAME_DESCRIPTIONS[fqn] });
+    }
+  }
+  return items;
 }
