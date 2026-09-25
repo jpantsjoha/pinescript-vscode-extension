@@ -80,10 +80,14 @@ export class AccurateValidator {
 
   // Functions whose parameter-NAME data is verified complete — safe to flag unknown
   // named arguments as errors. (Most functions have incomplete generated param data,
-  // e.g. plot/input.*, so a blanket check would false-positive. This is the curated
-  // allowlist of drawing functions where wrong arg names are common and catchable —
+  // e.g. input.*, so a blanket check would false-positive. This is the curated
+  // allowlist of functions where wrong arg names are common and catchable —
   // this is what catches e.g. `label.new(... text_halign=...)` → should be `textalign`.)
+  // `plot` qualifies because its entry in parameter-requirements.ts is one of the
+  // manually verified specs (16 names, matching the current v6 reference); the
+  // other plot* functions stay out because only plot's list is curated.
   private namedArgCheckedFunctions = new Set([
+    'plot',
     'label.new', 'line.new', 'box.new', 'table.new', 'table.cell',
     'label.set_xy', 'label.set_text', 'label.set_point', 'polyline.new'
   ]);
@@ -109,8 +113,26 @@ export class AccurateValidator {
     // block gets parsed as an identifier and the unbalanced quotes desynchronise
     // single-line string stripping for the rest of the file.
     const lines = this.blankMultilineStrings(text).split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      this.collectDeclaredVariables(lines[i]);
+    // Cleaned per-line text (strings and comments blanked, positions preserved).
+    // Bracket depth is tracked on THIS text, so a bracket inside a string or
+    // comment never makes a complete statement look wrapped.
+    const cleanedLines = lines.map(l => this.removeComments(this.removeStringLiterals(l)));
+    // First pass: collect declarations per STATEMENT, not per physical line.
+    // Pine allows wrapping anywhere inside () and [], so a statement whose
+    // brackets are still open continues on the next lines (issue #42): a wrapped
+    // method header still declares its name and parameters, and a wrapped tuple
+    // still declares its names. Lines interior to a wrap are not statement
+    // starts — a `name=` there is a named argument, not a declaration, so
+    // `plot(\n close,\n color=color.purplee)` still checks the misspelled
+    // constant instead of "declaring" color.
+    let stmtStart = 0;
+    while (stmtStart < lines.length) {
+      const stmtEnd = this.wrappedStatementEnd(cleanedLines, stmtStart);
+      this.collectDeclaredVariables(
+        stmtEnd === stmtStart
+          ? lines[stmtStart]
+          : cleanedLines.slice(stmtStart, stmtEnd + 1).join(' '));
+      stmtStart = stmtEnd + 1;
     }
 
     // Second pass: validate function calls and undefined references
@@ -127,8 +149,8 @@ export class AccurateValidator {
       // Remove string literals AND inline comments to avoid false positives on their
       // content (e.g. a word followed by "(" inside a `// comment` was flagged as an
       // undefined function). Strings are blanked first, so a "//" left over is a real
-      // comment, not part of a URL inside a string.
-      const lineWithoutStrings = this.removeComments(this.removeStringLiterals(line));
+      // comment, not part of a URL inside a string. Computed once above for every line.
+      const lineWithoutStrings = cleanedLines[i];
 
       // Check undefined namespaces (e.g., ssss.adas)
       this.checkUndefinedNamespaces(lineWithoutStrings, lineNum);
@@ -163,15 +185,121 @@ export class AccurateValidator {
       //     x = ta.sma(close, 14)  // previously ta.sma(close, 14, 99)
       // reported "Too many arguments" against the comment. Blanking preserves
       // length, so reported columns still point at the right character.
+      // `wrappedLines` is the whole statement (as cleaned physical lines) when
+      // this line's brackets stay open (issue #42): a call whose parens close
+      // on a later line is arity-checked against the joined text instead of
+      // being skipped, and checks that inspect arguments see every argument.
+      const stmtEnd = this.wrappedStatementEnd(cleanedLines, i);
+      const wrappedLines = cleanedLines.slice(i, stmtEnd + 1);
       for (const funcName of this.extractCalledFunctionNames(lineWithoutStrings)) {
         const spec = (ALL_FUNCTION_SIGNATURES as any)[funcName];
         if (spec) {
-          this.validateFunctionCall(lineWithoutStrings, lineNum, funcName, spec);
+          this.validateFunctionCall(lineWithoutStrings, lineNum, funcName, spec, wrappedLines);
         }
       }
     }
 
     return this.errors;
+  }
+
+  /**
+   * Index of the last line of the statement starting at `start`. A statement
+   * whose brackets are still open at end of line continues on the following
+   * lines — Pine allows wrapping anywhere inside () and [] (issue #42). Depth
+   * is tracked on the CLEANED lines, so a bracket inside a string or comment
+   * never extends the statement. When brackets balance on the line itself its
+   * own index comes back: nothing is joined across lines when brackets balance.
+   *
+   * Three bounds keep a syntax error from cascading (review finding f1 on #42):
+   * with an opener that never closes (`bad = (`) the join used to run to EOF,
+   * swallowing every declaration below the break — `type Config` was never
+   * collected and `Config.new()` was flagged as undefined. The join now stops
+   * at a blank line, at a line that opens a new top-level statement flush at
+   * column 0 (a wrapped continuation is indented; a column-0 `type`/`import`/
+   * `var`/header/assignment is a new statement, and stopping there only ever
+   * skips the arity check — the safe direction), and once the statement spans
+   * 50 physical lines: reaching the 51st line cuts the statement at line 50
+   * exactly, so a huge wrapped call (a 60-line `array.from(...)`) is left
+   * unbalanced and skipped rather than validated piecemeal (finding d3 on
+   * #43 — the cap used to include the 51st line).
+   *
+   * Depth is clamped at 0: a line that STARTS with closers (the `) + ta.sma(`
+   * middle of a wrap, asked about as a statement start in the second pass)
+   * must not drive depth negative and end the join before its own opener —
+   * that skipped the arity check on the call it opens (review finding f4).
+   *
+   * A header may put `=>` on its own line after the closing paren (Pine allows
+   * it), so when the brackets balance and the NEXT line begins with `=>`, that
+   * line is part of the statement (review finding f2 on #42).
+   */
+  private wrappedStatementEnd(cleanedLines: string[], start: number): number {
+    const MAX_WRAP_LINES = 50;
+    let depth = 0;
+    for (let end = start; end < cleanedLines.length; end++) {
+      const cleaned = cleanedLines[end];
+      if (end > start && depth > 0) {
+        if (!cleaned.trim()) return end - 1;
+        const prevEndsWithComma = cleanedLines[end - 1].trimEnd().endsWith(',');
+        if (this.startsTopLevelStatement(cleaned, prevEndsWithComma)) return end - 1;
+        if (end - start >= MAX_WRAP_LINES) return end - 1;
+      }
+      for (let i = 0; i < cleaned.length; i++) {
+        const ch = cleaned[i];
+        if (ch === '(' || ch === '[') depth++;
+        else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+      }
+      if (depth === 0) {
+        if (end + 1 < cleanedLines.length && cleanedLines[end + 1].trimStart().startsWith('=>')) {
+          return end + 1;
+        }
+        return end;
+      }
+    }
+    // The brackets never close (broken code) and no bound bit: the statement
+    // runs to EOF. The arity check still finds no closing paren on the joined
+    // text and skips.
+    return cleanedLines.length - 1;
+  }
+
+  /**
+   * Does this CLEANED line open a new top-level statement? Only a line flush at
+   * column 0 qualifies — a wrapped continuation is indented, so an indented
+   * line is never a new statement. The patterns are constructs that cannot
+   * appear inside a bracketed expression (type/enum/method/import/var, the
+   * script declarations, control flow) plus a same-line function header and a
+   * plain assignment.
+   *
+   * Two refinements keep column-0 continuations of a wrapped call from ending
+   * the join early (review finding d2 on #43):
+   *
+   *   - The plot family is an explicit list (plot, plotshape, plotchar,
+   *     plotcandle, plotbar, plotarrow) matched as whole words, so a
+   *     user-defined `plotter(...)` at column 0 inside a wrapped call is not
+   *     mistaken for a plot statement.
+   *   - A column-0 line that merely LOOKS like an assignment (`color=color.red,`)
+   *     is a named argument when the argument list demonstrably continues. The
+   *     continuation signal is a trailing comma on the PREVIOUS line
+   *     (`prevEndsWithComma`): `plot(\nclose,\ncolor=color.red,\nbogus=1\n)`
+   *     keeps joining, so `bogus` is still checked. When the previous line does
+   *     not end with ',' the assignment reading wins and the join stops —
+   *     `plot(\ncolor=color.red\n)` (no comma yet) is a deliberate miss: the
+   *     join stops early, the arity check is skipped, and skipping only ever
+   *     loses an error, never invents one. The same trade-off hits a column-0
+   *     FIRST argument right after the opener: `plotshape(\nshape=shape.circle\n)`
+   *     ends the join before `shape` is seen, so the obsolete-parameter warning
+   *     is missed — an accepted false negative (Codex round-2 finding 2 on #43).
+   */
+  private startsTopLevelStatement(line: string, prevEndsWithComma: boolean): boolean {
+    if (line.length === 0 || line[0] === ' ' || line[0] === '\t') return false;
+    if (
+      /^(?:export\s+)?(?:type|enum|method|import|var|varip|for|if|while|switch)\b/.test(line) ||
+      /^(?:indicator|strategy|library|plot|plotshape|plotchar|plotcandle|plotbar|plotarrow|hline|bgcolor|fill|alertcondition)\s*\(/.test(line) ||
+      /^[A-Za-z_][\w.]*\s*\(.*\)\s*=>/.test(line)
+    ) {
+      return true;
+    }
+    if (prevEndsWithComma) return false;
+    return /^[A-Za-z_]\w*\s*:?=(?!=)/.test(line);
   }
 
   /**
@@ -765,7 +893,8 @@ export class AccurateValidator {
     line: string,
     lineNum: number,
     functionName: string,
-    spec: any
+    spec: any,
+    wrappedLines?: string[]
   ): void {
     // Skip type names - they're not functions
     if (TYPE_NAMES.has(functionName)) {
@@ -781,12 +910,29 @@ export class AccurateValidator {
     const escapedName = functionName.replace(/\./g, '\\.');
     const regex = new RegExp(`(?<![a-zA-Z0-9_\\.])${escapedName}\\s*\\(`, 'g');
 
+    // The statement's lines joined into one text (issue #42). The join starts
+    // with this line verbatim, so an index into the physical line means the
+    // same character in the joined text; the per-line lengths are kept so an
+    // offset into the join can be mapped back to its physical line (finding
+    // f5 on #42).
+    const joined = wrappedLines && wrappedLines.length > 1 ? wrappedLines.join(' ') : undefined;
+
     let match;
     while ((match = regex.exec(line)) !== null) {
       const openParenIndex = match.index + match[0].length - 1;
-      const argsString = this.extractBalancedArgs(line, openParenIndex);
-      // null = the call's parens don't close on this line (multi-line call) — skip
-      // count validation here to avoid false positives.
+      let argsString = this.extractBalancedArgs(line, openParenIndex);
+      let argSource = line;
+      if (argsString === null && joined) {
+        // The call's parens do not close on this line (issue #42): retry against
+        // the whole wrapped statement.
+        const fromJoined = this.extractBalancedArgs(joined, openParenIndex);
+        if (fromJoined !== null) {
+          argsString = fromJoined;
+          argSource = joined;
+        }
+      }
+      // null = the call's parens never close even across the wrapped statement —
+      // skip count validation here to avoid false positives.
       if (argsString === null) {
         continue;
       }
@@ -794,6 +940,51 @@ export class AccurateValidator {
 
       // Count arguments (simple split by comma, not perfect but good enough)
       const args = argsString.trim() === '' ? [] : this.splitArguments(argsString);
+
+      // The call's OWN top-level named arguments (`name=` at the start of a
+      // depth-0 argument), each located on its physical line and column. Two
+      // consumers need exactly this list: the unknown-name check below, and the
+      // per-call special cases. Anything looser leaks a NESTED call's named
+      // argument into this call — `plotshape(passthrough(shape=close) > 0)`
+      // reported plotshape's obsolete `shape` parameter when `shape` belonged
+      // to `passthrough` (review finding d1 on #43).
+      //
+      // A bad argument is reported at the start of its NAME, not at the
+      // argument's leading whitespace (finding d4 on #43), and not on the
+      // call's first line (finding f5 on #42). The `^` anchor makes nm.index
+      // always 0, so the name's offset inside the match is computed
+      // explicitly (nm[0].indexOf(nm[1])): splitArguments already trims each
+      // argument, so today both terms are 0, but the reported location must
+      // not depend on that preprocessing (Codex round-2 finding 1 on #43).
+      // Arguments are located in the text they were extracted from; an offset
+      // into the joined statement maps back through the per-line lengths.
+      //
+      // Computed BEFORE the variadic/unreliable-data skip below: that skip is
+      // about ARITY, whose data can be incomplete while the curated parameter-
+      // NAME list is still a fact (plot's signature text carries an ellipsis,
+      // yet its 16 names are manually verified — finding d2 on #43).
+      const topLevelNamedArgs: Array<{ name: string; line: number; column: number }> = [];
+      {
+        let searchFrom = openParenIndex + 1;
+        for (const arg of args) {
+          const at = argSource.indexOf(arg, searchFrom);
+          if (at !== -1) searchFrom = at + arg.length;
+          const nm = arg.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)/);
+          if (!nm) continue;
+          // Offset of the NAME inside the match: skips whatever leading
+          // whitespace the `^\s*` consumed (nm.index is always 0 under the
+          // `^` anchor, so it cannot carry this offset itself).
+          const nameOffset = (nm.index ?? 0) + nm[0].indexOf(nm[1]);
+          const pos = at === -1
+            ? { line: lineNum, column }
+            : this.wrappedOffsetToPosition(
+                argSource === joined ? (wrappedLines as string[]) : [line],
+                at + nameOffset,
+                lineNum
+              );
+          topLevelNamedArgs.push({ name: nm[1], line: pos.line, column: pos.column });
+        }
+      }
 
       // Overload-aware arity bounds. A call is valid if it satisfies ANY overload,
       // so the accepted range is min(required) .. max(required + optional) across
@@ -837,7 +1028,10 @@ export class AccurateValidator {
         (spec.overloads && spec.overloads.length > 0);
 
       if (isVariadic || (!hasReliableParams && (requiredCount === 0 || totalCount === 0))) {
-        // Skip validation for variadic or auto-generated functions with incomplete data
+        // Arity is skipped for variadic or auto-generated functions with
+        // incomplete data — but a curated NAME list is reliable independently
+        // of arity, so the unknown-name check still runs (plot: finding d2).
+        this.checkNamedArgNames(functionName, spec, topLevelNamedArgs);
         continue;
       }
 
@@ -868,32 +1062,46 @@ export class AccurateValidator {
         );
       }
 
-      // Validate named-argument NAMES against the function's known parameters
-      // (only for curated functions with complete data — avoids false positives).
-      // With overloads, the accepted set is the UNION across every form: writing
-      // `line.new(x1=..., y1=...)` is valid even though the first overload has no
-      // `x1`. Flattening to a single form is exactly what produced the earlier
-      // false positives on the coordinate constructors.
-      if (this.namedArgCheckedFunctions.has(functionName)) {
-        const validNames = this.collectValidParamNames(spec);
-        if (validNames.size > 0) {
-          for (const arg of args) {
-            const nm = arg.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)/);
-            if (nm && !validNames.has(nm[1])) {
-              this.addError(
-                lineNum,
-                column,
-                functionName.length,
-                `No parameter named '${nm[1]}' in '${functionName}'`,
-                Severity.Error
-              );
-            }
-          }
-        }
-      }
+      // Validate named-argument NAMES against the function's known parameters.
+      this.checkNamedArgNames(functionName, spec, topLevelNamedArgs);
 
-      // Special validations
-      this.validateSpecialCases(line, lineNum, column, functionName, args);
+      // Special validations. These inspect the call's OWN top-level named
+      // arguments, which still cover the whole joined statement — an argument
+      // on a continuation line counts, so `indicator("Wrapped",
+      // timeframe_gaps=true,\n timeframe="D")` does not warn (review finding
+      // f3 on #42) — but never the raw statement text, so a nested call's
+      // argument cannot leak in (finding d1 on #43).
+      this.validateSpecialCases(functionName, topLevelNamedArgs);
+    }
+  }
+
+  /**
+   * Flag named arguments whose NAME is not a known parameter of the function —
+   * only for curated functions with complete name data (the
+   * `namedArgCheckedFunctions` allowlist), so a guess never becomes an error.
+   * With overloads, the accepted set is the UNION across every form: writing
+   * `line.new(x1=..., y1=...)` is valid even though the first overload has no
+   * `x1`. Flattening to a single form is exactly what produced the earlier
+   * false positives on the coordinate constructors.
+   */
+  private checkNamedArgNames(
+    functionName: string,
+    spec: any,
+    namedArgs: Array<{ name: string; line: number; column: number }>
+  ): void {
+    if (!this.namedArgCheckedFunctions.has(functionName)) return;
+    const validNames = this.collectValidParamNames(spec);
+    if (validNames.size === 0) return;
+    for (const named of namedArgs) {
+      if (!validNames.has(named.name)) {
+        this.addError(
+          named.line,
+          named.column,
+          named.name.length,
+          `No parameter named '${named.name}' in '${functionName}'`,
+          Severity.Error
+        );
+      }
     }
   }
 
@@ -1051,48 +1259,64 @@ export class AccurateValidator {
     return args;
   }
 
-  private validateSpecialCases(
-    line: string,
-    lineNum: number,
-    column: number,
-    functionName: string,
-    args: string[]
-  ): void {
-    // plotshape: check for "shape=" parameter (should be "style=")
-    if (functionName === 'plotshape' && line.includes('shape=')) {
-      const shapeIndex = line.indexOf('shape=');
-      this.addError(
-        lineNum,
-        shapeIndex,
-        6,
-        'Invalid parameter "shape" for plotshape(). Did you mean "style"?',
-        Severity.Error
-      );
+  /**
+   * Map an offset into `segments.join(' ')` back to its physical line and
+   * column. `segments[0]` is the statement's first line (1-based number
+   * `startLineNum`); each later segment follows one inserted space.
+   */
+  private wrappedOffsetToPosition(
+    segments: string[],
+    offset: number,
+    startLineNum: number
+  ): { line: number; column: number } {
+    let rest = offset;
+    for (let k = 0; k < segments.length; k++) {
+      if (rest <= segments[k].length) return { line: startLineNum + k, column: rest };
+      rest -= segments[k].length + 1;
     }
+    return { line: startLineNum, column: offset };
+  }
 
-    // plotchar: check for "shape=" parameter (should be "char=")
-    if (functionName === 'plotchar' && line.includes('shape=')) {
-      const shapeIndex = line.indexOf('shape=');
-      this.addError(
-        lineNum,
-        shapeIndex,
-        6,
-        'Invalid parameter "shape" for plotchar(). Did you mean "char"?',
-        Severity.Error
-      );
+  /**
+   * Per-call checks over the call's OWN top-level named arguments (`name=` at
+   * the start of a depth-0 argument), never over the statement text. The old
+   * substring search (`text.includes('shape=')`) leaked a NESTED call's named
+   * argument into this call: `plotshape(passthrough(shape=close) > 0)` warned
+   * about plotshape's obsolete `shape` parameter when `shape` belonged to
+   * `passthrough` (review finding d1 on #43).
+   */
+  private validateSpecialCases(
+    functionName: string,
+    namedArgs: Array<{ name: string; line: number; column: number }>
+  ): void {
+    // plotshape: a top-level "shape" argument (should be "style=")
+    // plotchar: a top-level "shape" argument (should be "char=")
+    if (functionName === 'plotshape' || functionName === 'plotchar') {
+      const wrong = namedArgs.find(a => a.name === 'shape');
+      if (wrong) {
+        const correct = functionName === 'plotshape' ? 'style' : 'char';
+        this.addError(
+          wrong.line,
+          wrong.column,
+          5,
+          `Invalid parameter "shape" for ${functionName}(). Did you mean "${correct}"?`,
+          Severity.Error
+        );
+      }
     }
 
     // indicator/strategy: timeframe_gaps without timeframe
-    if ((functionName === 'indicator' || functionName === 'strategy') &&
-        line.includes('timeframe_gaps') && !line.includes('timeframe=')) {
-      const index = line.indexOf('timeframe_gaps');
-      this.addError(
-        lineNum,
-        index,
-        14,
-        '"timeframe_gaps" has no effect without "timeframe" parameter',
-        Severity.Warning
-      );
+    if (functionName === 'indicator' || functionName === 'strategy') {
+      const gaps = namedArgs.find(a => a.name === 'timeframe_gaps');
+      if (gaps && !namedArgs.some(a => a.name === 'timeframe')) {
+        this.addError(
+          gaps.line,
+          gaps.column,
+          14,
+          '"timeframe_gaps" has no effect without "timeframe" parameter',
+          Severity.Warning
+        );
+      }
     }
   }
 

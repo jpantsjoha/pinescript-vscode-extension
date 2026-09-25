@@ -47,12 +47,13 @@ test('the valid forms stay silent: minimal, full positional, named, tuple, eight
   }
 });
 
-// Known limit, not a claim: AccurateValidator skips arity on a call whose parens do
-// not close on one line, so a WRAPPED one-argument call is still not caught. Pinned
-// here so the gap is visible, not silent.
-test('a wrapped one-argument request.security is not caught yet (documented gap)', () => {
+// Issue #42: a call whose parens do not close on one line used to skip arity
+// entirely. The validator now joins the wrapped statement before counting, so
+// the wrapped one-argument form is caught like the single-line form.
+test('a wrapped one-argument request.security is an arity error', () => {
   const errs = errorsFor(IND + 'x = request.security(\n     "FRED:WTREGEN")\nplot(x)\n', 'request.security');
-  assert.deepStrictEqual(errs, []);
+  assert.strictEqual(errs.length, 1, errs.join(' | '));
+  assert.match(errs[0], /Missing required parameter\(s\).*timeframe, expression/);
 });
 
 test('nine arguments is one too many', () => {

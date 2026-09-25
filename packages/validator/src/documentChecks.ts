@@ -83,6 +83,37 @@ function splitTopLevel(args: string): string[] {
   return parts.map(p => p.trim()).filter(p => p.length > 0);
 }
 
+/**
+ * Split an argument region on top-level commas, keeping each argument's offset
+ * within the region so a finding can be located. Assumes strings are blanked.
+ *
+ * The per-call checks below must see only the call's OWN arguments: a nested
+ * call's named argument is not this call's parameter. Searching the raw region
+ * for `name=` leaked exactly that — `plotshape(passthrough(shape=close) > 0)`
+ * reported plotshape's obsolete `shape` parameter although `shape` belonged to
+ * `passthrough` (delta review of #43, 2026-09-25; the leak also fired on one
+ * line on main, so it was a shipped false positive, not only a delta one).
+ */
+function topLevelArgs(region: string): Array<{ text: string; offset: number }> {
+  const args: Array<{ text: string; offset: number }> = [];
+  let depth = 0;
+  let start = 0;
+  const push = (end: number) => {
+    const raw = region.slice(start, end);
+    const lead = raw.length - raw.trimStart().length;
+    const text = raw.trim();
+    if (text) args.push({ text, offset: start + lead });
+  };
+  for (let i = 0; i < region.length; i++) {
+    const char = region[i];
+    if (char === '(' || char === '[') depth++;
+    else if (char === ')' || char === ']') depth--;
+    else if (char === ',' && depth === 0) { push(i); start = i + 1; }
+  }
+  push(region.length);
+  return args;
+}
+
 function positionOf(text: string, index: number): { line: number; column: number } {
   const before = text.slice(0, index);
   const line = before.split('\n').length;
@@ -145,7 +176,9 @@ export function runDocumentChecks(text: string): ValidationError[] {
 
   // 7 & 8) plotshape/plotchar called with the wrong parameter name.
   //    Scans the balanced argument list rather than `[^)]*`, which stopped at the
-  //    first nested ')' and missed any call with an expression argument.
+  //    first nested ')' and missed any call with an expression argument. Only the
+  //    call's OWN top-level argument names count: a `shape=` inside a nested call
+  //    belongs to that call (delta review of #43).
   for (const [fn, correct] of [['plotshape', 'style'], ['plotchar', 'char']] as const) {
     const callPattern = new RegExp(`\\b${fn}\\s*\\(`, 'g');
     let call;
@@ -154,24 +187,28 @@ export function runDocumentChecks(text: string): ValidationError[] {
       const close = matchingParen(scan, open);
       if (close === -1) continue;
       const argsRegion = scan.slice(open + 1, close);
-      const wrong = /\bshape\s*=/.exec(argsRegion);
-      if (wrong) {
-        add(open + 1 + wrong.index, 5, `Invalid parameter "shape". Did you mean "${correct}"?`, SEVERITY_ERROR);
+      for (const arg of topLevelArgs(argsRegion)) {
+        if (/^shape\s*=(?!=)/.test(arg.text)) {
+          add(open + 1 + arg.offset, 5, `Invalid parameter "shape". Did you mean "${correct}"?`, SEVERITY_ERROR);
+          break;
+        }
       }
     }
   }
 
-  // 9) timeframe_gaps without a timeframe argument
+  // 9) timeframe_gaps without a timeframe argument.
+  //    Same top-level rule: a nested call's timeframe_gaps/timeframe is not the
+  //    declaration's (delta review of #43).
   const declPattern = /\b(indicator|strategy)\s*\(/g;
   let decl;
   while ((decl = declPattern.exec(scan)) !== null) {
     const open = decl.index + decl[0].length - 1;
     const close = matchingParen(scan, open);
     if (close === -1) continue;
-    const argsRegion = scan.slice(open + 1, close);
-    const gaps = /\btimeframe_gaps\s*=\s*true/.exec(argsRegion);
-    if (gaps && !/\btimeframe\s*=/.test(argsRegion)) {
-      add(open + 1 + gaps.index, 14, '"timeframe_gaps" has no effect without a "timeframe" argument in indicator/strategy call', SEVERITY_WARNING);
+    const args = topLevelArgs(scan.slice(open + 1, close));
+    const gaps = args.find(a => /^timeframe_gaps\s*=\s*true/.test(a.text));
+    if (gaps && !args.some(a => /^timeframe\s*=/.test(a.text))) {
+      add(open + 1 + gaps.offset, 14, '"timeframe_gaps" has no effect without a "timeframe" argument in indicator/strategy call', SEVERITY_WARNING);
     }
   }
 

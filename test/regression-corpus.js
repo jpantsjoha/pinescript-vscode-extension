@@ -773,6 +773,239 @@ const CASES = [
       'The declared-variables exemption in the unknown-namespace branch is what keeps them ' +
       'silent once the \'=\' skip no longer does.',
   },
+  //────────────────────────────────────────────────────────
+  // #42 — statements wrapped across lines inside open brackets
+  //────────────────────────────────────────────────────────
+  {
+    name: '#42: a wrapped method header still declares the method and this',
+    code: IND + 'type Foo\n    float x\nmethod m(\n    Foo this\n) =>\n    this.x\nf = Foo.new(1.0)\nplot(m(f))\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Declarations were collected one physical line at a time, so a header whose parens ' +
+      'close on a later line matched nothing: the body\'s this.x reported "Undefined ' +
+      'namespace or variable \'this\'" and every call reported "Undefined function \'m\'" — ' +
+      'two false positives on the documented method syntax.',
+  },
+  {
+    name: '#42: a wrapped function header still declares a UDT parameter',
+    code: IND + 'type Pt\n    float x\ngetX(\n    Pt p\n) =>\n    p.x\nplot(getX(Pt.new(1.0)))\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Same defect, plain-function form: the parameter list never matched the fnDef pattern ' +
+      'when split across lines, so p.x in the body was "Undefined namespace or variable ' +
+      '\'p\'" on code that compiles clean.',
+  },
+  {
+    name: '#42: a wrapped tuple destructuring still declares every name',
+    code: IND + 'type Pt\n    float x\ngetCoords() =>\n    [Pt.new(1.0), 2.0]\n[pt,\n count] = getCoords()\nplot(pt.x + count)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'The tuple pattern needed [ and ] on one line, so a wrapped destructuring bound ' +
+      'nothing and pt.x was flagged "Undefined namespace or variable \'pt\'" — the issue\'s ' +
+      'own example.',
+  },
+  {
+    name: '#42: a wrapped call with named arguments spanning lines stays silent',
+    code: IND + 'plot(\n    close,\n    color=color.red)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'The normal way to format a long plot call. Joining the statement must not turn the ' +
+      'named argument into a declaration (which would exempt the namespace) nor into an ' +
+      'unknown-name error — the member check still applies to the value.',
+  },
+  {
+    name: '#42: a wrapped request.security with every argument stays silent',
+    code: IND + 'x = request.security(\n    syminfo.tickerid,\n    "W",\n    close,\n    barmerge.gaps_off,\n    barmerge.lookahead_off)\nplot(x)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'request.security is the function most often wrapped in real scripts. Once arity runs ' +
+      'on the joined statement, the full five-argument form must prove it still passes — ' +
+      'otherwise the fix trades missed errors for false positives.',
+  },
+  {
+    name: '#42: a wrapped ONE-argument request.security is an arity error',
+    code: IND + 'x = request.security(\n     "FRED:WTREGEN")\nplot(x)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'The missed error behind the issue: extractBalancedArgs returned null when the parens ' +
+      'did not close on one line, so arity was skipped — the gap was pinned as a known limit ' +
+      'in test/request-arity.test.js until this fix flipped it.',
+  },
+  {
+    name: '#42: a wrapped ta.sma missing its length is an arity error',
+    code: IND + 's = ta.sma(\n    close)\nplot(s)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Paired "still flags" for the join: arity on wrapped calls is only worth having if it ' +
+      'catches the ordinary case — one argument where two are required — not just the issue\'s ' +
+      'own request.security example.',
+  },
+  {
+    name: '#42: a misspelled constant stays flagged when the call is wrapped',
+    code: IND + 'plot(\n    close,\n    color=color.purplee)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'A named argument at the start of a continuation line looked like a statement-level ' +
+      'declaration, landing color in declaredLocals and exempting color.purplee from the ' +
+      'member check. Lines interior to a wrap are not statement starts, so the #37 check ' +
+      'must keep biting inside wrapped calls.',
+  },
+  {
+    name: '#43: an unclosed bracket must not swallow the declarations below it',
+    code: IND + 'bad = (\ntype Config\n    int len = 14\ncfg = Config.new()\nplot(close)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Independent review of #42: `bad = (` never closes, so the statement join ran to EOF ' +
+      'and `type Config` was never collected — the `Config.new()` below the break was ' +
+      'flagged "Undefined namespace or variable". One syntax error must not cascade into ' +
+      'false positives on the rest of the file: the join now stops at a blank line, at a ' +
+      'column-0 line that opens a new top-level statement, and after 50 lines.',
+  },
+  {
+    name: '#43: a header whose => sits on its own line still declares the function',
+    code: IND + 'customCalc(\n    int a,\n    int b\n)\n    =>\n    a + b\nplot(customCalc(1, 2))\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Independent review of #42: the join ended at the closing paren, so a wrapped header ' +
+      'whose `=>` sits on the next line (Pine allows it) never matched the declaration ' +
+      'pattern — the definition AND every call reported "Undefined function \'customCalc\'".',
+  },
+  {
+    name: '#43: timeframe on a continuation line satisfies timeframe_gaps',
+    code: '//@version=6\nindicator("Wrapped", timeframe_gaps=true,\n    timeframe="D")\nplot(close)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Independent review of #42: validateSpecialCases received the PHYSICAL line, so a ' +
+      'wrapped indicator whose timeframe= sat on the next line warned that timeframe_gaps ' +
+      'has no effect — a false positive on the normal formatting of this call. Checks that ' +
+      'inspect arguments now see the joined statement. (The corpus tolerates bare warnings ' +
+      'in null cases, so test/wrapped-statement-location.test.js pins this silence.)',
+  },
+  {
+    name: '#43: a call opened mid-line after a closer is still arity-checked',
+    code: IND + 'x = math.abs(close\n) + ta.sma(\n    close,\n    14,\n    99\n)\nplot(x)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Independent review of #42 (the miss itself predates the PR): the `) + ta.sma(` line ' +
+      'drove the join depth to -1 and back to 0, ending the "wrap" before ta.sma\'s own ' +
+      'opener — the three-argument ta.sma escaped the arity check. Depth is now clamped at 0.',
+  },
+  {
+    name: '#43 d1: a nested call argument named shape is not plotshape\'s parameter (wrapped)',
+    code: IND + 'passthrough(float shape) => shape\nplotshape(\n    passthrough(\n        shape=close\n    ) > 0\n)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Codex delta review of #43: the plotshape/plotchar special case searched the whole ' +
+      'argument region for a "shape=" substring instead of inspecting the call\'s own ' +
+      'top-level arguments, so a NESTED call\'s named argument was reported as plotshape\'s ' +
+      'obsolete shape parameter. (The review\'s `myshape=` spelling was saved by a word ' +
+      'boundary; an argument literally named `shape` was not.)',
+  },
+  {
+    name: '#43 d1: a nested call argument named shape is not plotshape\'s parameter (one line)',
+    code: IND + 'passthrough(float shape) => shape\nplotshape(passthrough(shape=close) > 0)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'The same nested-argument leak on one physical line. This form fires on origin/main ' +
+      'too — the document-wide check predates the PR — so the fix is not just a delta ' +
+      'correction, it repairs a shipped false positive.',
+  },
+  {
+    name: '#43 d1: a nested call argument named shape is not plotchar\'s parameter either',
+    code: IND + 'passthrough(float shape) => shape\nplotchar(passthrough(shape=close) > 0)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'plotchar shares the plotshape special case; the leak and the fix are the same code.',
+  },
+  {
+    name: '#43 d1: a real top-level shape= argument in a WRAPPED plotshape still flags',
+    code: IND + 'plotshape(\n    close > open,\n    shape=shape.circle\n)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Paired "still flags" for the nested-leak fix: restricting the check to top-level ' +
+      'argument names must not silence the genuine case when the call itself is wrapped. ' +
+      '(The single-line form is the older "plotshape uses style=, not shape=" case.)',
+  },
+  {
+    name: '#43 d1: a nested timeframe_gaps does not warn on the enclosing indicator',
+    code: '//@version=6\nf(bool timeframe_gaps) => timeframe_gaps\nindicator("t", shorttitle=f(timeframe_gaps=true) ? "x" : "y")\nplot(close)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'The indicator/strategy special case substring-searched the joined statement for ' +
+      '"timeframe_gaps", so a NESTED call\'s argument warned that the enclosing indicator ' +
+      'was missing a timeframe it never needed. (The corpus tolerates bare warnings in ' +
+      'null cases, so test/wrapped-statement-location.test.js pins this silence.)',
+  },
+  {
+    name: '#43 d2: a column-0 named argument after a comma does not end the join',
+    code: IND + 'plot(\nclose,\ncolor=color.red,\nbogus=1\n)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Codex delta review of #43: `color=color.red,` at column 0 matched the assignment ' +
+      'pattern and ended the statement join, so the invalid `bogus` argument on the next ' +
+      'line was never seen. A trailing comma on the previous line is the continuation ' +
+      'signal. (Also the first case that checks plot\'s named arguments: plot\'s parameter ' +
+      'list is one of the manually verified specs, so `bogus` is a fact, not a guess.)',
+  },
+  {
+    name: '#43 d2: a column-0 wrapped VALID plot call stays silent',
+    code: IND + 'plot(\nclose,\ncolor=color.red\n)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Paired negative for the comma-continuation rule: once the join reaches the named ' +
+      'argument, plot\'s curated parameter list must accept it — and the continuation line ' +
+      'must not be collected as a statement-level declaration of `color` either.',
+  },
+  {
+    name: '#43 d2: a user function named plotter is not a plot statement',
+    code: IND + 'plotter(float a) => a\nlbl = label.new(\nplotter(close),\nbogus=1\n)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Codex delta review of #43: the `plot\\w*` pattern treated `plotter(close),` at ' +
+      'column 0 as a new plot statement, ending the join and hiding the invalid `bogus` ' +
+      'argument of label.new. Only the real plot family names count now.',
+  },
+  {
+    name: '#43 d3: a 60-line wrapped array.from produces no diagnostic',
+    code: IND + 'a = array.from(\n' + Array(58).fill('    close,').join('\n') + '\n    close\n)\nplot(a.size())\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Codex delta review of #43: the 50-line cap included the 51st line (off by one). ' +
+      'The cap exists so a huge wrapped call is skipped whole rather than validated ' +
+      'piecemeal; this case locks both the skip and the absence of any new diagnostic ' +
+      'from the lines the cut leaves behind.',
+  },
+  {
+    name: '#43: a bad named argument on a continuation line is still named',
+    code: IND + 'lbl = label.new(\n    x=bar_index,\n    y=close,\n    text="Test",\n    invalid_named_param=123\n)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Independent review of #42: the named-parameter check itself was right, but it ' +
+      'reported at the call\'s first line — the squiggle pointed at label.new instead of ' +
+      'the argument. The error now lands on the argument\'s own physical line and column ' +
+      '(pinned in test/wrapped-statement-location.test.js).',
+  },
 ];
 
 /**
