@@ -673,17 +673,21 @@ export function getHoverData(symbol: string): HoverData | undefined {
  */
 /**
  * The innermost call still open at the cursor. Scans back from the cursor, skipping
- * string literals and any call already closed, so `str.format("{0}, {1}", ta.sma(x, 1), `
+ * string literals, comments, and any call already closed, so `str.format("{0}, {1}", ta.sma(x, 1), `
  * resolves to `str.format`, not to nothing. Returns the name and the index of its '('.
  */
 function openCallAt(beforeCursor: string): { name: string; open: number } | null {
-  // Blank string contents (keeping length) so their parens and commas are inert.
-  const text = beforeCursor.replace(/"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?/g, m => m[0] + ' '.repeat(Math.max(0, m.length - 1)));
+  // Blank string contents and comments (keeping length) so their parens and
+  // commas are inert.
+  const text = blankStringsAndCommentsBeforeCursor(beforeCursor);
   let depth = 0;
   for (let i = text.length - 1; i >= 0; i--) {
     const ch = text[i];
     if (ch === ')' || ch === ']') depth++;
-    else if (ch === '[') { if (depth > 0) depth--; }
+    else if (ch === '[') {
+      if (depth > 0) depth--;
+      else return null; // unmatched '[': the cursor is in an array literal or subscript, not a parameter list
+    }
     else if (ch === '(') {
       if (depth > 0) { depth--; continue; }
       // A call name may carry a generic argument list: `array.new<float>(`,
@@ -777,8 +781,22 @@ export function getParameterInfo(functionName: string): ParameterInfo[] {
   return names.map(name => ({ name, required: required.has(name), ...docs.get(name) }));
 }
 
-/** True when the cursor sits inside a (same-line) string literal. */
-function isInsideString(beforeCursor: string): boolean {
+/**
+ * Strings blanked (contents only, keeping length) and everything after the
+ * first unquoted `//` blanked too, so string/comment parens, commas, and `=`
+ * are inert to the argument-list scanners. A `//` inside a string is already
+ * blanked by the string pass and never starts a comment. Unlike
+ * blankStringsAndComments (whole-document declaration scanning), an unclosed
+ * string at the cursor is blanked as well.
+ */
+function blankStringsAndCommentsBeforeCursor(text: string): string {
+  const noStrings = text.replace(/"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?/g, m => m[0] + ' '.repeat(Math.max(0, m.length - 1)));
+  const comment = noStrings.indexOf('//');
+  return comment < 0 ? noStrings : noStrings.slice(0, comment) + ' '.repeat(noStrings.length - comment);
+}
+
+/** True when the cursor sits inside a (same-line) string literal or a `//` comment. */
+function isInsideStringOrComment(beforeCursor: string): boolean {
   let quote: string | null = null;
   for (let i = 0; i < beforeCursor.length; i++) {
     const ch = beforeCursor[i];
@@ -787,9 +805,26 @@ function isInsideString(beforeCursor: string): boolean {
       if (ch === quote) quote = null;
     } else if (ch === '"' || ch === "'") {
       quote = ch;
+    } else if (ch === '/' && beforeCursor[i + 1] === '/') {
+      return true;
     }
   }
   return quote !== null;
+}
+
+/**
+ * Definition-in-progress rule (PR #51 review): the text up to an open '(' is
+ * a function/method DEFINITION head only when it is just `name`, `method name`,
+ * or `export name` from the start of the line (no `=` before it, so it is not
+ * an expression) AND `=>` exists somewhere on the line. Without `=>` the text
+ * is treated as a call: `plot(close,` is indistinguishable from a definition
+ * head until the `=>` is typed. Strings and comments are blanked first so a
+ * `=>` inside them does not count.
+ */
+function isDefinitionHead(line: string, open: number): boolean {
+  const blanked = blankStringsAndCommentsBeforeCursor(line);
+  if (!/^\s*(?:(?:method|export)\s+)*[A-Za-z_]\w*\s*$/.test(blanked.slice(0, open))) return false;
+  return blanked.includes('=>');
 }
 
 /**
@@ -802,7 +837,7 @@ function isInsideString(beforeCursor: string): boolean {
  * segment after a named one is invalid Pine and simply counts as positional.
  */
 function argsBeforeCursor(inner: string): { named: Set<string>; positional: number } {
-  const blanked = inner.replace(/"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?/g, m => ' '.repeat(m.length));
+  const blanked = blankStringsAndCommentsBeforeCursor(inner);
   const named = new Set<string>();
   let positional = 0;
   let depth = 0;
@@ -830,8 +865,11 @@ function argsBeforeCursor(inner: string): { named: Set<string>; positional: numb
  * first N slots are taken. A name stays offered iff some fitting overload
  * lists it beyond slot N (union of per-overload remainders); names the
  * required/optional inventories add outside any signature (`...` extras like
- * plot's trackprice) are never positionally filled. When no overload can
- * accept N positional args, nothing is excluded.
+ * plot's trackprice) are never positionally filled. Parameters that appear
+ * ONLY in disqualified overloads (`timestamp`'s dateString, `line.new`'s
+ * first_point after 9 positional args) are filled by definition — they can
+ * never be supplied in this call. When no overload can accept N positional
+ * args, nothing is excluded.
  */
 function positionallyFilledParams(functionName: string, positional: number): Set<string> {
   const filled = new Set<string>();
@@ -841,7 +879,7 @@ function positionallyFilledParams(functionName: string, positional: number): Set
   const signatures = entry.overloads && entry.overloads.length > 0
     ? entry.overloads.map(o => o.signature)
     : [entry.syntax || entry.signature || ''];
-  const inFittingSignatures = new Set<string>();
+  const inAnySignature = new Set<string>();
   const remainders = new Set<string>();
   let anyFit = false;
   for (const sig of signatures) {
@@ -850,14 +888,14 @@ function positionallyFilledParams(functionName: string, positional: number): Set
     const params = fragments
       .map(paramName)
       .filter(n => /^[A-Za-z_]\w*$/.test(n));
-    if (!variadic && params.length < positional) continue;
+    for (const n of params) inAnySignature.add(n);
+    if (!variadic && params.length < positional) continue; // disqualified: cannot accept this many positional args
     anyFit = true;
-    for (const n of params) inFittingSignatures.add(n);
     for (const n of params.slice(positional)) remainders.add(n);
   }
   if (!anyFit) return filled;
   for (const p of getParameterInfo(functionName)) {
-    if (inFittingSignatures.has(p.name) && !remainders.has(p.name)) filled.add(p.name);
+    if (inAnySignature.has(p.name) && !remainders.has(p.name)) filled.add(p.name);
   }
   return filled;
 }
@@ -865,14 +903,17 @@ function positionallyFilledParams(functionName: string, positional: number): Set
 /**
  * `name=` completions for the argument list the cursor is in, in declaration
  * order, excluding names already supplied in the current call by name or
- * positionally. Empty outside a call, inside a string, or for a function the
- * reference does not list.
+ * positionally. Empty outside a call, inside a string or comment, in a
+ * function/method definition head, right after `name =` (a value goes there,
+ * not another parameter name), or for a function the reference does not list.
  */
 export function getNamedParameterCompletions(line: string, character: number): CompletionData[] {
   const beforeCursor = line.substring(0, character);
-  if (isInsideString(beforeCursor)) return [];
+  if (isInsideStringOrComment(beforeCursor)) return [];
+  if (isNamedArgumentValuePosition(line, character)) return [];
   const call = openCallAt(beforeCursor);
   if (!call) return [];
+  if (isDefinitionHead(line, call.open)) return [];
   const { named, positional } = argsBeforeCursor(beforeCursor.slice(call.open + 1));
   const filled = positionallyFilledParams(call.name, positional);
   return getParameterInfo(call.name)
@@ -883,6 +924,32 @@ export function getNamedParameterCompletions(line: string, character: number): C
       detail: p.type || (p.required ? 'required' : 'optional'),
       description: p.description,
     }));
+}
+
+/**
+ * True when the cursor sits directly after `name =` (optional spaces around
+ * `=`) inside a call's argument list — a value position, where only value
+ * completions (possibly none) apply. `==`/`=>` never match, and neither does
+ * an assignment outside a call (`x = ⎸` keeps the ordinary completions).
+ */
+export function isNamedArgumentValuePosition(line: string, character: number): boolean {
+  const beforeCursor = line.substring(0, character);
+  if (isInsideStringOrComment(beforeCursor)) return false;
+  if (!/[A-Za-z_]\w*\s*=\s*$/.test(beforeCursor)) return false;
+  return openCallAt(beforeCursor) !== null;
+}
+
+/**
+ * The ONLY completions a '(' or ',' trigger may produce (PR #51 review): the
+ * argument-list items — constant values right after `name=`, else the call's
+ * named parameters. Empty everywhere else (tuples, arrays, grouping parens,
+ * declarations, generics, definitions, comments), so the trigger never pops
+ * the global list. Typed/invoked completion is unaffected.
+ */
+export function getTriggerCharacterCompletions(line: string, character: number): CompletionData[] {
+  const values = getNamedArgumentValueCompletions(line, character);
+  if (values.length > 0) return values;
+  return getNamedParameterCompletions(line, character);
 }
 
 /** A constant namespace whose members are valid values, with an optional member prefix filter. */
@@ -923,11 +990,12 @@ const STYLE_CONSTANT_NAMESPACES: Record<string, ConstantNamespaceSpec[]> = {
  */
 export function getNamedArgumentValueCompletions(line: string, character: number): CompletionData[] {
   const beforeCursor = line.substring(0, character);
-  if (isInsideString(beforeCursor)) return [];
-  const m = beforeCursor.match(/([A-Za-z_]\w*)\s*=$/);
+  if (isInsideStringOrComment(beforeCursor)) return [];
+  const m = beforeCursor.match(/([A-Za-z_]\w*)\s*=\s*$/);
   if (!m) return [];
   const call = openCallAt(beforeCursor);
   if (!call) return [];
+  if (isDefinitionHead(line, call.open)) return [];
   const param = m[1];
   if (!getParameterInfo(call.name).some(p => p.name === param)) return [];
   const specs = param === 'style' ? STYLE_CONSTANT_NAMESPACES[call.name] : PARAM_CONSTANT_NAMESPACES[param];

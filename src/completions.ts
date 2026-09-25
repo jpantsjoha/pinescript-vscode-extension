@@ -168,6 +168,17 @@ export function getNamedArgumentValueItems(line: string, character: number): vsc
   return getNamedArgumentValueCompletions(line, character).map(completionFromData);
 }
 
+// The ONLY items a '(' or ',' trigger may return (PR #51 review): constant
+// values after `name=`, else the call's `name=` parameters (with their
+// declaration-order pinning and re-trigger command). Empty anywhere else, so
+// typing a comma in a tuple/array/declaration/comment never pops the global
+// completion list.
+export function getTriggerCharacterCompletionItems(line: string, character: number): vscode.CompletionItem[] {
+  const values = getNamedArgumentValueItems(line, character);
+  if (values.length > 0) return values;
+  return getNamedParameterCompletionItems(line, character);
+}
+
 // Get hover information for a symbol
 export function getHoverInfo(symbol: string): vscode.Hover | undefined {
   const cfg = vscode.workspace.getConfiguration('pine');

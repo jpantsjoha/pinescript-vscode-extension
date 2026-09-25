@@ -7,9 +7,10 @@ import {
   getHoverInfo,
   createCompletionItem,
   getNamedParameterCompletionItems,
-  getNamedArgumentValueItems
+  getNamedArgumentValueItems,
+  getTriggerCharacterCompletionItems
 } from './completions';
-import { getDeclaredNames, isShadowedNamespace } from './intellisenseData';
+import { getDeclaredNames, isShadowedNamespace, isNamedArgumentValuePosition } from './intellisenseData';
 import { VersionedLruCache } from './declaredNamesCache';
 import { createSignatureHelpProvider } from './signatureHelp';
 // NOTE: the extension imports ONLY the validators it runs. A dead AST validator
@@ -102,9 +103,20 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.languages.registerCompletionItemProvider(
       'pine',
       {
-        provideCompletionItems(document, position) {
+        provideCompletionItems(document, position, _token, context) {
           const line = document.lineAt(position.line).text;
           const beforeCursor = line.substring(0, position.character);
+
+          // '(' and ',' are trigger characters, so this provider fires on every
+          // paren and comma in the document (tuples, arrays, grouping, var
+          // lists, generics, definitions, comments). On those triggers return
+          // ONLY argument-list items — named parameters or `name=` constants —
+          // and nothing (never the global list) anywhere else (PR #51 review).
+          // Typed/invoked completion falls through to the full logic below.
+          if (context.triggerKind === vscode.CompletionTriggerKind.TriggerCharacter &&
+              (context.triggerCharacter === '(' || context.triggerCharacter === ',')) {
+            return getTriggerCharacterCompletionItems(line, position.character);
+          }
 
           // Check if we're completing after a namespace dot. Identifiers may
           // contain underscores/digits and the chain may be nested:
@@ -138,6 +150,11 @@ export function activate(context: vscode.ExtensionContext) {
           const valueItems = getNamedArgumentValueItems(line, position.character);
           if (valueItems.length > 0) {
             items.unshift(...valueItems);
+          } else if (isNamedArgumentValuePosition(line, position.character)) {
+            // Cursor directly after `name =` inside a call: only a value
+            // belongs here, and this parameter has no known constants — offer
+            // nothing rather than parameter names (PR #51 review, finding 2).
+            return [];
           } else {
             items.unshift(...getNamedParameterCompletionItems(line, position.character));
           }

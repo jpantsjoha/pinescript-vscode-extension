@@ -146,3 +146,121 @@ test('an assignment outside a call offers no constants', () => {
   const line = 'style=';
   assert.deepStrictEqual(getNamedArgumentValueCompletions(line, line.length), []);
 });
+
+// ── PR #51 independent review findings ──────────────────────────────
+// Each test names the finding it reproduces; every one failed on the
+// reviewed head before the fix.
+
+const {
+  isNamedArgumentValuePosition,
+  getTriggerCharacterCompletions,
+} = require('../dist/src/intellisenseData.js');
+
+// Finding 1: a parameter must be offered only if it remains unfilled in at
+// least one overload that can still accept the positional count given.
+// Overloads disqualified by the positional count must not leak their
+// parameters into the list.
+test('finding 1: timestamp(2023, 1, 1, ⎸ does not offer dateString= from the disqualified 1-arg overload', () => {
+  const line = 'timestamp(2023, 1, 1, ';
+  const names = labels(getNamedParameterCompletions(line, line.length));
+  assert.ok(!names.includes('dateString='), `dateString= belongs to an overload that takes 1 arg: ${names.join(', ')}`);
+  assert.ok(!names.includes('year=') && !names.includes('month=') && !names.includes('timezone='), `timezone/year/month are filled in every fitting overload: ${names.join(', ')}`);
+  // day= survives via the timezone overload (slot 4 there), hour= via both.
+  assert.ok(names.includes('day=') && names.includes('hour='), `day=/hour= remain unfilled in a fitting overload: ${names.join(', ')}`);
+});
+
+test('finding 1: line.new with 9 positional args does not offer first_point=/second_point= from the disqualified 8-param overload', () => {
+  const line = 'line.new(1, 2, 3, 4, xloc.bar_index, extend.none, color.red, line.style_solid, 2, ';
+  const names = labels(getNamedParameterCompletions(line, line.length));
+  for (const p of ['first_point=', 'second_point=', 'x1=', 'y1=', 'x2=', 'y2=', 'xloc=', 'extend=', 'color=', 'style=', 'width=']) {
+    assert.ok(!names.includes(p), `${p} is filled in every overload that accepts 9 positional args: ${names.join(', ')}`);
+  }
+  assert.ok(names.includes('force_overlay='), `force_overlay= is the one remaining slot: ${names.join(', ')}`);
+});
+
+// Finding 2: with the cursor directly after `name =` (optional spaces) a
+// value goes there — parameter names must not be offered.
+test('finding 2: after `name = ` inside a call no parameter names are offered', () => {
+  for (const line of ['plot(title = ', 'plot(title=', 'ta.sma(length = ', 'plot(close, color = ']) {
+    assert.deepStrictEqual(getNamedParameterCompletions(line, line.length), [], `${line}⎸ must offer no parameter names`);
+  }
+});
+
+test('finding 2: isNamedArgumentValuePosition is true only after `name =` inside a call', () => {
+  for (const line of ['plot(title = ', 'plot(title=', 'plot(close, xloc =']) {
+    assert.ok(isNamedArgumentValuePosition(line, line.length), `${line}⎸ is a value position`);
+  }
+  for (const line of ['x = ', 'var int a = ', 'plot(close == ', 'plot(close, ', '// plot(title = ']) {
+    assert.ok(!isNamedArgumentValuePosition(line, line.length), `${line}⎸ is not a value position`);
+  }
+});
+
+test('finding 2: constants are still offered after `name= ` with trailing spaces', () => {
+  const line = 'plotshape(cond, style= ';
+  const names = labels(getNamedArgumentValueCompletions(line, line.length));
+  assert.ok(names.includes('shape.circle'), `style= with a trailing space should offer shape.circle: ${names.join(', ')}`);
+});
+
+// Finding 3: when the suggest widget is triggered by '(' or ',', the provider
+// must return ONLY named-parameter or constant-value items — never the global
+// list. The vscode-free policy lives in getTriggerCharacterCompletions; the
+// extension returns its result (empty or not) on those triggers.
+test('finding 3: trigger-character completions are empty outside a call argument list', () => {
+  for (const line of ['[a, ', 'arr = [1, ', 'x = (a + b, ', 'var int a = 1, ', 'map<string, ', 'f(x, ', '// plot(close, ', '// Note, ']) {
+    assert.deepStrictEqual(getTriggerCharacterCompletions(line, line.length), [], `${line}⎸ on ','/'(' trigger must offer nothing`);
+  }
+});
+
+test('finding 3: trigger-character completions inside a call offer named parameters', () => {
+  const line = 'plot(close, ';
+  const names = labels(getTriggerCharacterCompletions(line, line.length));
+  assert.ok(names.includes('title=') && !names.includes('series='), `plot(close, ⎸ on ',' trigger: ${names.join(', ')}`);
+  const open = 'plot(';
+  assert.ok(labels(getTriggerCharacterCompletions(open, open.length)).includes('series='), `plot(⎸ on '(' trigger offers series=`);
+});
+
+// Finding 4: an unmatched '[' at depth 0 means the cursor is inside an array
+// literal or subscript, not at the call's top-level parameter list.
+test('finding 4: inside an array literal or subscript within a call nothing is offered', () => {
+  for (const line of ['plot([1, ', 'matrix.get(m, [0, ']) {
+    assert.deepStrictEqual(getNamedParameterCompletions(line, line.length), [], `${line}⎸ is inside '[', not the parameter list`);
+    assert.deepStrictEqual(getTriggerCharacterCompletions(line, line.length), [], `${line}⎸ trigger must offer nothing`);
+  }
+  // A closed subscript as an argument is still the call's parameter list.
+  const ok = 'plot(a[0], ';
+  assert.ok(labels(getNamedParameterCompletions(ok, ok.length)).includes('title='), `${ok}⎸ still offers plot parameters`);
+});
+
+// Finding 5: an unquoted '//' starts a comment to end of line; like strings,
+// comments must blank everything that follows.
+test('finding 5: inside a // comment nothing is offered', () => {
+  for (const line of ['// plot(close, ', '// Note, ', '  // plotshape(cond, style=']) {
+    assert.deepStrictEqual(getNamedParameterCompletions(line, line.length), [], `${line}⎸ is inside a comment`);
+  }
+  const commented = '// plotshape(cond, style=';
+  assert.deepStrictEqual(getNamedArgumentValueCompletions(commented, commented.length), [], 'constants are not offered inside a comment');
+  // '//' inside a string is not a comment.
+  const str = 'plot(str.contains(close, "http://"), ';
+  assert.ok(labels(getNamedParameterCompletions(str, str.length)).includes('title='), `"//" inside a string is not a comment: ${str}⎸`);
+});
+
+// Finding 6: a line that is `name(`, `method name(`, or `export name(` from
+// the statement start (no `=` before the paren) is a function/method
+// definition head once `=>` exists on the line — its parameter list is not a
+// call, so nothing is offered. Without `=>` the line is treated as a call:
+// `plot(close,` is indistinguishable from a definition head until the `=>`
+// is typed (documented rule).
+test('finding 6: function/method definition heads with => on the line offer nothing', () => {
+  assert.deepStrictEqual(getNamedParameterCompletions('plot(x, ) => x', 'plot(x, '.length), [], 'definition head plot(x, ⎸) => x');
+  assert.deepStrictEqual(getNamedParameterCompletions('method plot(t, ) => t', 'method plot(t, '.length), [], 'method definition head');
+  assert.deepStrictEqual(getNamedParameterCompletions('export plot(x, ) => x', 'export plot(x, '.length), [], 'export definition head');
+  assert.deepStrictEqual(getNamedArgumentValueCompletions('plot(a = ) => a', 'plot(a = '.length), [], 'no constants in a definition head');
+});
+
+test('finding 6: a `name(` line WITHOUT => is treated as a call (documented rule)', () => {
+  const line = 'plot(x, ';
+  assert.ok(labels(getNamedParameterCompletions(line, line.length)).includes('title='), `${line}⎸ has no => so it is a call`);
+  // A call in a definition BODY is still a call.
+  const body = 'f(x) => plot(x, ';
+  assert.ok(labels(getNamedParameterCompletions(body, body.length)).includes('title='), `${body}⎸ is a call in the body`);
+});
