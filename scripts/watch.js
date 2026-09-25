@@ -15,8 +15,8 @@
  *   3. runs `tsc -w -p .` for the extension.
  *
  * The sync is driven by tsc's own end-of-cycle report, not by a filesystem watcher,
- * so it behaves the same on Linux, macOS and Windows and on every supported Node
- * version. Each sync copies into a staging directory beside dist/engine and swaps
+ * so it behaves the same on Linux, macOS and Windows and on every Node in the CI
+ * matrix. Each sync copies into a staging directory beside dist/engine and swaps
  * it in (scripts/engine-sync.js), so dist/engine is never a half-copied mix of two
  * builds, and a failed swap restores the last good build.
  *

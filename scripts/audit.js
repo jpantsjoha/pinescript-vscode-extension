@@ -253,6 +253,24 @@ function auditPackaging() {
     listed = null;
   }
   const ships = f => listed && listed.has(f);
+
+  // Guards for where scripts/vsce-ls.js differs from `vsce package` (see its header).
+  if (Object.prototype.hasOwnProperty.call(pkg, 'files')) {
+    fail('packaging', 'package.json has a `files` field: `vsce package` rejects it alongside .vscodeignore, and scripts/vsce-ls.js would not notice');
+  } else {
+    pass('packaging', 'package.json has no `files` field (packaging is governed by .vscodeignore alone)');
+  }
+  try {
+    const cmp = JSON.parse(execFileSync(process.execPath, [path.join(ROOT, 'scripts/vsce-ls.js'), '--compare-npm'],
+      { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
+    if (cmp.onlyNone.length || cmp.onlyNpm.length) {
+      fail('packaging', `vsce listings differ between PackageManager.None and Npm — only None: ${cmp.onlyNone.join(', ') || '-'}; only Npm: ${cmp.onlyNpm.join(', ') || '-'}`);
+    } else {
+      pass('packaging', `vsce listing is identical with PackageManager.None and Npm (${cmp.none} files)`);
+    }
+  } catch (err) {
+    fail('packaging', `could not compare vsce dependency modes: ${(err.stderr || err.message).toString().split('\n')[0]}`);
+  }
   const dropped = listed ? runtime.filter(f => !ships(f)) : [];
   const duplicated = listed ? secondEngine.filter(f => ships(f)) : [];
   if (!listed) {

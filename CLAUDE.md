@@ -65,7 +65,7 @@ catches those.
 ## Before you change validation logic
 
 ```bash
-npm run build && npm test          # all tests; golden corpus must stay at 0 errors
+npm run build && npm test          # all tests; golden corpus must stay at 0 errors (tooling needs Node 22: .nvmrc)
 npm run audit                      # harness, packaging, version, diagnostic coverage
 node validate-cli.js <file.pine>   # headless single-file check: the local engine build in dist/engine,
                                    # the same code the VSIX ships (--local-engine is accepted and ignored)

@@ -10,7 +10,10 @@
  *    packages/validator/src module as dist/engine/src/*.js, every data file as
  *    dist/engine/data/*.js); rejects a second engine in any layout
  *    (extension/packages/**, node_modules/pinescript-v6-validator, or any file named
- *    like an engine module outside extension/dist/engine/).
+ *    like an engine module outside extension/dist/engine/); and rejects any entry not
+ *    on the expected-contents list (manifest files, README/CHANGELOG/LICENSE, the
+ *    package.json icon, images the README references, grammar, language config,
+ *    dist/src, dist/engine, dist/v6).
  * 2. Extracts it, executes the packaged entry point's activate() with a stubbed
  *    `vscode` module, and drives the diagnostics through onDidOpenTextDocument:
  *    valid code must be silent, `color.purplee` must be an error.
@@ -77,6 +80,28 @@ const duplicates = entries.filter(e =>
   (!e.startsWith('extension/dist/engine/') &&
     (engineBasenames.has(path.posix.basename(e)) || /(^|\/)parameter-requirements[^/]*\.js$/.test(e))));
 for (const d of duplicates) fail(`second engine copy ships: ${d}`);
+
+// Expected contents only. Anything not on this list — a stray diff, a log, a test
+// fixture, an unused image — fails, so residue in the working tree cannot ship.
+const readme = fs.existsSync(path.join(ROOT, 'README.md')) ? fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8') : '';
+const readmeImages = new Set([...readme.matchAll(/\]\(\.?\/?(images\/[^)\s]+)\)/g)].map(m => `extension/${m[1]}`));
+const allowedExact = new Set([
+  'extension.vsixmanifest', '[Content_Types].xml',
+  'extension/package.json', 'extension/README.md', 'extension/CHANGELOG.md',
+  'extension/language-configuration.json',
+  ...(manifest.icon ? [`extension/${manifest.icon.replace(/^\.\//, '')}`] : []),
+  ...readmeImages,
+]);
+const allowedPatterns = [
+  /^extension\/LICENSE(\.txt|\.md)?$/,
+  /^extension\/syntaxes\/[^/]+\.json$/,
+  /^extension\/snippets\/[^/]+\.json$/,
+  /^extension\/dist\/src\/[^/]+\.js$/,
+  /^extension\/dist\/engine\/(index|(src|data)\/[^/]+)\.js$/,
+  /^extension\/dist\/v6\/[^/]+\.js$/,
+];
+const unexpected = entries.filter(e => !e.endsWith('/') && !allowedExact.has(e) && !allowedPatterns.some(re => re.test(e)));
+for (const e of unexpected) fail(`unexpected file in VSIX (not on the expected-contents list): ${e}`);
 
 if (unsafe.length || modes.length !== entries.length) {
   console.error(`verify-vsix: FAIL\n  - ${failures.join('\n  - ')}`);

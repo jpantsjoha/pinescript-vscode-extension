@@ -13,7 +13,10 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        # Tooling runs on maintained Node only: 18 and 20 are end-of-life, and the
+        # pinned @vscode/vsce 4.0.0 requires Node 22. The shipped extension runs on
+        # VS Code's own bundled runtime, so this governs tooling, not users.
+        node-version: [22.x, 24.x]
 
     steps:
     - name: Checkout code
@@ -73,7 +76,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20.x
+        node-version: 22.x
         cache: 'npm'
 
     - name: Install dependencies
@@ -121,7 +124,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20.x
+        node-version: 22.x
         cache: 'npm'
 
     - name: Install dependencies
@@ -173,7 +176,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20.x
+        node-version: 22.x
 
     - name: Run npm audit
       run: |

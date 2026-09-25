@@ -36,7 +36,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
         cache: 'npm'
 
     - name: Install dependencies
@@ -48,17 +48,18 @@ jobs:
     - name: Build extension
       run: npm run build
 
-    - name: Install vsce
-      run: npm install -g @vscode/vsce
-
+    # vsce is the pinned devDependency installed by npm ci (never a global install).
     - name: Package extension
-      run: vsce package
+      run: npx --no-install vsce package
+
+    - name: Verify packaged VSIX (entries + execute activate())
+      run: node scripts/verify-vsix.js "pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix"
 
     # Publish the one VSIX built above to both registries, so they ship identical bits.
     - name: Publish to VS Code Marketplace
       env:
         VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      run: vsce publish -p "$VSCE_PAT" --packagePath "pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix"
+      run: npx --no-install vsce publish -p "$VSCE_PAT" --packagePath "pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix"
 
     # Open VSX serves Cursor, Windsurf, VSCodium, Gitpod and Theia. Its token was
     # checked in the preflight step, before the Marketplace publish.

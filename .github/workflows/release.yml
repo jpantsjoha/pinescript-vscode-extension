@@ -22,7 +22,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20.x
+        node-version: 22.x
         cache: 'npm'
 
     - name: Get version from tag
@@ -51,14 +51,15 @@ jobs:
     - name: Build extension
       run: npm run build
 
-    - name: Install vsce
-      run: npm install -g @vscode/vsce
-
+    # vsce is the pinned devDependency installed by npm ci (never a global install).
     - name: Create build directory
       run: mkdir -p build
 
     - name: Package VSIX
       run: npm run package
+
+    - name: Verify packaged VSIX (entries + execute activate())
+      run: node scripts/verify-vsix.js build/pinescript-v6-extension-*.vsix
 
     - name: Extract changelog for version
       id: changelog
