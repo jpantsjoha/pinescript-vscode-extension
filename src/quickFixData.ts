@@ -6,9 +6,9 @@
 // action: each one is offered only when the diagnostic it answers is present and
 // the edit is unambiguous. When in doubt, return nothing.
 //
-// Reference data comes through this ONE import line, so a later move of v6/ is a
-// one-line change.
-import { REFERENCE_NAMES } from '../v6/reference-names';
+// Reference data comes through this ONE import line (quickFixReference.ts wraps
+// v6/), so a later move of v6/ is a one-file change.
+import { REFERENCE_NAMES, builtinHasParameter } from './quickFixReference';
 import { currentDiagnostics, CurrentDiagnostic } from './diagnosticSources';
 
 export interface Position { line: number; character: number }
@@ -80,22 +80,6 @@ class Doc {
     return { line: lo, character: offset - this.starts[lo] };
   }
   eol(): string { return /\r\n/.test(this.text) ? '\r\n' : '\n'; }
-  private depths?: Int32Array;
-  /** Open ( or [ count before `offset` in the masked text (computed once). */
-  depthAt(offset: number): number {
-    if (!this.depths) {
-      this.depths = new Int32Array(this.masked.length + 1);
-      let depth = 0;
-      for (let i = 0; i < this.masked.length; i++) {
-        this.depths[i] = depth;
-        const ch = this.masked[i];
-        if (ch === '(' || ch === '[') depth++;
-        else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
-      }
-      this.depths[this.masked.length] = depth;
-    }
-    return this.depths[offset];
-  }
 }
 
 /** Same rules as the engine's blankStrings: quotes kept, contents blanked, length kept. */
@@ -207,25 +191,53 @@ const TYPE_KEYWORDS = new Set(['color', 'line', 'label', 'box', 'table', 'linefi
  * True when the script may bind `ns` itself (a variable, a UDT-typed field, a
  * parameter, a loop variable), so `ns.member` might not be the built-in. Every
  * bare occurrence of the identifier must be one of: a namespace access (`ns.`),
- * a call of the built-in function of that name (`plot(`), a named argument
- * inside a call (`ns=` at bracket depth > 0), or a type annotation (`color c`). Anything else counts as shadowing: no action.
+ * a call of the built-in function of that name (`plot(`), a named argument of a
+ * BUILT-IN call that documents a parameter called `ns` (`plot(..., color=...)`),
+ * or a type annotation (`color c`). Anything else counts as a binding: a
+ * defaulted parameter in a function or method head (`f(MyShape shape = na) =>`,
+ * wrapped or not), a user-function argument, a declaration. `exceptAt` is the
+ * diagnosed argument itself, already verified by the caller.
  */
-function mayShadowNamespace(doc: Doc, ns: string): boolean {
+function mayShadowNamespace(doc: Doc, ns: string, exceptAt = -1): boolean {
   const s = doc.masked;
   const re = new RegExp(`(?<![A-Za-z0-9_.])${ns}(?![A-Za-z0-9_])`, 'g');
   let m;
   while ((m = re.exec(s)) !== null) {
+    if (m.index === exceptAt) continue;
     let i = m.index + ns.length;
     while (i < s.length && (s[i] === ' ' || s[i] === '\t')) i++;
     const next = s[i] ?? '';
     if (next === '.') continue;
     if (next === '(') continue;   // the built-in function of the same name: plot(...), strategy(...)
-    if (next === '=' && s[i + 1] !== '=' && doc.depthAt(m.index) > 0) continue;
+    if (next === '=' && s[i + 1] !== '=' && isBuiltinNamedArgument(doc, m.index, ns)) continue;
     const ident = /^[A-Za-z_][A-Za-z0-9_]*/.exec(s.slice(i));
     if (ident && ident[0] !== 'in' && TYPE_KEYWORDS.has(ns)) continue;
     return true;
   }
   return false;
+}
+
+/**
+ * `name=` at `offset` is an argument of a call to a built-in function that
+ * documents a parameter `name`, directly in that call's argument list, and the
+ * parenthesised list is not a definition head (no `=>` after it, same line or
+ * wrapped, and no `method` keyword before the name).
+ */
+function isBuiltinNamedArgument(doc: Doc, offset: number, name: string): boolean {
+  const s = doc.masked;
+  const open = enclosingOpenParen(s, offset);
+  if (open < 0) return false;
+  let j = offset - 1;
+  while (j > open && /\s/.test(s[j])) j--;
+  if (s[j] !== '(' && s[j] !== ',') return false;
+  const head = /(?<![A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*$/.exec(s.slice(Math.max(0, open - 80), open));
+  if (!head) return false;
+  const before = s.slice(Math.max(0, open - 80), open - head[0].length);
+  if (/\bmethod\s+$/.test(before)) return false;
+  if (!builtinHasParameter(head[1], name)) return false;
+  const close = matchingClose(s, open);
+  if (close < 0) return false;
+  return !/^\s*=>/.test(s.slice(close + 1, close + 200));
 }
 
 export function editDistance(a: string, b: string): number {
@@ -299,7 +311,7 @@ function fixShapeParameter(doc: Doc, d: DiagnosticInput): Omit<QuickFix, 'diagno
   // most likely meant `color=`, so anything else gets no rename.
   if (correct === 'style') {
     // `MyShape shape = ...` makes `shape.circle` a user field, not a style.
-    if (mayShadowNamespace(doc, 'shape')) return [];
+    if (mayShadowNamespace(doc, 'shape', start)) return [];
     const member = /^shape\.([A-Za-z_][A-Za-z0-9_]*)$/.exec(value);
     const isShape = member !== null && namespaceMembers('shape').has(member[1]);
     if (!isShape && !/^(["'])[^"'\n]*\1$/.test(value)) return [];

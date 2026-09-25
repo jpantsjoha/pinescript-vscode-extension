@@ -377,6 +377,34 @@ test('shadowed `shape` (UDT variable): no plotshape rename', () => {
   assert.deepStrictEqual(staleFixes(unshadowed, src, byMessage(/Invalid parameter "shape"/)).filter(f => /Rename/.test(f.title)), []);
 });
 
+test('shadowed `shape` as a defaulted parameter (round-3 review, exact case): no rename', () => {
+  const src = '//@version=6\nindicator("qf")\ntype MyShape\n    float circle\nf(MyShape shape = na) =>\n    plotshape(true, shape=shape.circle) // pine-ignore: S7\n    shape.circle\nx = f(MyShape.new(1.0))\nplot(x)\n';
+  assert.ok(diagnostics(src).some(byMessage(/Invalid parameter "shape"/)), 'diagnostic current');
+  assert.deepStrictEqual(titles(src).filter(t => /Rename/.test(t)), []);
+});
+
+test('shadowed `shape` in a wrapped definition head and in a method head: no rename', () => {
+  const heads = {
+    wrapped: 'f(float x,\n     MyShape shape = na)\n     =>\n    plotshape(true, shape=shape.circle)\n    x\ny = f(1.0)\nplot(y)\n',
+    method: 'method m(MyShape this, MyShape shape = na) =>\n    plotshape(true, shape=shape.circle)\n    this.circle\ny = MyShape.new(1.0).m()\nplot(y)\n',
+    'user call': 'g(s) => s\nz = g(shape = 1)\nplotshape(true, shape=shape.circle)\n',
+  };
+  for (const [name, body] of Object.entries(heads)) {
+    const src = `//@version=6\nindicator("qf")\ntype MyShape\n    float circle\n${body}`;
+    assert.ok(diagnostics(src).some(byMessage(/Invalid parameter "shape"/)), `${name}: diagnostic current`);
+    assert.deepStrictEqual(titles(src).filter(t => /Rename/.test(t)), [], name);
+  }
+});
+
+test('built-in named arguments do not count as bindings (positive cases keep working)', () => {
+  // `color=` is a documented parameter of plot and label.new; `color c` a type annotation.
+  assertFix(`${HEAD}label.new(bar_index, high, "x", color=color.red)\ncolor c = color.purplee\nplot(close, color=c)\n`,
+    byMessage(/'purplee'/), 'Change to color.purple');
+  assertFix(`${HEAD}plotshape(true, shape=shape.circle)\n`,
+    byMessage(/Invalid parameter "shape"/), 'Rename parameter to style',
+    `${HEAD}plotshape(true, style=shape.circle)\n`);
+});
+
 test('shadowed namespace (Palette color): stale misspelling diagnostic gets no action', () => {
   const before = '//@version=6\nindicator("qf")\ntype Palette\n    float purplee\nPalette pal__ = Palette.new(1.0)\nx = color.purplee\nplot(x)\n';
   const after = before.replace('Palette pal__ = ', 'Palette color = ');
