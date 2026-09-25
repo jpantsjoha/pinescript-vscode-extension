@@ -82,6 +82,7 @@ const vscodeMock = {
   ParameterInformation,
   CompletionItemKind: { Function: 1, Variable: 2, Keyword: 3, Module: 4, Color: 5, Constant: 6, Field: 7 },
   CompletionTriggerKind,
+  CodeActionKind: { QuickFix: 'quickfix' },
   ConfigurationTarget: { Workspace: 2 },
   ViewColumn: { Beside: 2 },
   DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
@@ -99,6 +100,7 @@ const vscodeMock = {
     registerDocumentFormattingEditProvider: () => disposable,
     registerHoverProvider: () => disposable,
     registerSignatureHelpProvider: () => disposable,
+    registerCodeActionsProvider: () => disposable,
     createDiagnosticCollection: () => ({ set() {}, dispose() {} }),
     registerCompletionItemProvider: (_lang, provider) => {
       captured.completionProvider = provider;
