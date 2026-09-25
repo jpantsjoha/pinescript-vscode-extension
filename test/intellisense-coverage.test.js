@@ -24,8 +24,10 @@ const { PINE_FUNCTIONS_MERGED } = require('../dist/v6/parameter-requirements-mer
 
 const REF_KEYS = Object.keys(PINE_FUNCTIONS_MERGED);
 
-test('every PINE_FUNCTIONS_MERGED key yields a completion entry', () => {
-  const topLevel = new Set(getAllCompletionData().map(d => d.label));
+test('every PINE_FUNCTIONS_MERGED key yields a FUNCTION completion entry', () => {
+  // Function kind, not just the label: `time` is also a variable, and a variable
+  // entry alone must not count as function coverage.
+  const topLevel = new Set(getAllCompletionData().filter(d => d.kind === 'function').map(d => d.label));
   const missing = [];
   for (const key of REF_KEYS) {
     const dot = key.lastIndexOf('.');
@@ -34,7 +36,7 @@ test('every PINE_FUNCTIONS_MERGED key yields a completion entry', () => {
     } else {
       const ns = key.slice(0, dot);
       const member = key.slice(dot + 1);
-      const labels = new Set(getNamespaceCompletionData(ns).map(d => d.label));
+      const labels = new Set(getNamespaceCompletionData(ns).filter(d => d.kind === 'function').map(d => d.label));
       if (!labels.has(member)) missing.push(key);
     }
   }
