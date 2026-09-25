@@ -141,6 +141,9 @@ export class AccurateValidator {
       stmtStart = stmtEnd + 1;
     }
 
+    // Issue #12: declared type vs a direct input.*() call on the right-hand side.
+    this.checkInputDeclarationTypes(cleanedLines);
+
     // Second pass: validate function calls and undefined references
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -1334,6 +1337,94 @@ export class AccurateValidator {
           Severity.Warning
         );
       }
+    }
+  }
+
+  /**
+   * Issue #12 — a declared type that cannot hold what a DIRECT `input.*()` call
+   * returns: `int factor = input.float(0.7, "Factor")` fails to compile on
+   * TradingView (float cannot be assigned to int) but was silent here.
+   *
+   * Deliberately narrow (no AST, no type inference). Fires only when ALL hold:
+   *   - the statement starts with `[var|varip] [const|simple|series|input] <T> <name> =`
+   *     where <T> is one of the five value keywords int/float/bool/color/string
+   *     (UDTs, enums and generics such as `array<int>` are never judged);
+   *   - the whole right-hand side is one `input.<fn>(...)` call: nothing after the
+   *     closing paren but whitespace or a comment (strings and comments are already
+   *     blanked in `cleanedLines`). A ternary, arithmetic, any operator, or a
+   *     wrapping call such as `math.round(input.float(1))` keeps it silent;
+   *   - <fn> has a verified return type below (bare `input()` and `input.enum()`
+   *     are skipped: their type depends on the argument);
+   *   - the line is not a field inside a `type` block.
+   * Wrapped calls are judged on the joined statement (`wrappedStatementEnd`).
+   *
+   * Return types: official v6 reference, https://www.tradingview.com/pine-script-reference/v6/
+   * (syntax lines as crawled into data/parameter-requirements-generated.ts on
+   * 2026-09-23; corroborated by https://www.tradingview.com/pine-script-docs/concepts/inputs/):
+   *   #fun_input.int → input int          #fun_input.float → input float
+   *   #fun_input.bool → input bool        #fun_input.color → input color
+   *   #fun_input.string → input string    #fun_input.text_area → input string
+   *   #fun_input.timeframe → input string #fun_input.session → input string
+   *   #fun_input.symbol → input string    #fun_input.source → series float
+   *   #fun_input.price → input float      #fun_input.time → input int
+   *
+   * Casting: https://www.tradingview.com/pine-script-docs/language/type-system/#type-casting
+   * "The automatic type-casting process can cast 'int' values to the 'float' type
+   * when necessary" and "There is no automatic rule to cast 'float' to 'int'"; other
+   * conversions need int()/float()/bool()/color()/string(), and "Pine Script does not
+   * automatically convert other types to the 'bool' type". So int→float is the ONLY
+   * mismatch that stays silent; every other one is a compile error.
+   */
+  private checkInputDeclarationTypes(cleanedLines: string[]): void {
+    const INPUT_RETURN_TYPES: Record<string, string> = {
+      int: 'int', float: 'float', bool: 'bool', color: 'color',
+      string: 'string', text_area: 'string', timeframe: 'string',
+      session: 'string', symbol: 'string', source: 'float',
+      price: 'float', time: 'int',
+    };
+    const DECL = /^\s*(?:(?:var|varip)\s+)?(?:(?:const|simple|series|input)\s+)?(int|float|bool|color|string)\s+[A-Za-z_]\w*\s*=\s*(input\.([A-Za-z_]\w*))\s*\(/;
+    let inTypeBlock = false;
+    let start = 0;
+    while (start < cleanedLines.length) {
+      const end = this.wrappedStatementEnd(cleanedLines, start);
+      const first = cleanedLines[start];
+      // A column-0 statement opens or closes a `type` block; indented lines
+      // after `type Name` are field declarations and are never judged.
+      if (/^\S/.test(first)) {
+        inTypeBlock = /^(?:export\s+)?type\s+[A-Za-z_]/.test(first);
+      }
+      const m = inTypeBlock ? null : DECL.exec(first);
+      const declared = m ? m[1] : '';
+      const returned = m ? INPUT_RETURN_TYPES[m[3]] : undefined;
+      if (m && returned && declared !== returned &&
+          !(declared === 'float' && returned === 'int')) {
+        const joined = end === start ? first : cleanedLines.slice(start, end + 1).join(' ');
+        // Balance-scan from the call's `(` to its matching `)`: the call must be
+        // the entire right-hand side.
+        let depth = 0;
+        let close = -1;
+        for (let k = m[0].length - 1; k < joined.length; k++) {
+          const ch = joined[k];
+          if (ch === '(' || ch === '[') depth++;
+          else if (ch === ')' || ch === ']') {
+            depth--;
+            if (depth === 0) { close = k; break; }
+          }
+        }
+        if (close !== -1 && joined.slice(close + 1).trim() === '') {
+          this.addError(
+            start + 1,
+            m[0].indexOf(m[2]),
+            m[2].length,
+            `Cannot assign "${m[2]}" (${returned}) to a variable declared "${declared}". ` +
+            (declared === 'int' && returned === 'float'
+              ? 'Pine never casts float to int automatically: declare it "float", use input.int(), or wrap the call in int() or math.round().'
+              : `Declare the variable "${returned}" or use the input function that returns ${declared}.`),
+            Severity.Error
+          );
+        }
+      }
+      start = end + 1;
     }
   }
 
