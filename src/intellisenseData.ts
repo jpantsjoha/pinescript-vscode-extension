@@ -676,6 +676,22 @@ export function getHoverData(symbol: string): HoverData | undefined {
  * string literals, comments, and any call already closed, so `str.format("{0}, {1}", ta.sma(x, 1), `
  * resolves to `str.format`, not to nothing. Returns the name and the index of its '('.
  */
+// Hoisted matchers (PR #51 review, finding 10): these run on every keystroke —
+// openCallAt's call-name pattern ran once per '(' met in the backward scan —
+// so they are compiled once at module load instead of per scan/per call.
+const STRING_LITERAL_RE = /"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?/g;
+const CALL_NAME_TYPE = '[A-Za-z_][\\w.]*(?:<[A-Za-z_][\\w.]*(?:\\s*,\\s*[A-Za-z_][\\w.]*)*>)?';
+const CALL_NAME_GENERIC = `(?:<\\s*${CALL_NAME_TYPE}(?:\\s*,\\s*${CALL_NAME_TYPE})*\\s*>)?`;
+const CALL_NAME_RE = new RegExp(`([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*(${CALL_NAME_GENERIC})\\s*$`);
+const GENERIC_CTOR_RE = /^(?:array|matrix|map)\.new$/;
+const LEADING_UP_TO_PAREN_RE = /^[^(]*\(/;
+const PARAM_NAME_RE = /^[A-Za-z_]\w*$/;
+const DEFINITION_HEAD_RE = /^\s*(?:(?:method|export)\s+)*[A-Za-z_]\w*\s*$/;
+const NAMED_SEGMENT_RE = /^\s*([A-Za-z_]\w*)\s*=(?![=>])/;
+// `name=` followed by an optional typed value prefix (`style=`, `style=sh`,
+// `style=shape.ci`). `==`/`=>` never match: the prefix class excludes `=>`.
+const NAME_VALUE_RE = /([A-Za-z_]\w*)\s*=\s*([A-Za-z0-9_.]*)$/;
+
 function openCallAt(beforeCursor: string): { name: string; open: number } | null {
   // Blank string contents and comments (keeping length) so their parens and
   // commas are inert.
@@ -695,13 +711,11 @@ function openCallAt(beforeCursor: string): { name: string; open: number } | null
       // paren, `ta.sma((close + open`; keep scanning outward for the call.
       // The generic list must be type names only (`<float>`, `<string, array<float>>`),
       // so a comparison such as `dayofmonth < 15 ? high > (` is never read as one.
-      const TYPE = '[A-Za-z_][\\w.]*(?:<[A-Za-z_][\\w.]*(?:\\s*,\\s*[A-Za-z_][\\w.]*)*>)?';
-      const GENERIC = `(?:<\\s*${TYPE}(?:\\s*,\\s*${TYPE})*\\s*>)?`;
-      const m = text.slice(0, i).match(new RegExp(`([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*(${GENERIC})\\s*$`));
+      const m = text.slice(0, i).match(CALL_NAME_RE);
       // Only Pine's generic constructors take a type list; anything else followed
       // by `<...>` is a comparison (`dayofmonth < high > (`), so this '(' is a
       // grouping paren and the scan continues outward.
-      if (m && (!m[2] || /^(?:array|matrix|map)\.new$/.test(m[1]))) return { name: m[1], open: i };
+      if (m && (!m[2] || GENERIC_CTOR_RE.test(m[1]))) return { name: m[1], open: i };
     }
   }
   return null;
@@ -720,8 +734,8 @@ export function findFunctionCallName(line: string, character: number): string | 
  */
 export function calculateActiveParameter(text: string): number {
   const call = openCallAt(text);
-  const inner = call ? text.slice(call.open + 1) : text.replace(/^[^(]*\(/, '');
-  const blanked = inner.replace(/"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?/g, m => ' '.repeat(m.length));
+  const inner = call ? text.slice(call.open + 1) : text.replace(LEADING_UP_TO_PAREN_RE, '');
+  const blanked = inner.replace(STRING_LITERAL_RE, m => ' '.repeat(m.length));
   let depth = 0;
   let paramIndex = 0;
   for (const ch of blanked) {
@@ -755,10 +769,19 @@ export interface ParameterInfo {
  * Every parameter of a function in declaration order, unioned across all
  * overloads (`line.new` yields first_point/second_point AND x1..y2), with the
  * per-parameter type/description the reference carries where available.
+ * REFERENCE is static, so results are memoized per function name (PR #51
+ * review, finding 10) — repeat calls return the identical array.
  */
+const PARAMETER_INFO_CACHE = new Map<string, ParameterInfo[]>();
+
 export function getParameterInfo(functionName: string): ParameterInfo[] {
+  const cached = PARAMETER_INFO_CACHE.get(functionName);
+  if (cached) return cached;
   const entry = REFERENCE[functionName];
-  if (!entry) return [];
+  if (!entry) {
+    PARAMETER_INFO_CACHE.set(functionName, []);
+    return PARAMETER_INFO_CACHE.get(functionName)!;
+  }
   const docs = new Map<string, { type?: string; description?: string }>();
   for (const p of entry.parameters || []) docs.set(p.name, { type: p.type, description: p.description });
   const required = new Set(entry.requiredParams || []);
@@ -766,7 +789,7 @@ export function getParameterInfo(functionName: string): ParameterInfo[] {
   const seen = new Set<string>();
   const add = (n: string) => {
     // Signature fragments like `...` or `source?` are not parameter names.
-    if (/^[A-Za-z_]\w*$/.test(n) && !seen.has(n)) { seen.add(n); names.push(n); }
+    if (PARAM_NAME_RE.test(n) && !seen.has(n)) { seen.add(n); names.push(n); }
   };
   const signatures = entry.overloads && entry.overloads.length > 0
     ? entry.overloads.map(o => o.signature)
@@ -778,7 +801,9 @@ export function getParameterInfo(functionName: string): ParameterInfo[] {
   // complete name inventory (plot: trackprice, histbase, ...).
   for (const n of entry.requiredParams || []) add(n);
   for (const n of entry.optionalParams || []) add(n);
-  return names.map(name => ({ name, required: required.has(name), ...docs.get(name) }));
+  const info = names.map(name => ({ name, required: required.has(name), ...docs.get(name) }));
+  PARAMETER_INFO_CACHE.set(functionName, info);
+  return info;
 }
 
 /**
@@ -790,7 +815,7 @@ export function getParameterInfo(functionName: string): ParameterInfo[] {
  * string at the cursor is blanked as well.
  */
 function blankStringsAndCommentsBeforeCursor(text: string): string {
-  const noStrings = text.replace(/"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?/g, m => m[0] + ' '.repeat(Math.max(0, m.length - 1)));
+  const noStrings = text.replace(STRING_LITERAL_RE, m => m[0] + ' '.repeat(Math.max(0, m.length - 1)));
   const comment = noStrings.indexOf('//');
   return comment < 0 ? noStrings : noStrings.slice(0, comment) + ' '.repeat(noStrings.length - comment);
 }
@@ -823,7 +848,7 @@ function isInsideStringOrComment(beforeCursor: string): boolean {
  */
 function isDefinitionHead(line: string, open: number): boolean {
   const blanked = blankStringsAndCommentsBeforeCursor(line);
-  if (!/^\s*(?:(?:method|export)\s+)*[A-Za-z_]\w*\s*$/.test(blanked.slice(0, open))) return false;
+  if (!DEFINITION_HEAD_RE.test(blanked.slice(0, open))) return false;
   return blanked.includes('=>');
 }
 
@@ -844,7 +869,7 @@ function argsBeforeCursor(inner: string): { named: Set<string>; positional: numb
   let current = '';
   let currentRaw = '';
   const scan = (segment: string, raw: string) => {
-    const m = segment.match(/^\s*([A-Za-z_]\w*)\s*=(?![=>])/);
+    const m = segment.match(NAMED_SEGMENT_RE);
     if (m) named.add(m[1]);
     else if (raw.trim()) positional++;
   };
@@ -887,7 +912,7 @@ function positionallyFilledParams(functionName: string, positional: number): Set
     const variadic = fragments.some(f => f.trim() === '...');
     const params = fragments
       .map(paramName)
-      .filter(n => /^[A-Za-z_]\w*$/.test(n));
+      .filter(n => PARAM_NAME_RE.test(n));
     for (const n of params) inAnySignature.add(n);
     if (!variadic && params.length < positional) continue; // disqualified: cannot accept this many positional args
     anyFit = true;
@@ -927,15 +952,16 @@ export function getNamedParameterCompletions(line: string, character: number): C
 }
 
 /**
- * True when the cursor sits directly after `name =` (optional spaces around
- * `=`) inside a call's argument list — a value position, where only value
- * completions (possibly none) apply. `==`/`=>` never match, and neither does
- * an assignment outside a call (`x = ⎸` keeps the ordinary completions).
+ * True when the cursor sits after `name =` (optional spaces around `=`,
+ * optional typed value prefix: `style=`, `style=sh`, `style=shape.ci`) inside
+ * a call's argument list — a value position, where only value completions
+ * (possibly none) apply. `==`/`=>` never match, and neither does an
+ * assignment outside a call (`x = ⎸` keeps the ordinary completions).
  */
 export function isNamedArgumentValuePosition(line: string, character: number): boolean {
   const beforeCursor = line.substring(0, character);
   if (isInsideStringOrComment(beforeCursor)) return false;
-  if (!/[A-Za-z_]\w*\s*=\s*$/.test(beforeCursor)) return false;
+  if (!NAME_VALUE_RE.test(beforeCursor)) return false;
   return openCallAt(beforeCursor) !== null;
 }
 
@@ -970,28 +996,39 @@ const PARAM_CONSTANT_NAMESPACES: Record<string, ConstantNamespaceSpec[]> = {
  * `style` means a different constant namespace per function: shape.* for the
  * plotshape family, plot.style_* for plot, line.style_* for line.new, ...
  * Functions not listed offer nothing for `style=` — a wrong constant is
- * worse than none.
+ * worse than none. Every entry is verified against the v6 reference:
+ * plotchar (char/location/size) and plotarrow (colorup/colordown/...) take
+ * NO style parameter and must never appear here (PR #51 review, finding 9).
  */
-const STYLE_CONSTANT_NAMESPACES: Record<string, ConstantNamespaceSpec[]> = {
+export const STYLE_CONSTANT_NAMESPACES: Record<string, ConstantNamespaceSpec[]> = {
   plot: [{ ns: 'plot', prefix: 'style_' }],
   plotshape: [{ ns: 'shape' }],
-  plotchar: [{ ns: 'shape' }],
-  plotarrow: [{ ns: 'shape' }],
   'line.new': [{ ns: 'line', prefix: 'style_' }],
   'label.new': [{ ns: 'label', prefix: 'style_' }],
 };
 
 /**
- * Constant completions for the value position right after `name=` inside a
- * call (`plotshape(cond, style=⎸` → shape.circle, shape.triangleup, ...).
- * Empty when the cursor is not after a `name=`, when the name is not a
- * parameter of the open function, or when the parameter has no known
- * constant namespace.
+ * The value prefix typed after `name=` at the cursor (`style=sh` → `sh`),
+ * `''` when nothing is typed or the cursor is not after a `name=`. The
+ * completion layer uses it for the replacement range.
+ */
+export function getNamedArgumentValuePrefix(line: string, character: number): string {
+  const m = line.substring(0, character).match(NAME_VALUE_RE);
+  return m ? m[2] : '';
+}
+
+/**
+ * Constant completions for the value position after `name=` inside a call
+ * (`plotshape(cond, style=⎸` → shape.circle, shape.triangleup, ...). A typed
+ * prefix (`style=sh`, `style=shape.ci`) still returns the full namespace —
+ * the editor filters it by the prefix (PR #51 review, finding 8). Empty when
+ * the cursor is not after a `name=`, when the name is not a parameter of the
+ * open function, or when the parameter has no known constant namespace.
  */
 export function getNamedArgumentValueCompletions(line: string, character: number): CompletionData[] {
   const beforeCursor = line.substring(0, character);
   if (isInsideStringOrComment(beforeCursor)) return [];
-  const m = beforeCursor.match(/([A-Za-z_]\w*)\s*=\s*$/);
+  const m = beforeCursor.match(NAME_VALUE_RE);
   if (!m) return [];
   const call = openCallAt(beforeCursor);
   if (!call) return [];

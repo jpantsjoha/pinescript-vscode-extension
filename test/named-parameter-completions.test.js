@@ -264,3 +264,78 @@ test('finding 6: a `name(` line WITHOUT => is treated as a call (documented rule
   const body = 'f(x) => plot(x, ';
   assert.ok(labels(getNamedParameterCompletions(body, body.length)).includes('title='), `${body}⎸ is a call in the body`);
 });
+
+// Finding 8: constant value completions must survive a typed prefix. VS Code
+// filters the offered items by the word range; the data layer must still
+// return the namespace constants once any characters follow `name=`.
+test('finding 8: a typed prefix after name= still offers the namespace constants', () => {
+  for (const line of ['plotshape(close, style=sh', 'plotshape(close, style=shape.ci']) {
+    const names = labels(getNamedArgumentValueCompletions(line, line.length));
+    assert.ok(names.includes('shape.circle'), `${line}⎸ should offer shape.circle, got: ${names.join(', ')}`);
+    assert.ok(names.includes('shape.triangleup'), `${line}⎸ should offer shape.triangleup, got: ${names.join(', ')}`);
+  }
+  // A fully typed value still counts (the user may re-trigger suggest).
+  const full = 'plotshape(close, style=shape.circle';
+  assert.ok(labels(getNamedArgumentValueCompletions(full, full.length)).includes('shape.circle'), 'fully typed value still offers constants');
+});
+
+test('finding 8: a typed value prefix is still a value position — no parameter names offered', () => {
+  const line = 'plotshape(close, style=sh';
+  assert.ok(isNamedArgumentValuePosition(line, line.length), `${line}⎸ is a value position`);
+  assert.deepStrictEqual(getNamedParameterCompletions(line, line.length), [], `${line}⎸ must not offer parameter names`);
+});
+
+test('finding 8: == / => comparisons are never a value position, even with a prefix', () => {
+  for (const line of ['plot(close == sh', 'plot(close, x == 1', 'f(x) => x']) {
+    assert.ok(!isNamedArgumentValuePosition(line, line.length), `${line}⎸ is not a name= value position`);
+  }
+});
+
+// Finding 9: STYLE_CONSTANT_NAMESPACES must only map functions that actually
+// take a `style` parameter in the v6 reference. plotchar takes
+// char/location/size and plotarrow takes colorup/colordown/minheight/
+// maxheight — neither takes style, so neither may map style= to shape.*.
+test('finding 9: every style= mapping is backed by a style parameter in the v6 reference', () => {
+  const { STYLE_CONSTANT_NAMESPACES, getParameterInfo } = require('../dist/src/intellisenseData.js');
+  assert.ok(STYLE_CONSTANT_NAMESPACES, 'STYLE_CONSTANT_NAMESPACES must be exported so the mappings can be audited');
+  for (const fn of Object.keys(STYLE_CONSTANT_NAMESPACES)) {
+    assert.ok(
+      getParameterInfo(fn).some(p => p.name === 'style'),
+      `${fn} is mapped for style= but the v6 reference lists no style parameter for it`,
+    );
+  }
+});
+
+test('finding 9: plotchar/plotarrow are not in the style= map (reference has no style parameter for them)', () => {
+  const { STYLE_CONSTANT_NAMESPACES, getParameterInfo } = require('../dist/src/intellisenseData.js');
+  assert.ok(!getParameterInfo('plotchar').some(p => p.name === 'style'), 'reference check: plotchar has no style parameter');
+  assert.ok(!getParameterInfo('plotarrow').some(p => p.name === 'style'), 'reference check: plotarrow has no style parameter');
+  assert.ok(STYLE_CONSTANT_NAMESPACES && !('plotchar' in STYLE_CONSTANT_NAMESPACES), 'plotchar must not map style= to shape.*');
+  assert.ok(STYLE_CONSTANT_NAMESPACES && !('plotarrow' in STYLE_CONSTANT_NAMESPACES), 'plotarrow must not map style= to shape.*');
+});
+
+test('finding 9: plotchar(…, style= and plotarrow(…, style= offer no shape.* constants', () => {
+  for (const line of ['plotchar(close, style=', 'plotchar(close, style=sh', 'plotarrow(close, style=', 'plotarrow(close, style=sh']) {
+    assert.deepStrictEqual(getNamedArgumentValueCompletions(line, line.length), [], `${line}⎸ must offer nothing — no style parameter`);
+  }
+});
+
+// Finding 10: REFERENCE is static, so getParameterInfo(functionName) must be
+// memoized — repeat calls return the identical array, no re-parsing.
+test('finding 10: getParameterInfo is memoized per function name', () => {
+  const { getParameterInfo } = require('../dist/src/intellisenseData.js');
+  assert.strictEqual(getParameterInfo('plot'), getParameterInfo('plot'), 'repeat calls return the identical (cached) array');
+  assert.strictEqual(getParameterInfo('no.such.function'), getParameterInfo('no.such.function'), 'the empty result is cached too');
+});
+
+// Finding 10: per-keystroke budget. 1,000 completions on a typical line must
+// stay far below a frame; a generous 200 ms bound only trips on a real
+// regression (baseline before the regex/memoization fixes: ~10 ms).
+test('finding 10: 1,000 getNamedParameterCompletions calls finish well under 200 ms', () => {
+  const line = 'plot(close, title="t", ';
+  for (let i = 0; i < 100; i++) getNamedParameterCompletions(line, line.length); // warm up
+  const t0 = process.hrtime.bigint();
+  for (let i = 0; i < 1000; i++) getNamedParameterCompletions(line, line.length);
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  assert.ok(ms < 200, `1,000 calls took ${ms.toFixed(1)} ms (bound: 200 ms)`);
+});

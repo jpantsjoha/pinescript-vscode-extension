@@ -115,7 +115,7 @@ export function activate(context: vscode.ExtensionContext) {
           // Typed/invoked completion falls through to the full logic below.
           if (context.triggerKind === vscode.CompletionTriggerKind.TriggerCharacter &&
               (context.triggerCharacter === '(' || context.triggerCharacter === ',')) {
-            return getTriggerCharacterCompletionItems(line, position.character);
+            return getTriggerCharacterCompletionItems(line, position.character, position.line);
           }
 
           // Check if we're completing after a namespace dot. Identifiers may
@@ -144,16 +144,18 @@ export function activate(context: vscode.ExtensionContext) {
           const items = getAllCompletions();
 
           // Named-argument context (issue #13): inside a call, lead with the
-          // function's parameter names as `name=` items; right after a
-          // `name=` whose values come from a constant namespace, lead with
-          // those constants instead (a value goes there, not another name).
-          const valueItems = getNamedArgumentValueItems(line, position.character);
+          // function's parameter names as `name=` items; after a `name=` whose
+          // values come from a constant namespace (even with a typed prefix),
+          // lead with those constants instead (a value goes there, not
+          // another name).
+          const valueItems = getNamedArgumentValueItems(line, position.character, position.line);
           if (valueItems.length > 0) {
             items.unshift(...valueItems);
           } else if (isNamedArgumentValuePosition(line, position.character)) {
-            // Cursor directly after `name =` inside a call: only a value
-            // belongs here, and this parameter has no known constants — offer
-            // nothing rather than parameter names (PR #51 review, finding 2).
+            // Cursor after `name =` (or a typed value prefix) inside a call:
+            // only a value belongs here, and this parameter has no known
+            // constants — offer nothing rather than parameter names (PR #51
+            // review, finding 2).
             return [];
           } else {
             items.unshift(...getNamedParameterCompletionItems(line, position.character));
