@@ -115,8 +115,26 @@ export class AccurateValidator {
     // block gets parsed as an identifier and the unbalanced quotes desynchronise
     // single-line string stripping for the rest of the file.
     const lines = this.blankMultilineStrings(text).split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      this.collectDeclaredVariables(lines[i]);
+    // Cleaned per-line text (strings and comments blanked, positions preserved).
+    // Bracket depth is tracked on THIS text, so a bracket inside a string or
+    // comment never makes a complete statement look wrapped.
+    const cleanedLines = lines.map(l => this.removeComments(this.removeStringLiterals(l)));
+    // First pass: collect declarations per STATEMENT, not per physical line.
+    // Pine allows wrapping anywhere inside () and [], so a statement whose
+    // brackets are still open continues on the next lines (issue #42): a wrapped
+    // method header still declares its name and parameters, and a wrapped tuple
+    // still declares its names. Lines interior to a wrap are not statement
+    // starts — a `name=` there is a named argument, not a declaration, so
+    // `plot(\n close,\n color=color.purplee)` still checks the misspelled
+    // constant instead of "declaring" color.
+    let stmtStart = 0;
+    while (stmtStart < lines.length) {
+      const stmtEnd = this.wrappedStatementEnd(cleanedLines, stmtStart);
+      this.collectDeclaredVariables(
+        stmtEnd === stmtStart
+          ? lines[stmtStart]
+          : cleanedLines.slice(stmtStart, stmtEnd + 1).join(' '));
+      stmtStart = stmtEnd + 1;
     }
 
     // Second pass: validate function calls and undefined references
@@ -133,8 +151,8 @@ export class AccurateValidator {
       // Remove string literals AND inline comments to avoid false positives on their
       // content (e.g. a word followed by "(" inside a `// comment` was flagged as an
       // undefined function). Strings are blanked first, so a "//" left over is a real
-      // comment, not part of a URL inside a string.
-      const lineWithoutStrings = this.removeComments(this.removeStringLiterals(line));
+      // comment, not part of a URL inside a string. Computed once above for every line.
+      const lineWithoutStrings = cleanedLines[i];
 
       // Check undefined namespaces (e.g., ssss.adas)
       this.checkUndefinedNamespaces(lineWithoutStrings, lineNum);
@@ -169,15 +187,44 @@ export class AccurateValidator {
       //     x = ta.sma(close, 14)  // previously ta.sma(close, 14, 99)
       // reported "Too many arguments" against the comment. Blanking preserves
       // length, so reported columns still point at the right character.
+      // `wrapped` is the whole statement when this line's brackets stay open
+      // (issue #42): a call whose parens close on a later line is arity-checked
+      // against the joined text instead of being skipped.
+      const stmtEnd = this.wrappedStatementEnd(cleanedLines, i);
+      const wrapped = stmtEnd === i ? lineWithoutStrings : cleanedLines.slice(i, stmtEnd + 1).join(' ');
       for (const funcName of this.extractCalledFunctionNames(lineWithoutStrings)) {
         const spec = (ALL_FUNCTION_SIGNATURES as any)[funcName];
         if (spec) {
-          this.validateFunctionCall(lineWithoutStrings, lineNum, funcName, spec);
+          this.validateFunctionCall(lineWithoutStrings, lineNum, funcName, spec, wrapped);
         }
       }
     }
 
     return this.errors;
+  }
+
+  /**
+   * Index of the last line of the statement starting at `start`. A statement
+   * whose brackets are still open at end of line continues on the following
+   * lines — Pine allows wrapping anywhere inside () and [] (issue #42). Depth
+   * is tracked on the CLEANED lines, so a bracket inside a string or comment
+   * never extends the statement. When brackets balance on the line itself its
+   * own index comes back: nothing is joined across lines when brackets balance.
+   */
+  private wrappedStatementEnd(cleanedLines: string[], start: number): number {
+    let depth = 0;
+    for (let end = start; end < cleanedLines.length; end++) {
+      const cleaned = cleanedLines[end];
+      for (let i = 0; i < cleaned.length; i++) {
+        const ch = cleaned[i];
+        if (ch === '(' || ch === '[') depth++;
+        else if (ch === ')' || ch === ']') depth--;
+      }
+      if (depth <= 0) return end;
+    }
+    // The brackets never close (broken code): the statement runs to EOF. The
+    // arity check still finds no closing paren on the joined text and skips.
+    return cleanedLines.length - 1;
   }
 
   /**
@@ -771,7 +818,8 @@ export class AccurateValidator {
     line: string,
     lineNum: number,
     functionName: string,
-    spec: any
+    spec: any,
+    wrappedLine?: string
   ): void {
     // Skip type names - they're not functions
     if (TYPE_NAMES.has(functionName)) {
@@ -790,9 +838,16 @@ export class AccurateValidator {
     let match;
     while ((match = regex.exec(line)) !== null) {
       const openParenIndex = match.index + match[0].length - 1;
-      const argsString = this.extractBalancedArgs(line, openParenIndex);
-      // null = the call's parens don't close on this line (multi-line call) — skip
-      // count validation here to avoid false positives.
+      let argsString = this.extractBalancedArgs(line, openParenIndex);
+      if (argsString === null && wrappedLine) {
+        // The call's parens do not close on this line (issue #42): retry against
+        // the whole wrapped statement. The joined text starts with this line
+        // verbatim, so openParenIndex and the reported column still point at the
+        // same character on the original physical line.
+        argsString = this.extractBalancedArgs(wrappedLine, openParenIndex);
+      }
+      // null = the call's parens never close even across the wrapped statement —
+      // skip count validation here to avoid false positives.
       if (argsString === null) {
         continue;
       }

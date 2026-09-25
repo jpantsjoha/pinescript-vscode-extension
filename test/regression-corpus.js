@@ -773,6 +773,91 @@ const CASES = [
       'The declared-variables exemption in the unknown-namespace branch is what keeps them ' +
       'silent once the \'=\' skip no longer does.',
   },
+  //────────────────────────────────────────────────────────
+  // #42 — statements wrapped across lines inside open brackets
+  //────────────────────────────────────────────────────────
+  {
+    name: '#42: a wrapped method header still declares the method and this',
+    code: IND + 'type Foo\n    float x\nmethod m(\n    Foo this\n) =>\n    this.x\nf = Foo.new(1.0)\nplot(m(f))\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Declarations were collected one physical line at a time, so a header whose parens ' +
+      'close on a later line matched nothing: the body\'s this.x reported "Undefined ' +
+      'namespace or variable \'this\'" and every call reported "Undefined function \'m\'" — ' +
+      'two false positives on the documented method syntax.',
+  },
+  {
+    name: '#42: a wrapped function header still declares a UDT parameter',
+    code: IND + 'type Pt\n    float x\ngetX(\n    Pt p\n) =>\n    p.x\nplot(getX(Pt.new(1.0)))\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Same defect, plain-function form: the parameter list never matched the fnDef pattern ' +
+      'when split across lines, so p.x in the body was "Undefined namespace or variable ' +
+      '\'p\'" on code that compiles clean.',
+  },
+  {
+    name: '#42: a wrapped tuple destructuring still declares every name',
+    code: IND + 'type Pt\n    float x\ngetCoords() =>\n    [Pt.new(1.0), 2.0]\n[pt,\n count] = getCoords()\nplot(pt.x + count)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'The tuple pattern needed [ and ] on one line, so a wrapped destructuring bound ' +
+      'nothing and pt.x was flagged "Undefined namespace or variable \'pt\'" — the issue\'s ' +
+      'own example.',
+  },
+  {
+    name: '#42: a wrapped call with named arguments spanning lines stays silent',
+    code: IND + 'plot(\n    close,\n    color=color.red)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'The normal way to format a long plot call. Joining the statement must not turn the ' +
+      'named argument into a declaration (which would exempt the namespace) nor into an ' +
+      'unknown-name error — the member check still applies to the value.',
+  },
+  {
+    name: '#42: a wrapped request.security with every argument stays silent',
+    code: IND + 'x = request.security(\n    syminfo.tickerid,\n    "W",\n    close,\n    barmerge.gaps_off,\n    barmerge.lookahead_off)\nplot(x)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'request.security is the function most often wrapped in real scripts. Once arity runs ' +
+      'on the joined statement, the full five-argument form must prove it still passes — ' +
+      'otherwise the fix trades missed errors for false positives.',
+  },
+  {
+    name: '#42: a wrapped ONE-argument request.security is an arity error',
+    code: IND + 'x = request.security(\n     "FRED:WTREGEN")\nplot(x)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'The missed error behind the issue: extractBalancedArgs returned null when the parens ' +
+      'did not close on one line, so arity was skipped — the gap was pinned as a known limit ' +
+      'in test/request-arity.test.js until this fix flipped it.',
+  },
+  {
+    name: '#42: a wrapped ta.sma missing its length is an arity error',
+    code: IND + 's = ta.sma(\n    close)\nplot(s)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Paired "still flags" for the join: arity on wrapped calls is only worth having if it ' +
+      'catches the ordinary case — one argument where two are required — not just the issue\'s ' +
+      'own request.security example.',
+  },
+  {
+    name: '#42: a misspelled constant stays flagged when the call is wrapped',
+    code: IND + 'plot(\n    close,\n    color=color.purplee)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'A named argument at the start of a continuation line looked like a statement-level ' +
+      'declaration, landing color in declaredLocals and exempting color.purplee from the ' +
+      'member check. Lines interior to a wrap are not statement starts, so the #37 check ' +
+      'must keep biting inside wrapped calls.',
+  },
 ];
 
 /**
