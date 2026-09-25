@@ -1,8 +1,19 @@
 # Project Status
 
 **Updated**: 2026-09-25
-**Marketplace version**: 0.6.4 · **Open VSX**: 0.6.4 (first publish, 2026-09-24) · **0.6.5 in release review**
+**Marketplace version**: 0.6.5 · **Open VSX**: 0.6.5 (released 2026-09-25, tag `v0.6.5` on `166a268`)
 **Engine on npm**: `pinescript-v6-validator@0.4.1` (`npm view pinescript-v6-validator version`); the extension depends on `^0.4.1`.
+
+## 2026-09-25: 0.6.5 released
+
+PR #52 merged as `166a268` (tree identical to the reviewed `8a5294e`). Independent
+review took three rounds: DO NOT RELEASE on main, conditions on `8ddb72d` and
+`a71b138`, then APPROVE FOR RELEASE with no conditions. The exact-candidate VSIX was
+built from a clean export, extracted and executed. Publish run `36168618011`: credential
+preflight, tests, package, Marketplace, Open VSX and the GitHub release asset all passed.
+Last fixes: publishing checks both registry tokens first; completions track `"""`
+strings, including ones opened above the 30-line context window; keywords before `(`
+are never calls. `npm test` 578 tests · 577 pass · 1 skip · 0 fail.
 
 ## 2026-09-25: 0.6.5 release candidate
 
@@ -40,7 +51,7 @@ statements keep declarations and arity) is in review as PR #43. Main today: `npm
 | Signal | State |
 |---|---|
 | `npm test` | 578 tests · 577 pass · 1 skip · 0 fail |
-| `npm run audit` | 21 pass · 1 warn (no v0.6.5 tag yet) · 0 fail |
+| `npm run audit` | 22 pass · 0 warn · 0 fail |
 | Golden corpus | 4 tracked fixtures + 7 gitignored `examples/*.pine`, 0 errors |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) |
 | Diagnostic sources | AccurateValidator, documentChecks, engine semantic checks; the editor, `validate-cli.js` and the MCP server all run all three |
