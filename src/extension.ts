@@ -108,9 +108,8 @@ export function activate(context: vscode.ExtensionContext) {
           const beforeCursor = line.substring(0, position.character);
           // Argument-list analysis sees the statement's earlier lines too, so a
           // call wrapped across lines still gets named parameters and values.
-          const ctxLines: string[] = [];
-          for (let l = Math.max(0, position.line - 30); l <= position.line; l++) ctxLines.push(document.lineAt(l).text);
-          const ctx = statementContext(ctxLines, ctxLines.length - 1, position.character);
+          const docLines = document.getText(new vscode.Range(0, 0, position.line + 1, 0)).split(/\r?\n/);
+          const ctx = statementContext(docLines, position.line, position.character);
 
           // '(' and ',' are trigger characters, so this provider fires on every
           // paren and comma in the document (tuples, arrays, grouping, var

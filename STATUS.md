@@ -14,7 +14,7 @@ warning fires once instead of twice; a grouping `(` no longer opens the outer ca
 parameters; `time` and `array` complete under both kinds; completion and signature
 help read wrapped calls across lines. Gates tightened: null regression cases now fail
 on warnings too, committed fixtures must raise zero warnings, and the parity test now
-covers `accurateValidator`. `npm test` 577 tests · 576 pass · 1 skip · 0 fail;
+covers `accurateValidator`. `npm test` 578 tests · 577 pass · 1 skip · 0 fail;
 `npm run audit` 21 pass · 1 warn (tag not yet cut) · 0 fail. Diagnostics on all 21
 `.pine` files compared with v0.6.4: the only change is in the deliberately invalid
 `examples/test-validation.pine` (two constant typos warning → error, per #37).
@@ -39,7 +39,7 @@ statements keep declarations and arity) is in review as PR #43. Main today: `npm
 
 | Signal | State |
 |---|---|
-| `npm test` | 577 tests · 576 pass · 1 skip · 0 fail |
+| `npm test` | 578 tests · 577 pass · 1 skip · 0 fail |
 | `npm run audit` | 21 pass · 1 warn (no v0.6.5 tag yet) · 0 fail |
 | Golden corpus | 4 tracked fixtures + 7 gitignored `examples/*.pine`, 0 errors |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) |

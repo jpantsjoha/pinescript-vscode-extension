@@ -833,7 +833,7 @@ export function getParameterInfo(functionName: string): ParameterInfo[] {
  * quote and its contents become spaces, so lengths and offsets are preserved.
  * `state` is what the cursor (the end of the text) sits inside.
  */
-function scanStringsAndComments(text: string): { blanked: string; state: 'code' | 'string' | 'comment' } {
+function scanStringsAndComments(text: string): { blanked: string; state: 'code' | 'string' | 'comment'; quote: string; triple: boolean } {
   const out = text.split('');
   let state: 'code' | 'string' | 'comment' = 'code';
   let quote = '';
@@ -868,7 +868,7 @@ function scanStringsAndComments(text: string): { blanked: string; state: 'code' 
       out[i] = ' ';
     }
   }
-  return { blanked: out.join(''), state };
+  return { blanked: out.join(''), state, quote, triple };
 }
 
 function blankStringsAndCommentsBeforeCursor(text: string): string {
@@ -880,7 +880,10 @@ function blankStringsAndCommentsBeforeCursor(text: string): string {
  * line up to the cursor, preceded by up to `maxLines` earlier lines, so a call
  * wrapped across lines (`plot(\n    close,\n    |`) is still found. Known limit:
  * a call opened more than `maxLines` lines above the cursor is not found, so
- * completion falls back to the global list (a miss, never a wrong suggestion). Earlier
+ * completion falls back to the global list (a miss, never a wrong suggestion).
+ * Pass the document's lines from the top: the lines above the window are
+ * scanned (not analysed) so a `"""` string that opens above it and runs into
+ * it is still read as a string. Earlier
  * statements are balanced, so the backward scan passes over them. Pure: the
  * provider passes the document's lines.
  */
@@ -888,7 +891,12 @@ export function statementContext(lines: string[], lineIndex: number, character: 
   const start = Math.max(0, lineIndex - maxLines);
   const before = lines.slice(start, lineIndex);
   const current = (lines[lineIndex] || '').slice(0, character);
-  return before.length ? before.join('\n') + '\n' + current : current;
+  const window = before.length ? before.join('\n') + '\n' + current : current;
+  if (start === 0) return window;
+  // Carry a multiline string that is still open where the window starts: an
+  // opening triple quote on a line of its own puts the scan in the same state.
+  const above = scanStringsAndComments(lines.slice(0, start).join('\n') + '\n');
+  return above.state === 'string' && above.triple ? above.quote.repeat(3) + '\n' + window : window;
 }
 
 /**

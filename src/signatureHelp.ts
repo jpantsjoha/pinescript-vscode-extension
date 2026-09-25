@@ -9,9 +9,8 @@ export function createSignatureHelpProvider(): vscode.SignatureHelpProvider {
     provideSignatureHelp(document, position, token, context) {
       // Include the statement's earlier lines: a call wrapped across lines
       // (`plot(\n    close,\n    |`) must still be found (0.6.5 release audit).
-      const ctxLines: string[] = [];
-      for (let l = Math.max(0, position.line - 30); l <= position.line; l++) ctxLines.push(document.lineAt(l).text);
-      const line = statementContext(ctxLines, ctxLines.length - 1, position.character);
+      const docLines = document.getText(new vscode.Range(0, 0, position.line + 1, 0)).split(/\r?\n/);
+      const line = statementContext(docLines, position.line, position.character);
       const functionName = findFunctionCallName(line, line.length);
 
       if (!functionName) return undefined;

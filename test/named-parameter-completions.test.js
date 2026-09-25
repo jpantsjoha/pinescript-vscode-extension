@@ -432,6 +432,22 @@ test('finding 10: 1,000 getNamedParameterCompletions calls finish well under 200
     assert.strictEqual(d.findFunctionCallName(code, code.length), 'plot');
   });
 
+  test('a multiline string opened above the 30-line window is still a string', () => {
+    const filler = Array.from({ length: 35 }, (_, i) => `line ${i}`);
+    // False popup: the string's own `plot(` must not read as an open call.
+    const popup = ['msg = """start', ...filler, 'plot(', 'end"""', 'x = close', ''];
+    const c1 = d.statementContext(popup, popup.length - 1, 0);
+    assert.strictEqual(d.findFunctionCallName(c1, c1.length), null);
+    // False miss: after the string closes, a real open call must be found.
+    const miss = ['msg = """start', ...filler, 'end"""', 'plot(close, ', ''];
+    const c2 = d.statementContext(miss, miss.length - 2, 'plot(close, '.length);
+    assert.strictEqual(d.findFunctionCallName(c2, c2.length), 'plot');
+    // A string that closed above the window changes nothing.
+    const closed = ['msg = """a"""', ...filler, 'plot(close, '];
+    const c3 = d.statementContext(closed, closed.length - 1, 'plot(close, '.length);
+    assert.strictEqual(d.findFunctionCallName(c3, c3.length), 'plot');
+  });
+
   test('the cursor inside an open multiline string offers no parameter names', () => {
     const lines = ['plot(close, title="""a', 'b '];
     const ctx = d.statementContext(lines, 1, 2);
