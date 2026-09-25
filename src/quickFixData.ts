@@ -9,6 +9,7 @@
 // Reference data comes through this ONE import line, so a later move of v6/ is a
 // one-line change.
 import { REFERENCE_NAMES } from '../v6/reference-names';
+import { currentDiagnostics, CurrentDiagnostic } from './diagnosticSources';
 
 export interface Position { line: number; character: number }
 export interface Range { start: Position; end: Position }
@@ -70,11 +71,6 @@ class Doc {
     if (pos.character < 0 || pos.character > this.lineText(pos.line).length) return -1;
     return this.starts[pos.line] + pos.character;
   }
-  /** Both ends of `range` on their lines, start not after end. */
-  validRange(range: Range): boolean {
-    const a = this.offsetAt(range.start), b = this.offsetAt(range.end);
-    return a >= 0 && b >= a;
-  }
   positionAt(offset: number): Position {
     let lo = 0, hi = this.starts.length - 1;
     while (lo < hi) {
@@ -84,6 +80,22 @@ class Doc {
     return { line: lo, character: offset - this.starts[lo] };
   }
   eol(): string { return /\r\n/.test(this.text) ? '\r\n' : '\n'; }
+  private depths?: Int32Array;
+  /** Open ( or [ count before `offset` in the masked text (computed once). */
+  depthAt(offset: number): number {
+    if (!this.depths) {
+      this.depths = new Int32Array(this.masked.length + 1);
+      let depth = 0;
+      for (let i = 0; i < this.masked.length; i++) {
+        this.depths[i] = depth;
+        const ch = this.masked[i];
+        if (ch === '(' || ch === '[') depth++;
+        else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+      }
+      this.depths[this.masked.length] = depth;
+    }
+    return this.depths[offset];
+  }
 }
 
 /** Same rules as the engine's blankStrings: quotes kept, contents blanked, length kept. */
@@ -188,6 +200,34 @@ function namespaceMembers(ns: string): Set<string> {
   return membersByNamespace.get(ns) ?? new Set();
 }
 
+/** Built-in type keywords: `color c = ...` annotates a type, it does not shadow. */
+const TYPE_KEYWORDS = new Set(['color', 'line', 'label', 'box', 'table', 'linefill', 'polyline', 'chart']);
+
+/**
+ * True when the script may bind `ns` itself (a variable, a UDT-typed field, a
+ * parameter, a loop variable), so `ns.member` might not be the built-in. Every
+ * bare occurrence of the identifier must be one of: a namespace access (`ns.`),
+ * a call of the built-in function of that name (`plot(`), a named argument
+ * inside a call (`ns=` at bracket depth > 0), or a type annotation (`color c`). Anything else counts as shadowing: no action.
+ */
+function mayShadowNamespace(doc: Doc, ns: string): boolean {
+  const s = doc.masked;
+  const re = new RegExp(`(?<![A-Za-z0-9_.])${ns}(?![A-Za-z0-9_])`, 'g');
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    let i = m.index + ns.length;
+    while (i < s.length && (s[i] === ' ' || s[i] === '\t')) i++;
+    const next = s[i] ?? '';
+    if (next === '.') continue;
+    if (next === '(') continue;   // the built-in function of the same name: plot(...), strategy(...)
+    if (next === '=' && s[i + 1] !== '=' && doc.depthAt(m.index) > 0) continue;
+    const ident = /^[A-Za-z_][A-Za-z0-9_]*/.exec(s.slice(i));
+    if (ident && ident[0] !== 'in' && TYPE_KEYWORDS.has(ns)) continue;
+    return true;
+  }
+  return false;
+}
+
 export function editDistance(a: string, b: string): number {
   const dp = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i++) {
@@ -220,6 +260,7 @@ function fixMisspelledMember(doc: Doc, d: DiagnosticInput): Omit<QuickFix, 'diag
   if (/[A-Za-z0-9_]/.test(doc.text[start + member.length] ?? '')) return [];
   if (doc.text.slice(start - ns.length - 1, start) !== `${ns}.`) return [];
   if (/[A-Za-z0-9_.]/.test(doc.text[start - ns.length - 2] ?? '')) return [];
+  if (mayShadowNamespace(doc, ns)) return [];
   const suggestion = suggestMember(ns, member);
   if (!suggestion) return [];
   return [{
@@ -257,6 +298,8 @@ function fixShapeParameter(doc: Doc, d: DiagnosticInput): Omit<QuickFix, 'diagno
   // plotshape's `style` takes a shape.* constant (or its string). `shape=color.red`
   // most likely meant `color=`, so anything else gets no rename.
   if (correct === 'style') {
+    // `MyShape shape = ...` makes `shape.circle` a user field, not a style.
+    if (mayShadowNamespace(doc, 'shape')) return [];
     const member = /^shape\.([A-Za-z_][A-Za-z0-9_]*)$/.exec(value);
     const isShape = member !== null && namespaceMembers('shape').has(member[1]);
     if (!isShape && !/^(["'])[^"'\n]*\1$/.test(value)) return [];
@@ -347,6 +390,11 @@ function fixIgnore(doc: Doc, d: DiagnosticInput, id: string): Omit<QuickFix, 'di
 
   const directive = DIRECTIVE_HEAD.exec(blanked);
   if (directive) {
+    // Same list grammar as the engine's extractSuppressions. A bare directive
+    // ignores everything, and a list that names the id already covers it: leave both.
+    const listed = (/^[A-Za-z0-9,\s]*/.exec(blanked.slice(directive.index + directive[0].length))![0])
+      .split(',').map(part => part.trim().toUpperCase()).filter(Boolean);
+    if (listed.length === 0 || listed.includes(id)) return [];
     // Put the id first in the existing list: the engine reads only the first
     // directive on a line, and a list that ends in prose still parses its head.
     const at = lineStart + directive.index + directive[0].length;
@@ -374,7 +422,8 @@ function fixVersion(doc: Doc, d: DiagnosticInput): Omit<QuickFix, 'diagnosticInd
   if (/^\s*\/\/\s*@version\s*=/m.test(doc.text)) return [];
   return [{
     title: 'Insert //@version=6',
-    edits: [insertAt(doc, 0, `//@version=6${doc.eol()}`)],
+    // After a leading byte-order mark, which must stay the first character.
+    edits: [insertAt(doc, doc.text.startsWith('\uFEFF') ? 1 : 0, `//@version=6${doc.eol()}`)],
     isPreferred: true,
   }];
 }
@@ -391,14 +440,22 @@ function semanticId(d: DiagnosticInput): string | undefined {
  * Quick fixes for the given diagnostics against the document text. Duplicate
  * actions (two diagnostic sources reporting the same defect) are returned once.
  */
-export function computeQuickFixes(text: string, diagnostics: DiagnosticInput[]): QuickFix[] {
+export function computeQuickFixes(
+  text: string,
+  diagnostics: DiagnosticInput[],
+  validate: (text: string) => CurrentDiagnostic[] = cachedCurrentDiagnostics
+): QuickFix[] {
   const doc = new Doc(text);
   const out: QuickFix[] = [];
   const seen = new Set<string>();
+  let current: Set<string> | undefined;
   diagnostics.forEach((d, diagnosticIndex) => {
-    // Foreign diagnostics (another extension, a linter) and stale ranges that no
-    // longer fit the current text get nothing.
-    if (d.source !== PINE_DIAGNOSTIC_SOURCE || !doc.validRange(d.range)) return;
+    // Foreign diagnostics (another extension, a linter) get nothing.
+    if (d.source !== PINE_DIAGNOSTIC_SOURCE) return;
+    // Never trust the incoming diagnostic: it may be stale. Act only when the
+    // current text still produces exactly this finding (code, message, range).
+    current ??= new Set(validate(text).map(diagnosticKey));
+    if (!current.has(diagnosticKey(d))) return;
     const fixes: Omit<QuickFix, 'diagnosticIndex'>[] = [];
     const id = semanticId(d);
     if (id) {
@@ -415,6 +472,22 @@ export function computeQuickFixes(text: string, diagnostics: DiagnosticInput[]):
     }
   });
   return out;
+}
+
+function diagnosticKey(d: { range: Range; message: string; code?: string | number }): string {
+  const { start, end } = d.range;
+  return `${d.code ?? ''}|${start.line}:${start.character}-${end.line}:${end.character}|${d.message}`;
+}
+
+// provideCodeActions runs on every cursor move; validation runs once per text.
+let cachedText: string | undefined;
+let cachedResult: CurrentDiagnostic[] = [];
+function cachedCurrentDiagnostics(text: string): CurrentDiagnostic[] {
+  if (text !== cachedText) {
+    cachedResult = currentDiagnostics(text);
+    cachedText = text;
+  }
+  return cachedResult;
 }
 
 /** Apply non-overlapping edits to `text` (used by tests; VS Code applies them itself). */

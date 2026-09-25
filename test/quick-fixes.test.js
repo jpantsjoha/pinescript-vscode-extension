@@ -93,6 +93,12 @@ test('misspelled constant: plot.style_lnie inside a tab-indented wrapped call', 
     `${HEAD}plot(close,\n\t style=plot.style_line)\n`);
 });
 
+test('misspelled constant: a `color c` type annotation does not count as shadowing', () => {
+  assertFix(`${HEAD}color c = color.purplee\nplot(close, color=c)\n`,
+    byMessage(/'purplee'/), 'Change to color.purple',
+    `${HEAD}color c = color.purple\nplot(close, color=c)\n`);
+});
+
 test('misspelled constant: no action when nothing is close (color.xyzzy)', () => {
   const src = `${HEAD}plot(close, color=color.xyzzy)\n`;
   assert.ok(diagnostics(src).some(byMessage(/'xyzzy'/)), 'diagnostic present');
@@ -314,7 +320,10 @@ test('ignore: offered for every semantic check id, never for a syntactic diagnos
   const src = `${HEAD}plot(close, color=color.xyzzy)\n`;
   assert.deepStrictEqual(titles(src).filter(t => /Ignore/.test(t)), []);
   const fake = [{ range: { start: { line: 2, character: 0 }, end: { line: 2, character: 4 } }, message: '[S7] x', code: 'S7', source: 'pine' }];
-  assert.deepStrictEqual(computeQuickFixes(src, fake).map(f => f.title), ['Ignore S7 on this line']);
+  // Injected validator: pretend the current text still produces this S7 finding.
+  assert.deepStrictEqual(computeQuickFixes(src, fake, () => fake).map(f => f.title), ['Ignore S7 on this line']);
+  // With the real validator it is stale (the text produces no S7), so nothing.
+  assert.deepStrictEqual(computeQuickFixes(src, fake), []);
 });
 
 //──────────────────────────────────────────────────────────
@@ -348,4 +357,100 @@ test('the same defect text without its diagnostic gets no action', () => {
   // The fixes key on the diagnostic, never on the text alone.
   assert.deepStrictEqual(computeQuickFixes(`${HEAD}plot(close, color=color.purplee)\n`, []), []);
   assert.deepStrictEqual(computeQuickFixes(`${HEAD}d = request.security(syminfo.tickerid, "D", close)\n`, []), []);
+});
+
+//──────────────────────────────────────────────────────────
+// Delta review of 02e874c: never trust the incoming diagnostic
+//──────────────────────────────────────────────────────────
+
+/** Diagnostics of `before`, offered against `after` — a stale diagnostic. */
+const staleFixes = (before, after, pick) => computeQuickFixes(after, diagnostics(before).filter(pick));
+
+test('shadowed `shape` (UDT variable): no plotshape rename', () => {
+  const src = '//@version=6\nindicator("qf")\ntype MyShape\n    float circle\nMyShape shape = MyShape.new(1.0)\nplotshape(true, shape=shape.circle)\n';
+  // The validator still (rightly) reports shape=; only the rename is withheld.
+  assert.ok(diagnostics(src).some(byMessage(/Invalid parameter "shape"/)), 'diagnostic current');
+  assert.deepStrictEqual(titles(src).filter(t => /Rename/.test(t)), []);
+  // A stale diagnostic from the unshadowed version gets nothing either.
+  const unshadowed = src.replace('MyShape shape = ', 'MyShape shap_ = ');
+  assert.ok(diagnostics(unshadowed).some(byMessage(/Invalid parameter "shape"/)));
+  assert.deepStrictEqual(staleFixes(unshadowed, src, byMessage(/Invalid parameter "shape"/)).filter(f => /Rename/.test(f.title)), []);
+});
+
+test('shadowed namespace (Palette color): stale misspelling diagnostic gets no action', () => {
+  const before = '//@version=6\nindicator("qf")\ntype Palette\n    float purplee\nPalette pal__ = Palette.new(1.0)\nx = color.purplee\nplot(x)\n';
+  const after = before.replace('Palette pal__ = ', 'Palette color = ');
+  const stale = diagnostics(before).filter(byMessage(/'purplee'/));
+  assert.strictEqual(stale.length, 1, 'the diagnostic existed before the edit');
+  assert.deepStrictEqual(computeQuickFixes(after, stale), []);
+  assert.deepStrictEqual(titles(after).filter(t => /Change to/.test(t)), [], 'nor on a fresh validation');
+});
+
+test('removed S1 construct with a stale diagnostic: no ignore added to the new expression', () => {
+  const before = `${HEAD}d = request.security(syminfo.tickerid, "D", close)\nplot(d)\n`;
+  const after = `${HEAD}d = ta.sma(close, 20) + ta.ema(close, 50) * 2 + ta.rma(close, 9) + 1\nplot(d)\n`;
+  assert.deepStrictEqual(staleFixes(before, after, byCheck('S1')), []);
+});
+
+test('S10 stale for all six request functions, flag named or positional: no action at all', () => {
+  const forms = {
+    security: ['request.security("FRED:X", "D", close[1], barmerge.gaps_off, barmerge.lookahead_on', ')'],
+    security_lower_tf: ['request.security_lower_tf("FRED:X", "1", close', ')'],
+    dividends: ['request.dividends("NASDAQ:AAPL", dividends.gross, barmerge.gaps_off, barmerge.lookahead_on', ')'],
+    earnings: ['request.earnings("NASDAQ:AAPL", earnings.actual, barmerge.gaps_off, barmerge.lookahead_on', ')'],
+    splits: ['request.splits("NASDAQ:AAPL", splits.denominator, barmerge.gaps_off, barmerge.lookahead_on', ')'],
+    financial: ['request.financial("NASDAQ:AAPL", "ACCOUNTS_PAYABLE", "FQ", barmerge.gaps_off', ')'],
+  };
+  for (const [fn, [head, tail]] of Object.entries(forms)) {
+    const before = `${HEAD}v = ${head}${tail}\n`;
+    assert.ok(diagnostics(before).some(byCheck('S10')), `${fn}: S10 present without the flag`);
+    for (const flag of ['true', 'ignore_invalid_symbol=true']) {
+      const after = `${HEAD}v = ${head}, ${flag}${tail}\n`;
+      assert.ok(!diagnostics(after).some(byCheck('S10')), `${fn} ${flag}: the engine sees the flag`);
+      assert.deepStrictEqual(staleFixes(before, after, byCheck('S10')).map(f => f.title), [], `${fn} ${flag}`);
+    }
+  }
+});
+
+test('bare `// pine-ignore` (ignore all) is never modified, nor a list already naming the id', () => {
+  const line = 'd = request.security(syminfo.tickerid, "D", close)';
+  const before = `${HEAD}${line}\nplot(d)\n`;
+  const s1 = diagnostics(before).filter(byCheck('S1'));
+  for (const directive of ['// pine-ignore', '// pine-ignore: S1', '// pine-ignore: S2, S1']) {
+    const after = `${HEAD}${line} ${directive}\nplot(d)\n`;
+    assert.deepStrictEqual(staleFixes(before, after, byCheck('S1')), [], `stale: ${directive}`);
+    // Even when told the finding is current, the directive is left alone.
+    assert.deepStrictEqual(computeQuickFixes(after, s1, () => s1), [], `forced: ${directive}`);
+  }
+});
+
+test('ignore merged into an existing list stays valid suppression syntax', () => {
+  for (const directive of ['// pine-ignore: S2', '// pine-ignore:S2', '// pine-ignore S2', '// pine-ignore: S2 because it is fine']) {
+    const src = `${HEAD}d = request.security(syminfo.tickerid, "D", close) ${directive}\nplot(d)\n`;
+    const { diags, fixes } = fixesFor(src);
+    assert.ok(diags.some(byCheck('S1')), `${directive}: S1 still fires`);
+    const fix = fixes.find(f => f.title === 'Ignore S1 on this line');
+    assert.ok(fix, `${directive}: action offered`);
+    const out = applyEdits(src, fix.edits);
+    assert.ok(extractSuppressions(out).isSuppressed(3, 'S1'), `${directive} -> ${out.split('\n')[2]}`);
+    assert.ok(!diagnostics(out).some(byCheck('S1')), `${directive}: S1 gone`);
+  }
+});
+
+test('version: inserted after a leading BOM', () => {
+  assertFix('﻿indicator("qf")\nplot(close)\n',
+    byMessage(/Recommend using \/\/@version=6/), 'Insert //@version=6',
+    '﻿//@version=6\nindicator("qf")\nplot(close)\n');
+});
+
+test('version: document starting with a blank line', () => {
+  assertFix('\nindicator("qf")\nplot(close)\n',
+    byMessage(/Recommend using \/\/@version=6/), 'Insert //@version=6',
+    '//@version=6\n\nindicator("qf")\nplot(close)\n');
+});
+
+test('version: document starting with a comment', () => {
+  assertFix('// My script\nindicator("qf")\nplot(close)\n',
+    byMessage(/Recommend using \/\/@version=6/), 'Insert //@version=6',
+    '//@version=6\n// My script\nindicator("qf")\nplot(close)\n');
 });
