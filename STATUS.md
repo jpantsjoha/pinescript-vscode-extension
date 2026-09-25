@@ -1,15 +1,23 @@
 # Project Status
 
-**Updated**: 2026-09-23
+**Updated**: 2026-09-25
 **Marketplace version**: 0.6.4 · **Open VSX**: 0.6.4 (first publish, 2026-09-24)
 **Engine on npm**: `pinescript-v6-validator@0.4.0`. 0.4.1 (re-crawled data) is built; publishing waits on `npm login` (session expired 2026-09-24). The extension bundles the new data itself.
+
+## 2026-09-25: IntelliSense coverage and namespace checks on main
+
+#36 (PR #40) and #37 (PR #41) merged on 2026-09-24: completions, signature help and
+hover cover all 475 reference functions with every overload; misspelled constant
+members (`color.purplee`) and unknown namespaces after `=` are errors. #42 (wrapped
+statements keep declarations and arity) is in review as PR #43. Main today: `npm test`
+437 tests · 436 pass · 1 skip · 0 fail; `npm run audit` 22 pass · 0 fail.
 
 ## Where this stands
 
 | Signal | State |
 |---|---|
-| `npm test` | 359 tests · 358 pass · 1 skip · 0 fail |
-| `npm run audit` | 20 pass · 1 warn (v6 reference re-crawl due) · 0 fail |
+| `npm test` | 437 tests · 436 pass · 1 skip · 0 fail |
+| `npm run audit` | 22 pass · 0 warn · 0 fail |
 | Golden corpus | 4 tracked fixtures + 7 gitignored `examples/*.pine`, 0 errors |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) |
 | Diagnostic sources | AccurateValidator, documentChecks, engine semantic checks; the editor, `validate-cli.js` and the MCP server all run all three |
