@@ -53,9 +53,9 @@ jobs:
       run: |
         VSIX="pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix"
         if [ -z "$OVSX_PAT" ]; then
-          echo "::warning::OVSX_PAT is not set, so Open VSX was skipped. Publish it by hand:"
+          echo "::error::OVSX_PAT is not set, so Open VSX was not published. Set the secret, then publish by hand:"
           echo "  npx ovsx publish $VSIX -p \$OVSX_PAT"
-          exit 0
+          exit 1
         fi
         npx --yes ovsx publish "$VSIX" -p "$OVSX_PAT"
 

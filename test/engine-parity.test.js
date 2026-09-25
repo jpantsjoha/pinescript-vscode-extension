@@ -27,11 +27,15 @@ const ROOT = path.join(__dirname, '..');
 function normalise(source) {
   return source
     .replace(/from '\.\.\/(?:\.\.\/v6|data)\//g, "from '<DATA>/")
+    // The package's Diagnostic carries an optional checkId (semantic findings
+    // only); the extension's copy does not need it. That field is the one
+    // sanctioned difference.
+    .replace(/\n\s*\/\*\*\n(?:\s*\*[^\n]*\n)*?\s*\*\/\n\s*checkId\?: string;/, '')
     .replace(/\r\n/g, '\n')
     .trim();
 }
 
-const MIRRORED_MODULES = ['documentChecks', 'checkRegistry'];
+const MIRRORED_MODULES = ['accurateValidator', 'documentChecks', 'checkRegistry'];
 
 for (const name of MIRRORED_MODULES) {
   test(`engine parity: src/parser/${name}.ts matches the package`, (t) => {

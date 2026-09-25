@@ -127,10 +127,24 @@ test('no duplicate labels within any namespace', () => {
   }
 });
 
-test('no duplicate top-level labels', () => {
-  const labels = getAllCompletionData().map(d => d.label);
-  const dupes = labels.filter((l, i) => labels.indexOf(l) !== i);
-  assert.deepStrictEqual([...new Set(dupes)], [], 'duplicate top-level completion labels');
+test('no duplicate top-level entries (label + kind)', () => {
+  // One label may legitimately appear under two kinds: `time` is a variable and
+  // a function, `array` a type keyword and a namespace. The same label twice
+  // under the SAME kind is a duplicate.
+  const keys = getAllCompletionData().map(d => `${d.kind}:${d.label}`);
+  const dupes = keys.filter((k, i) => keys.indexOf(k) !== i);
+  assert.deepStrictEqual([...new Set(dupes)], [], 'duplicate top-level completion entries');
+});
+
+test('names that are both a variable and a function complete as both', () => {
+  const all = getAllCompletionData();
+  const kindsOf = label => new Set(all.filter(d => d.label === label).map(d => d.kind));
+  const time = kindsOf('time');
+  assert.ok(time.size >= 2, `'time' should complete as variable AND function, got ${[...time]}`);
+  const array = kindsOf('array');
+  assert.ok(array.size >= 2, `'array' should complete as keyword AND namespace, got ${[...array]}`);
+  assert.match(getHoverData('time').description || '', /Also a function/,
+    "hover on 'time' must mention the time() function too");
 });
 
 test('hover falls back to the reference for functions v6-manual does not know', () => {

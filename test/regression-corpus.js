@@ -1006,6 +1006,37 @@ const CASES = [
       'the argument. The error now lands on the argument\'s own physical line and column ' +
       '(pinned in test/wrapped-statement-location.test.js).',
   },
+  //────────────────────────────────────────────────────────
+  // 0.6.5 pre-release audit (Codex review, 2026-09-25)
+  //────────────────────────────────────────────────────────
+  {
+    name: 'a qualified UDT declaration defines its name',
+    code: IND + 'type Holder\n    float value\n\nseries Holder xloc = Holder.new(close)\nplot(xloc.value)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'The declaration regex skipped the series/simple/const/input qualifier, so a user variable named like a built-in namespace (xloc) was checked as that namespace.',
+  },
+  {
+    name: 'a qualified generic declaration defines its name',
+    code: IND + 'series array<float> xloc = array.from(close)\nplot(xloc.sum())\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Same qualifier gap with a generic type: xloc.sum() was reported as an unknown xloc member.',
+  },
+  {
+    name: 'timeframe_gaps with timeframe passed positionally is correct',
+    code: '//@version=6\nindicator("x", "", true, format.inherit, 2, scale.right, 500, "D", timeframe_gaps=true)\nplot(close)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'The check only looked for a NAMED timeframe argument and warned when it was the eighth positional one.',
+  },
+  {
+    name: 'timeframe_gaps without timeframe still warns',
+    code: '//@version=6\nindicator("x", timeframe_gaps=true)\nplot(close)\n',
+    expect: 'warn',
+    found: '2026-09-25',
+    why: 'Paired with the positional case: the fix must not silence the real mistake.',
+  },
 ];
 
 /**

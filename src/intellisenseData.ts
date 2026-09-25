@@ -279,13 +279,15 @@ function referenceMemberKind(fqn: string): CompletionKind {
 /** All top-level completions: variables, functions, keywords, namespace hints. */
 export function getAllCompletionData(): CompletionData[] {
   const items: CompletionData[] = [];
-  // A label is offered once. Precedence: variable > function > keyword > module.
-  // (The reference lists `time`, `dayofmonth`, ... as functions, but v6-manual's
-  // variables are the better completion; `input` is both a keyword and a namespace.)
+  // A label is offered once PER KIND. `time` is both a variable and a function
+  // (`time("D")`), and `array` is both a type keyword and a namespace: keying on
+  // the label alone hid `time()` and the `array.` namespace entry, which v0.6.4
+  // offered (0.6.5 release audit). Same-kind duplicates are still collapsed.
   const seen = new Set<string>();
   const push = (item: CompletionData) => {
-    if (seen.has(item.label)) return;
-    seen.add(item.label);
+    const key = `${item.kind}:${item.label}`;
+    if (seen.has(key)) return;
+    seen.add(key);
     items.push(item);
   };
 
@@ -474,7 +476,9 @@ export function getDeclaredNames(documentText: string): Map<string, number> {
       // A leading "type" token that is a keyword (`for font = 0 to 9`) is not
       // a declaration either. Built-in TYPE names are not keywords here —
       // `float x = 1` is a valid typed declaration (delta review round 2).
-      const stmtDecl = line.match(/^(?:var\s+|varip\s+)?(?:([A-Za-z_][\w.]*(?:<[^>]*>)?)\s+)?([A-Za-z_]\w*)\s*=(?![=>])/);
+      // `[var|varip] [const|input|simple|series] [Type] name =` (qualifier added
+      // in the 0.6.5 release audit: `series Holder xloc = ...` must shadow).
+      const stmtDecl = line.match(/^(?:var\s+|varip\s+)?(?:(?:const|input|simple|series)\s+)?(?:([A-Za-z_][\w.]*(?:<[^>]*>)?)\s+)?([A-Za-z_]\w*)\s*=(?![=>])/);
       if (stmtDecl && !isReservedKeywordName(stmtDecl[2])
           && !(stmtDecl[1] && isReservedKeywordName(stmtDecl[1].split(/[<.]/)[0]))) {
         declare(stmtDecl[2], startLine);
@@ -620,9 +624,15 @@ export function getHoverData(symbol: string): HoverData | undefined {
     item = manualNamespaceItem(ns, name);
   }
   if (item) {
+    // A built-in variable that is also a function (`time`, `time_close`, ...):
+    // show both, since the hover cannot tell `time` from `time("D")`.
+    const alsoFn = !symbol.includes('.') && V6_VARIABLES[symbol] ? REFERENCE[symbol] : undefined;
+    const fnNote = alsoFn
+      ? `\n\nAlso a function: \`${firstSyntax(alsoFn)}\`${alsoFn.description ? ' ' + alsoFn.description : ''}`
+      : '';
     return {
       syntax: item.syntax,
-      description: item.description,
+      description: (item.description || '') + fnNote,
       returns: item.returns,
       type: item.type,
       example: item.example,
@@ -817,13 +827,46 @@ export function getParameterInfo(functionName: string): ParameterInfo[] {
  * string at the cursor is blanked as well.
  */
 function blankStringsAndCommentsBeforeCursor(text: string): string {
-  const noStrings = text.replace(STRING_LITERAL_RE, m => m[0] + ' '.repeat(Math.max(0, m.length - 1)));
-  const comment = noStrings.indexOf('//');
-  return comment < 0 ? noStrings : noStrings.slice(0, comment) + ' '.repeat(noStrings.length - comment);
+  // Per physical line: the context can now span a wrapped statement's earlier
+  // lines, and a string or `//` comment never continues past its own line.
+  return text.split('\n').map(line => {
+    const noStrings = line.replace(STRING_LITERAL_RE, m => m[0] + ' '.repeat(Math.max(0, m.length - 1)));
+    const comment = noStrings.indexOf('//');
+    return comment < 0 ? noStrings : noStrings.slice(0, comment) + ' '.repeat(noStrings.length - comment);
+  }).join('\n');
+}
+
+/**
+ * The text a completion or signature-help request should analyse: the current
+ * line up to the cursor, preceded by up to `maxLines` earlier lines, so a call
+ * wrapped across lines (`plot(\n    close,\n    |`) is still found. Earlier
+ * statements are balanced, so the backward scan passes over them. Pure: the
+ * provider passes the document's lines.
+ */
+export function statementContext(lines: string[], lineIndex: number, character: number, maxLines = 30): string {
+  const start = Math.max(0, lineIndex - maxLines);
+  const before = lines.slice(start, lineIndex);
+  const current = (lines[lineIndex] || '').slice(0, character);
+  return before.length ? before.join('\n') + '\n' + current : current;
+}
+
+/**
+ * True when the '(' just before the cursor opens a CALL (a name, or a generic
+ * constructor like array.new<float>, directly before it) rather than grouping
+ * an expression: `plot((close + open` must not pop up plot's parameters when
+ * the inner '(' is typed (0.6.5 release audit).
+ */
+export function isCallParenBeforeCursor(text: string): boolean {
+  const blanked = blankStringsAndCommentsBeforeCursor(text).replace(/\s+$/, '');
+  if (!blanked.endsWith('(')) return false;
+  const head = blanked.slice(0, -1);
+  return /[A-Za-z_][\w.]*\s*(?:<[^<>()]*(?:<[^<>()]*>[^<>()]*)*>)?\s*$/.test(head);
 }
 
 /** True when the cursor sits inside a (same-line) string literal or a `//` comment. */
-function isInsideStringOrComment(beforeCursor: string): boolean {
+function isInsideStringOrComment(beforeCursorText: string): boolean {
+  // Only the cursor's own line matters; earlier context lines are irrelevant.
+  const beforeCursor = beforeCursorText.slice(beforeCursorText.lastIndexOf('\n') + 1);
   let quote: string | null = null;
   for (let i = 0; i < beforeCursor.length; i++) {
     const ch = beforeCursor[i];

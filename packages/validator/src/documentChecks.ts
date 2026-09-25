@@ -196,21 +196,9 @@ export function runDocumentChecks(text: string): ValidationError[] {
     }
   }
 
-  // 9) timeframe_gaps without a timeframe argument.
-  //    Same top-level rule: a nested call's timeframe_gaps/timeframe is not the
-  //    declaration's (delta review of #43).
-  const declPattern = /\b(indicator|strategy)\s*\(/g;
-  let decl;
-  while ((decl = declPattern.exec(scan)) !== null) {
-    const open = decl.index + decl[0].length - 1;
-    const close = matchingParen(scan, open);
-    if (close === -1) continue;
-    const args = topLevelArgs(scan.slice(open + 1, close));
-    const gaps = args.find(a => /^timeframe_gaps\s*=\s*true/.test(a.text));
-    if (gaps && !args.some(a => /^timeframe\s*=/.test(a.text))) {
-      add(open + 1 + gaps.offset, 14, '"timeframe_gaps" has no effect without a "timeframe" argument in indicator/strategy call', SEVERITY_WARNING);
-    }
-  }
+  // 9) timeframe_gaps: removed 2026-09-25. AccurateValidator.validateSpecialCases
+  //    owns this check (with positional-argument awareness and exact location);
+  //    running both reported every case twice.
 
   // 10) alertcondition arity.
   //     v6 signature is alertcondition(condition, title, message) — at most three.

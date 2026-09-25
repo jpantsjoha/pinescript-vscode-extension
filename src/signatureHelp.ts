@@ -2,14 +2,17 @@ import * as vscode from 'vscode';
 import {
   getSignatureData,
   findFunctionCallName,
-  calculateActiveParameter
-} from './intellisenseData';
+  calculateActiveParameter, statementContext } from './intellisenseData';
 
 export function createSignatureHelpProvider(): vscode.SignatureHelpProvider {
   return {
     provideSignatureHelp(document, position, token, context) {
-      const line = document.lineAt(position.line).text;
-      const functionName = findFunctionCallName(line, position.character);
+      // Include the statement's earlier lines: a call wrapped across lines
+      // (`plot(\n    close,\n    |`) must still be found (0.6.5 release audit).
+      const ctxLines: string[] = [];
+      for (let l = Math.max(0, position.line - 30); l <= position.line; l++) ctxLines.push(document.lineAt(l).text);
+      const line = statementContext(ctxLines, ctxLines.length - 1, position.character);
+      const functionName = findFunctionCallName(line, line.length);
 
       if (!functionName) return undefined;
 
@@ -31,7 +34,7 @@ export function createSignatureHelpProvider(): vscode.SignatureHelpProvider {
       });
 
       // Calculate active parameter from the cursor position
-      const beforeCursor = line.substring(0, position.character);
+      const beforeCursor = line; // already ends at the cursor
       const activeParam = calculateActiveParameter(beforeCursor);
 
       const sigHelp = new vscode.SignatureHelp();

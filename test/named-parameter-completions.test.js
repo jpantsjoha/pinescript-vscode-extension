@@ -384,3 +384,36 @@ test('finding 10: 1,000 getNamedParameterCompletions calls finish well under 200
   const ms = Number(process.hrtime.bigint() - t0) / 1e6;
   assert.ok(ms < 200, `1,000 calls took ${ms.toFixed(1)} ms (bound: 200 ms)`);
 });
+
+// 0.6.5 release audit: helpers behind multi-line context and the '(' guard.
+{
+  const d = require('../dist/src/intellisenseData.js');
+
+  test('statementContext joins earlier lines and cuts the current line at the cursor', () => {
+    const lines = ['x = 1', 'plot(close,', '     color=color.red, lin', 'after'];
+    assert.strictEqual(d.statementContext(lines, 2, 26), 'x = 1\nplot(close,\n     color=color.red, lin');
+    assert.strictEqual(d.statementContext(lines, 0, 1), 'x');
+    assert.strictEqual(d.statementContext(lines, 2, 5, 1), 'plot(close,\n     ');
+  });
+
+  test('a wrapped call resolves to the open call across lines', () => {
+    const ctx = d.statementContext(['plot(close,', '     '], 1, 5);
+    assert.strictEqual(d.findFunctionCallName(ctx, ctx.length), 'plot');
+    assert.strictEqual(d.calculateActiveParameter(ctx), 1);
+  });
+
+  test('parens in strings and comments on earlier lines are ignored', () => {
+    const ctx = d.statementContext(['s = "(" // (', 'plot(close, '], 1, 12);
+    assert.strictEqual(d.findFunctionCallName(ctx, ctx.length), 'plot');
+  });
+
+  test('isCallParenBeforeCursor tells a call from a grouping paren', () => {
+    assert.strictEqual(d.isCallParenBeforeCursor('plot('), true);
+    assert.strictEqual(d.isCallParenBeforeCursor('ta.sma ('), true);
+    assert.strictEqual(d.isCallParenBeforeCursor('array.new<float>('), true);
+    assert.strictEqual(d.isCallParenBeforeCursor('x = ('), false);
+    assert.strictEqual(d.isCallParenBeforeCursor('plot(('), false);
+    assert.strictEqual(d.isCallParenBeforeCursor('// plot('), false);
+    assert.strictEqual(d.isCallParenBeforeCursor('s = "plot('), false);
+  });
+}

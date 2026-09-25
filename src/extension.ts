@@ -10,7 +10,7 @@ import {
   getNamedArgumentValueItems,
   getTriggerCharacterCompletionItems
 } from './completions';
-import { getDeclaredNames, isShadowedNamespace } from './intellisenseData';
+import { getDeclaredNames, isShadowedNamespace, statementContext } from './intellisenseData';
 import { VersionedLruCache } from './declaredNamesCache';
 import { createSignatureHelpProvider } from './signatureHelp';
 // NOTE: the extension imports ONLY the validators it runs. A dead AST validator
@@ -106,6 +106,11 @@ export function activate(context: vscode.ExtensionContext) {
         provideCompletionItems(document, position, _token, context) {
           const line = document.lineAt(position.line).text;
           const beforeCursor = line.substring(0, position.character);
+          // Argument-list analysis sees the statement's earlier lines too, so a
+          // call wrapped across lines still gets named parameters and values.
+          const ctxLines: string[] = [];
+          for (let l = Math.max(0, position.line - 30); l <= position.line; l++) ctxLines.push(document.lineAt(l).text);
+          const ctx = statementContext(ctxLines, ctxLines.length - 1, position.character);
 
           // '(' and ',' are trigger characters, so this provider fires on every
           // paren and comma in the document (tuples, arrays, grouping, var
@@ -115,7 +120,7 @@ export function activate(context: vscode.ExtensionContext) {
           // Typed/invoked completion falls through to the full logic below.
           if (context.triggerKind === vscode.CompletionTriggerKind.TriggerCharacter &&
               (context.triggerCharacter === '(' || context.triggerCharacter === ',')) {
-            return getTriggerCharacterCompletionItems(line, position.character, position.line);
+            return getTriggerCharacterCompletionItems(ctx, ctx.length, position.line, position.character, context.triggerCharacter);
           }
 
           // Check if we're completing after a namespace dot. Identifiers may
@@ -151,11 +156,11 @@ export function activate(context: vscode.ExtensionContext) {
           // there, not another name) and the global list MUST still be
           // returned — variables and built-ins are valid values (PR #51
           // delta review, finding 1).
-          const valueItems = getNamedArgumentValueItems(line, position.character, position.line);
+          const valueItems = getNamedArgumentValueItems(ctx, ctx.length, position.line, position.character);
           if (valueItems.length > 0) {
             items.unshift(...valueItems);
           } else {
-            items.unshift(...getNamedParameterCompletionItems(line, position.character));
+            items.unshift(...getNamedParameterCompletionItems(ctx, ctx.length));
           }
 
           // Optional HTTP suggestions

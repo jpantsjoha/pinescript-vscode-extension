@@ -9,17 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Merged on main, not yet in a tagged release.
+## [0.6.5] - 2026-09-25
+
+IntelliSense for the whole v6 reference, parameter-name completions, stricter checks
+on typos, and wrapped statements read as one.
 
 ### Highlights
 
 - Completions, signature help and hover for all 475 built-in functions in the v6
   reference; signature help shows every documented overload.
+- Type `plot(close, ` and completions offer the parameter names still unfilled; after
+  `style=` they offer the constants that fit.
 - Constants and variables complete after a namespace dot (`xloc.`, `shape.`,
   `strategy.commission.`, ...), with their descriptions on hover.
 - A misspelled constant such as `color.purplee`, and an unknown namespace, are now
   errors, as on TradingView.
 - Statements wrapped across lines are validated as one statement.
+
+### ✨ Parameter-name completions (#13, PR #51)
+
+- Inside a call, completions offer the named parameters not yet filled, positionally
+  or by name. After `name=`, the matching constants come first (`style=` in
+  `plotshape` offers `shape.*`), and your own variables stay available.
+- Works across wrapped lines: a call split over several lines still completes and
+  shows signature help for the right argument.
+
+### 🐛 Fixed before release (pre-release review)
+
+- A variable declared with a qualifier and a type, such as
+  `series Holder xloc = Holder.new(close)` or `series array<float> xloc = ...`, is
+  now recognised, so `xloc.value` is not checked as the built-in `xloc` namespace.
+- `indicator(..., "D", timeframe_gaps=true)` with `timeframe` passed positionally no
+  longer warns, and the warning, when right, appears once instead of twice.
+- Typing a grouping `(` inside a call, as in `plot((close + open) / 2`, no longer
+  pops up the outer call's parameters.
+- `time` completes as both the variable and the `time()` function, and `array` as
+  both the type and the namespace; hover on `time` mentions both.
 
 ### ✨ IntelliSense covers the whole v6 reference (#36, PR #40)
 
