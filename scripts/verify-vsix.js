@@ -87,13 +87,14 @@ const readme = fs.existsSync(path.join(ROOT, 'README.md')) ? fs.readFileSync(pat
 const readmeImages = new Set([...readme.matchAll(/\]\(\.?\/?(images\/[^)\s]+)\)/g)].map(m => `extension/${m[1]}`));
 const allowedExact = new Set([
   'extension.vsixmanifest', '[Content_Types].xml',
-  'extension/package.json', 'extension/README.md', 'extension/CHANGELOG.md',
+  'extension/package.json',
   'extension/language-configuration.json',
   ...(manifest.icon ? [`extension/${manifest.icon.replace(/^\.\//, '')}`] : []),
   ...readmeImages,
 ]);
 const allowedPatterns = [
   /^extension\/LICENSE(\.txt|\.md)?$/,
+  /^extension\/(readme|changelog)\.md$/i, // vsce 4 lower-cases these names
   /^extension\/syntaxes\/[^/]+\.json$/,
   /^extension\/snippets\/[^/]+\.json$/,
   /^extension\/dist\/src\/[^/]+\.js$/,

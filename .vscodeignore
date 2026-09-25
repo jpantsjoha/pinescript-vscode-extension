@@ -76,6 +76,7 @@ analyze-*.js
 check-*.js
 find-*.js
 .mcp.json
+.nvmrc
 settings.json
 mcp/**
 
