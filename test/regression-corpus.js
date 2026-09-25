@@ -1206,6 +1206,22 @@ const CASES = [
     found: '2026-09-25',
     why: 'Paired with the flagged segment case: int to float in the first segment is legal.',
   },
+  {
+    name: '#12: a global tuple on the next line does not hide the cast error',
+    code: IND + 'int factor = input.float(0.7)\n[a, b] = [1, 2]\nplot(factor + a + b)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why: 'Delta review of PR #57: a line starting with `[` was read as a continuation, so a ' +
+      'column-0 tuple declaration silenced the #12 repro. Only a deeper indent continues a line.',
+  },
+  {
+    name: '#12: a continued last segment does not hide an earlier segment',
+    code: IND + 'int x = input.float(1), bool enabled = input.string("On")\n  == "On"\nplot(enabled ? x : na)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why: 'Delta review of PR #57: continuation suppression applied to the whole statement, so ' +
+      'a wrapped final segment hid the completed float-to-int error before the comma.',
+  },
 ];
 
 /**

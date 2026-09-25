@@ -1360,11 +1360,18 @@ export class AccurateValidator {
    *     after the closing paren but whitespace or a comment (strings and comments
    *     are already blanked in `cleanedLines`). A ternary, arithmetic, any operator,
    *     or a wrapping call such as `math.round(input.float(1))` keeps it silent;
-   *   - the NEXT significant line cannot continue the expression: a balanced call
-   *     closes the bracket-based join, yet Pine lets an expression carry on after it
-   *     (`bool b = input.string("On")` / `  == "On"`). A following line indented
-   *     deeper than the statement, or starting with an operator, `?`, `:`, `.`, `[`,
-   *     `,`, `and` or `or`, keeps it silent;
+   *   - for the LAST segment only, the next significant line does not continue the
+   *     expression: a balanced call closes the bracket-based join, yet Pine lets an
+   *     expression carry on after it (`bool b = input.string("On")` / `  == "On"`).
+   *     Continuation is decided by indentation alone, per
+   *     https://www.tradingview.com/pine-script-docs/language/script-structure/#line-wrapping
+   *     ("each wrapped line after the first can use any indentation length except
+   *     multiples of four, because Pine uses four-space or tab indentations to define
+   *     local code blocks"). A next line at the same or a lesser multiple-of-four
+   *     indent is a new statement (`[a, b] = ...`, a `-y` return), so the rule still
+   *     judges the declaration; a next line indented deeper, or at an indent that is
+   *     not a multiple of four, may be a continuation and keeps the last segment
+   *     silent. Earlier segments ended at a depth-0 comma and are always judged;
    *   - <fn> has a verified return type below (bare `input()` and `input.enum()`
    *     are skipped: their type depends on the argument);
    *   - the statement has no `=>`: a one-line function body such as
@@ -1397,8 +1404,9 @@ export class AccurateValidator {
       price: 'float', time: 'int',
     };
     const DECL = /^\s*(?:(?:var|varip)\s+)?(?:(const|simple|series)\s+)?(int|float|bool|color|string)\s+[A-Za-z_]\w*\s*=\s*(input\.([A-Za-z_]\w*))\s*\(/;
-    const CONTINUES = /^(?:[-+*\/%?:.\[,<>=!]|(?:and|or)\b)/;
-    const indentOf = (s: string) => (/^[ \t]*/.exec(s) as RegExpExecArray)[0].length;
+    // Indentation width with a tab counted as four spaces (a tab opens a block like four spaces).
+    const indentOf = (s: string) =>
+      (/^[ \t]*/.exec(s) as RegExpExecArray)[0].replace(/\t/g, '    ').length;
     let inTypeBlock = false;
     let start = 0;
     while (start < cleanedLines.length) {
@@ -1414,15 +1422,17 @@ export class AccurateValidator {
         let next = end + 1;
         while (next < cleanedLines.length && cleanedLines[next].trim() === '') next++;
         const nextLine = next < cleanedLines.length ? cleanedLines[next] : '';
+        const nextIndent = indentOf(nextLine);
         const mayContinue = nextLine !== '' &&
-          (indentOf(nextLine) > indentOf(first) || CONTINUES.test(nextLine.trim()));
-        if (!mayContinue) {
-          let offset = 0;
-          for (const segment of this.statementSegments(joined)) {
+          (nextIndent > indentOf(first) || nextIndent % 4 !== 0);
+        const segments = this.statementSegments(joined);
+        let offset = 0;
+        segments.forEach((segment, idx) => {
+          if (idx < segments.length - 1 || !mayContinue) {
             this.checkInputDeclarationSegment(segment, offset, start, cleanedLines, DECL, INPUT_RETURN_TYPES);
-            offset += segment.length + 1; // the depth-0 comma (no `=>` here)
           }
-        }
+          offset += segment.length + 1; // the depth-0 comma (no `=>` here)
+        });
       }
       start = end + 1;
     }
