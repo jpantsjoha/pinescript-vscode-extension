@@ -858,6 +858,61 @@ const CASES = [
       'member check. Lines interior to a wrap are not statement starts, so the #37 check ' +
       'must keep biting inside wrapped calls.',
   },
+  {
+    name: '#43: an unclosed bracket must not swallow the declarations below it',
+    code: IND + 'bad = (\ntype Config\n    int len = 14\ncfg = Config.new()\nplot(close)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Independent review of #42: `bad = (` never closes, so the statement join ran to EOF ' +
+      'and `type Config` was never collected — the `Config.new()` below the break was ' +
+      'flagged "Undefined namespace or variable". One syntax error must not cascade into ' +
+      'false positives on the rest of the file: the join now stops at a blank line, at a ' +
+      'column-0 line that opens a new top-level statement, and after 50 lines.',
+  },
+  {
+    name: '#43: a header whose => sits on its own line still declares the function',
+    code: IND + 'customCalc(\n    int a,\n    int b\n)\n    =>\n    a + b\nplot(customCalc(1, 2))\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Independent review of #42: the join ended at the closing paren, so a wrapped header ' +
+      'whose `=>` sits on the next line (Pine allows it) never matched the declaration ' +
+      'pattern — the definition AND every call reported "Undefined function \'customCalc\'".',
+  },
+  {
+    name: '#43: timeframe on a continuation line satisfies timeframe_gaps',
+    code: '//@version=6\nindicator("Wrapped", timeframe_gaps=true,\n    timeframe="D")\nplot(close)\n',
+    expect: null,
+    found: '2026-09-25',
+    why:
+      'Independent review of #42: validateSpecialCases received the PHYSICAL line, so a ' +
+      'wrapped indicator whose timeframe= sat on the next line warned that timeframe_gaps ' +
+      'has no effect — a false positive on the normal formatting of this call. Checks that ' +
+      'inspect arguments now see the joined statement. (The corpus tolerates bare warnings ' +
+      'in null cases, so test/wrapped-statement-location.test.js pins this silence.)',
+  },
+  {
+    name: '#43: a call opened mid-line after a closer is still arity-checked',
+    code: IND + 'x = math.abs(close\n) + ta.sma(\n    close,\n    14,\n    99\n)\nplot(x)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Independent review of #42 (the miss itself predates the PR): the `) + ta.sma(` line ' +
+      'drove the join depth to -1 and back to 0, ending the "wrap" before ta.sma\'s own ' +
+      'opener — the three-argument ta.sma escaped the arity check. Depth is now clamped at 0.',
+  },
+  {
+    name: '#43: a bad named argument on a continuation line is still named',
+    code: IND + 'lbl = label.new(\n    x=bar_index,\n    y=close,\n    text="Test",\n    invalid_named_param=123\n)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why:
+      'Independent review of #42: the named-parameter check itself was right, but it ' +
+      'reported at the call\'s first line — the squiggle pointed at label.new instead of ' +
+      'the argument. The error now lands on the argument\'s own physical line and column ' +
+      '(pinned in test/wrapped-statement-location.test.js).',
+  },
 ];
 
 /**

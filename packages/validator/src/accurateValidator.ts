@@ -187,15 +187,16 @@ export class AccurateValidator {
       //     x = ta.sma(close, 14)  // previously ta.sma(close, 14, 99)
       // reported "Too many arguments" against the comment. Blanking preserves
       // length, so reported columns still point at the right character.
-      // `wrapped` is the whole statement when this line's brackets stay open
-      // (issue #42): a call whose parens close on a later line is arity-checked
-      // against the joined text instead of being skipped.
+      // `wrappedLines` is the whole statement (as cleaned physical lines) when
+      // this line's brackets stay open (issue #42): a call whose parens close
+      // on a later line is arity-checked against the joined text instead of
+      // being skipped, and checks that inspect arguments see every argument.
       const stmtEnd = this.wrappedStatementEnd(cleanedLines, i);
-      const wrapped = stmtEnd === i ? lineWithoutStrings : cleanedLines.slice(i, stmtEnd + 1).join(' ');
+      const wrappedLines = cleanedLines.slice(i, stmtEnd + 1);
       for (const funcName of this.extractCalledFunctionNames(lineWithoutStrings)) {
         const spec = (ALL_FUNCTION_SIGNATURES as any)[funcName];
         if (spec) {
-          this.validateFunctionCall(lineWithoutStrings, lineNum, funcName, spec, wrapped);
+          this.validateFunctionCall(lineWithoutStrings, lineNum, funcName, spec, wrappedLines);
         }
       }
     }
@@ -210,21 +211,71 @@ export class AccurateValidator {
    * is tracked on the CLEANED lines, so a bracket inside a string or comment
    * never extends the statement. When brackets balance on the line itself its
    * own index comes back: nothing is joined across lines when brackets balance.
+   *
+   * Three bounds keep a syntax error from cascading (review finding f1 on #42):
+   * with an opener that never closes (`bad = (`) the join used to run to EOF,
+   * swallowing every declaration below the break — `type Config` was never
+   * collected and `Config.new()` was flagged as undefined. The join now stops
+   * at a blank line, at a line that opens a new top-level statement flush at
+   * column 0 (a wrapped continuation is indented; a column-0 `type`/`import`/
+   * `var`/header/assignment is a new statement, and stopping there only ever
+   * skips the arity check — the safe direction), and after 50 lines.
+   *
+   * Depth is clamped at 0: a line that STARTS with closers (the `) + ta.sma(`
+   * middle of a wrap, asked about as a statement start in the second pass)
+   * must not drive depth negative and end the join before its own opener —
+   * that skipped the arity check on the call it opens (review finding f4).
+   *
+   * A header may put `=>` on its own line after the closing paren (Pine allows
+   * it), so when the brackets balance and the NEXT line begins with `=>`, that
+   * line is part of the statement (review finding f2 on #42).
    */
   private wrappedStatementEnd(cleanedLines: string[], start: number): number {
+    const MAX_WRAP_LINES = 50;
     let depth = 0;
     for (let end = start; end < cleanedLines.length; end++) {
       const cleaned = cleanedLines[end];
+      if (end > start && depth > 0) {
+        if (!cleaned.trim()) return end - 1;
+        if (this.startsTopLevelStatement(cleaned)) return end - 1;
+        if (end - start >= MAX_WRAP_LINES) return end;
+      }
       for (let i = 0; i < cleaned.length; i++) {
         const ch = cleaned[i];
         if (ch === '(' || ch === '[') depth++;
-        else if (ch === ')' || ch === ']') depth--;
+        else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
       }
-      if (depth <= 0) return end;
+      if (depth === 0) {
+        if (end + 1 < cleanedLines.length && cleanedLines[end + 1].trimStart().startsWith('=>')) {
+          return end + 1;
+        }
+        return end;
+      }
     }
-    // The brackets never close (broken code): the statement runs to EOF. The
-    // arity check still finds no closing paren on the joined text and skips.
+    // The brackets never close (broken code) and no bound bit: the statement
+    // runs to EOF. The arity check still finds no closing paren on the joined
+    // text and skips.
     return cleanedLines.length - 1;
+  }
+
+  /**
+   * Does this CLEANED line open a new top-level statement? Only a line flush at
+   * column 0 qualifies — a wrapped continuation is indented, so an indented
+   * line is never a new statement. The patterns are constructs that cannot
+   * appear inside a bracketed expression (type/enum/method/import/var, the
+   * script declarations, control flow) plus a same-line function header and a
+   * plain assignment. A named argument at column 0 inside a wrapped call can
+   * match the assignment pattern; stopping the join there only skips the arity
+   * check — a missed error, never a false positive.
+   */
+  private startsTopLevelStatement(line: string): boolean {
+    if (line.length === 0 || line[0] === ' ' || line[0] === '\t') return false;
+    return (
+      /^(?:export\s+)?(?:type|enum|method|import|var|varip|for|if|while|switch)\b/.test(line) ||
+      /^(?:indicator|strategy|library|plot\w*|hline|bgcolor|fill|alertcondition)\s*\(/.test(line) ||
+      /^[A-Za-z_][\w.]*\s*\(.*\)\s*=>/.test(line) ||
+      /^[A-Za-z_]\w*\s*:?=(?!=)/.test(line)
+    );
   }
 
   /**
@@ -819,7 +870,7 @@ export class AccurateValidator {
     lineNum: number,
     functionName: string,
     spec: any,
-    wrappedLine?: string
+    wrappedLines?: string[]
   ): void {
     // Skip type names - they're not functions
     if (TYPE_NAMES.has(functionName)) {
@@ -835,16 +886,26 @@ export class AccurateValidator {
     const escapedName = functionName.replace(/\./g, '\\.');
     const regex = new RegExp(`(?<![a-zA-Z0-9_\\.])${escapedName}\\s*\\(`, 'g');
 
+    // The statement's lines joined into one text (issue #42). The join starts
+    // with this line verbatim, so an index into the physical line means the
+    // same character in the joined text; the per-line lengths are kept so an
+    // offset into the join can be mapped back to its physical line (finding
+    // f5 on #42).
+    const joined = wrappedLines && wrappedLines.length > 1 ? wrappedLines.join(' ') : undefined;
+
     let match;
     while ((match = regex.exec(line)) !== null) {
       const openParenIndex = match.index + match[0].length - 1;
       let argsString = this.extractBalancedArgs(line, openParenIndex);
-      if (argsString === null && wrappedLine) {
+      let argSource = line;
+      if (argsString === null && joined) {
         // The call's parens do not close on this line (issue #42): retry against
-        // the whole wrapped statement. The joined text starts with this line
-        // verbatim, so openParenIndex and the reported column still point at the
-        // same character on the original physical line.
-        argsString = this.extractBalancedArgs(wrappedLine, openParenIndex);
+        // the whole wrapped statement.
+        const fromJoined = this.extractBalancedArgs(joined, openParenIndex);
+        if (fromJoined !== null) {
+          argsString = fromJoined;
+          argSource = joined;
+        }
       }
       // null = the call's parens never close even across the wrapped statement —
       // skip count validation here to avoid false positives.
@@ -938,13 +999,27 @@ export class AccurateValidator {
       if (this.namedArgCheckedFunctions.has(functionName)) {
         const validNames = this.collectValidParamNames(spec);
         if (validNames.size > 0) {
+          // Report a bad argument on ITS physical line and column, not on the
+          // call's first line (review finding f5 on #42). Arguments are
+          // located in the text they were extracted from; an offset into the
+          // joined statement maps back through the per-line lengths.
+          let searchFrom = openParenIndex + 1;
           for (const arg of args) {
+            const at = argSource.indexOf(arg, searchFrom);
+            if (at !== -1) searchFrom = at + arg.length;
             const nm = arg.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)/);
             if (nm && !validNames.has(nm[1])) {
+              const pos = at === -1
+                ? { line: lineNum, column }
+                : this.wrappedOffsetToPosition(
+                    argSource === joined ? (wrappedLines as string[]) : [line],
+                    at,
+                    lineNum
+                  );
               this.addError(
-                lineNum,
-                column,
-                functionName.length,
+                pos.line,
+                pos.column,
+                nm[1].length,
                 `No parameter named '${nm[1]}' in '${functionName}'`,
                 Severity.Error
               );
@@ -953,8 +1028,14 @@ export class AccurateValidator {
         }
       }
 
-      // Special validations
-      this.validateSpecialCases(line, lineNum, column, functionName, args);
+      // Special validations. These inspect the call's ARGUMENTS, so they must
+      // see the joined statement, not just the physical line the call starts
+      // on: `indicator("Wrapped", timeframe_gaps=true,\n timeframe="D")` warned
+      // that timeframe_gaps had no effect because "timeframe=" sat on the next
+      // line (review finding f3 on #42). Columns are still resolved against
+      // the physical line, falling back to the call's column when the needle
+      // is on a continuation line.
+      this.validateSpecialCases(line, lineNum, column, functionName, args, joined);
     }
   }
 
@@ -1112,19 +1193,44 @@ export class AccurateValidator {
     return args;
   }
 
+  /**
+   * Map an offset into `segments.join(' ')` back to its physical line and
+   * column. `segments[0]` is the statement's first line (1-based number
+   * `startLineNum`); each later segment follows one inserted space.
+   */
+  private wrappedOffsetToPosition(
+    segments: string[],
+    offset: number,
+    startLineNum: number
+  ): { line: number; column: number } {
+    let rest = offset;
+    for (let k = 0; k < segments.length; k++) {
+      if (rest <= segments[k].length) return { line: startLineNum + k, column: rest };
+      rest -= segments[k].length + 1;
+    }
+    return { line: startLineNum, column: offset };
+  }
+
   private validateSpecialCases(
     line: string,
     lineNum: number,
     column: number,
     functionName: string,
-    args: string[]
+    args: string[],
+    statement?: string
   ): void {
+    // `statement` is the joined wrapped statement (or undefined when the call
+    // fits on one line); presence checks run against it so an argument on a
+    // continuation line still counts. Columns come from the physical line and
+    // fall back to the call's column when the needle wrapped.
+    const text = statement ?? line;
+
     // plotshape: check for "shape=" parameter (should be "style=")
-    if (functionName === 'plotshape' && line.includes('shape=')) {
+    if (functionName === 'plotshape' && text.includes('shape=')) {
       const shapeIndex = line.indexOf('shape=');
       this.addError(
         lineNum,
-        shapeIndex,
+        shapeIndex === -1 ? column : shapeIndex,
         6,
         'Invalid parameter "shape" for plotshape(). Did you mean "style"?',
         Severity.Error
@@ -1132,11 +1238,11 @@ export class AccurateValidator {
     }
 
     // plotchar: check for "shape=" parameter (should be "char=")
-    if (functionName === 'plotchar' && line.includes('shape=')) {
+    if (functionName === 'plotchar' && text.includes('shape=')) {
       const shapeIndex = line.indexOf('shape=');
       this.addError(
         lineNum,
-        shapeIndex,
+        shapeIndex === -1 ? column : shapeIndex,
         6,
         'Invalid parameter "shape" for plotchar(). Did you mean "char"?',
         Severity.Error
@@ -1145,11 +1251,11 @@ export class AccurateValidator {
 
     // indicator/strategy: timeframe_gaps without timeframe
     if ((functionName === 'indicator' || functionName === 'strategy') &&
-        line.includes('timeframe_gaps') && !line.includes('timeframe=')) {
+        text.includes('timeframe_gaps') && !text.includes('timeframe=')) {
       const index = line.indexOf('timeframe_gaps');
       this.addError(
         lineNum,
-        index,
+        index === -1 ? column : index,
         14,
         '"timeframe_gaps" has no effect without "timeframe" parameter',
         Severity.Warning
