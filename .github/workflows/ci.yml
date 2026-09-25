@@ -43,6 +43,9 @@ jobs:
     - name: Run v0.4.0 self-test
       run: node test/v0.4.0-self-test.js
 
+    - name: Watch smoke test (npm run watch syncs dist/engine; no orphans)
+      run: node scripts/watch-smoke.js
+
     - name: Verify build artifacts
       run: |
         if [ ! -d "dist" ]; then

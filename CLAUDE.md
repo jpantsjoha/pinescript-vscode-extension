@@ -90,8 +90,9 @@ extension (through `src/engine.ts`), IntelliSense, `validate-cli.js` and the MCP
 server load `dist/engine/`. The tests exercise the same source and build: some load
 `dist/engine/`, some `packages/validator/dist/` (byte-identity between the two is
 enforced), and `test/npm-package.test.js` loads the packed-and-installed tarball.
-`npm run watch` rebuilds the engine and re-syncs `dist/engine/` on every validator
-edit (`scripts/watch.js`). The VSIX ships that same code — never the
+`npm run watch` (`scripts/watch.js`) rebuilds the engine and re-syncs `dist/engine/`
+after every error-free compile, via a staged swap; `scripts/watch-smoke.js` proves it
+in CI. The VSIX ships that same code — never the
 published npm package, which lags the working tree until the next release cut (npm
 0.4.1 fails 27 of 107 regression cases the local source passes). The extension has
 no runtime dependency on `pinescript-v6-validator`. `test/engine-parity.test.js`

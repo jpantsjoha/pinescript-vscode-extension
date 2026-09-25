@@ -124,6 +124,7 @@
     "qa:pinescript": "node validate-cli.js examples/*.pine",
     "package": "vsce package --out build/",
     "verify:vsix": "node scripts/verify-vsix.js",
+    "test:watch": "node scripts/watch-smoke.js",
     "rebuild": "npm run clean && npm run build && npm test && npm run package",
     "rebuild:skip-tests": "npm run clean && npm run build && npm run package",
     "crawl": "node scripts/crawl-v6-reference.js",

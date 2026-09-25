@@ -225,23 +225,39 @@ function auditPackaging() {
   }
 
   // The engine (validator code + reference data) loads at runtime from dist/engine/,
-  // the local build of packages/validator. Excluding it would ship an extension
-  // that dies at activation, so this must be able to FAIL — the previous form had
-  // no else branch and was inert.
-  // Any pattern that would drop engine JavaScript: dist/engine, dist/engine/**,
-  // dist/engine/src/**, dist/engine/data/**, dist/engine/**/*.js, dist/engine/index.js,
-  // dist/**, dist/**/*.js ... Patterns that only drop declarations (*.d.ts) or maps
-  // are fine. vsce negations (!pattern) are not modelled; they re-include, never drop.
-  const excludesEngine = ignore.split('\n').map(l => l.trim())
-    .filter(l => l && !l.startsWith('#') && !l.startsWith('!'))
-    .filter(l => !/\.d\.ts$|\.map$/.test(l))
-    .some(l => /^(\*\*\/)?dist(\/\*\*)?(\/engine)?(\/|$)/.test(l) && /^(\*\*\/)?dist(\/(\*\*|engine)(\/.*)?)?\/?$|^(\*\*\/)?dist\/(\*\*|engine)\/.*\.js$/.test(l));
-  if (excludesEngine) {
-    fail('packaging', '.vscodeignore excludes dist/engine/, which the extension loads at runtime — it would fail on activation');
-  } else if (/^v6\/\*\*/m.test(ignore) && /^packages\/\*\*/m.test(ignore)) {
-    pass('packaging', 'v6/ and packages/ sources excluded; the compiled engine ships once, in dist/engine/');
+  // the local build of packages/validator. Rather than pattern-match the ignore
+  // file's text (which missed `**/*.js`, `**/engine/**`, `*/engine/**` ...), this
+  // evaluates .vscodeignore with vsce's own rules (scripts/vscodeignore.js) and asks
+  // of concrete paths: does it ship? The real VSIX is still checked in CI by
+  // scripts/verify-vsix.js; this catches the mistake before anything is packaged.
+  const ships = require('./vscodeignore').compile(ignore);
+  const tsModules = dir => (exists(dir) ? fs.readdirSync(path.join(ROOT, dir)) : [])
+    .filter(f => f.endsWith('.ts')).map(f => f.replace(/\.ts$/, ''));
+  const engineSrc = tsModules('packages/validator/src');
+  const engineData = tsModules('packages/validator/data');
+  const runtime = [
+    main, 'dist/src/engine.js', 'dist/engine/index.js',
+    ...engineSrc.map(m => `dist/engine/src/${m}.js`),
+    ...engineData.map(m => `dist/engine/data/${m}.js`),
+  ];
+  const secondEngine = [
+    'packages/validator/index.ts', 'packages/validator/package.json',
+    'packages/validator/dist/index.js',
+    ...engineSrc.flatMap(m => [`packages/validator/src/${m}.ts`, `packages/validator/dist/src/${m}.js`]),
+    ...engineData.flatMap(m => [`packages/validator/data/${m}.ts`, `packages/validator/dist/data/${m}.js`]),
+    'node_modules/pinescript-v6-validator/dist/index.js',
+  ];
+  const dropped = runtime.filter(f => !ships(f));
+  const duplicated = secondEngine.filter(f => ships(f));
+  if (dropped.length) {
+    fail('packaging', `.vscodeignore excludes runtime files the extension loads — it would fail on activation: ${dropped.join(', ')}`);
   } else {
-    warn('packaging', 'v6/ or packages/ sources are shipped in the VSIX; only dist/engine/ is needed at runtime');
+    pass('packaging', `.vscodeignore keeps all ${runtime.length} runtime engine/entry files (evaluated with vsce rules)`);
+  }
+  if (duplicated.length) {
+    fail('packaging', `.vscodeignore lets a second engine copy ship: ${duplicated.join(', ')}`);
+  } else {
+    pass('packaging', 'no second engine copy ships (packages/, node_modules engine excluded)');
   }
 
   // The engine's presence in the VSIX is proved on the real artefact, not on this
@@ -251,6 +267,11 @@ function auditPackaging() {
     fail('packaging', 'CI does not run scripts/verify-vsix.js on the packaged VSIX — nothing proves the engine ships');
   } else {
     pass('packaging', 'CI lists the packaged VSIX entries and executes activate() (scripts/verify-vsix.js)');
+  }
+  if (!exists('scripts/watch-smoke.js') || !/node scripts\/watch-smoke\.js/.test(ciYaml)) {
+    fail('packaging', 'CI does not run scripts/watch-smoke.js — `npm run watch` could silently stop syncing dist/engine');
+  } else {
+    pass('packaging', 'CI smoke-tests `npm run watch` (scripts/watch-smoke.js)');
   }
 
   // Credentials must never be packaged. vsce reads the working tree, so a gitignored

@@ -4,10 +4,12 @@
  *
  *   node scripts/verify-vsix.js <file.vsix>
  *
- * 1. Lists the real VSIX entries and asserts the one engine ships: dist/engine/index.js,
- *    every packages/validator/src module as dist/engine/src/*.js and every data file
- *    as dist/engine/data/*.js — and that no second engine copy (dist/src/parser/,
- *    engine data under dist/v6/, node_modules/pinescript-v6-validator) ships.
+ * 1. Reads the archive listing BEFORE extracting: rejects absolute, `..`, backslash
+ *    and symlink entries; asserts the one engine ships (dist/engine/index.js, every
+ *    packages/validator/src module as dist/engine/src/*.js, every data file as
+ *    dist/engine/data/*.js); rejects a second engine in any layout
+ *    (extension/packages/**, node_modules/pinescript-v6-validator, or any file named
+ *    like an engine module outside extension/dist/engine/).
  * 2. Extracts it, executes the packaged entry point's activate() with a stubbed
  *    `vscode` module, and drives the diagnostics through onDidOpenTextDocument:
  *    valid code must be silent, `color.purplee` must be an error.
@@ -33,9 +35,22 @@ if (!vsix || !fs.existsSync(vsix)) {
   process.exit(1);
 }
 
-// ── 1. Entries ────────────────────────────────────────────────────────────────
+// ── 1. Entries (read from the archive listing, BEFORE anything is extracted) ──
 const entries = execFileSync('unzip', ['-Z1', vsix], { encoding: 'utf8' })
-  .split('\n').map(s => s.trim()).filter(Boolean);
+  .split('\n').filter(line => line.length);
+// The long listing carries each entry's Unix mode; same order as -Z1.
+const modes = execFileSync('unzip', ['-Z', vsix], { encoding: 'utf8' })
+  .split('\n').filter(line => /^[-dlbcps?][-rwxsStT?]{9}\s/.test(line)).map(line => line[0]);
+if (modes.length !== entries.length) {
+  fail(`archive listing is inconsistent (${entries.length} names, ${modes.length} modes) — refusing to extract`);
+}
+
+// Unsafe paths: absolute, drive-letter, backslash, `..` segments, symlinks.
+const unsafe = entries.filter((e, i) =>
+  e.startsWith('/') || /^[A-Za-z]:/.test(e) || e.includes('\\') ||
+  e.split('/').some(seg => seg === '..') || modes[i] === 'l');
+for (const e of unsafe) fail(`unsafe archive entry (absolute, traversal, backslash or symlink): ${JSON.stringify(e)}`);
+
 const has = p => entries.includes(`extension/${p}`);
 const modules = dir => fs.readdirSync(path.join(ROOT, dir)).filter(f => f.endsWith('.ts')).map(f => f.replace(/\.ts$/, '.js'));
 
@@ -49,13 +64,22 @@ const required = [
 ];
 for (const p of required) if (!has(p)) fail(`missing from VSIX: ${p}`);
 
-const engineData = new Set(modules('packages/validator/data'));
+// A second engine, in any layout: the package tree itself, the npm package, or any
+// file named like an engine module (.js or .ts) outside extension/dist/engine/.
+const engineBasenames = new Set(
+  [...modules('packages/validator/src'), ...modules('packages/validator/data')]
+    .flatMap(f => [f, f.replace(/\.js$/, '.ts'), f.replace(/\.js$/, '.d.ts')]));
 const duplicates = entries.filter(e =>
-  /^extension\/dist\/src\/parser\//.test(e) ||
-  /^extension\/dist\/packages\//.test(e) ||
-  /^extension\/node_modules\/pinescript-v6-validator\//.test(e) ||
-  (/^extension\/dist\/v6\//.test(e) && engineData.has(path.basename(e))));
+  /^extension\/packages\//.test(e) ||
+  /(^|\/)node_modules\/pinescript-v6-validator\//.test(e) ||
+  (!e.startsWith('extension/dist/engine/') &&
+    (engineBasenames.has(path.posix.basename(e)) || /(^|\/)parameter-requirements[^/]*\.js$/.test(e))));
 for (const d of duplicates) fail(`second engine copy ships: ${d}`);
+
+if (unsafe.length || modes.length !== entries.length) {
+  console.error(`verify-vsix: FAIL\n  - ${failures.join('\n  - ')}`);
+  process.exit(1);
+}
 
 console.log(`verify-vsix: ${entries.length} entries; ${required.length} required runtime files checked`);
 
