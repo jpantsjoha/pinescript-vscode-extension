@@ -68,10 +68,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an error, as on TradingView: `Cannot assign "input.float" (float) to a variable declared
   "int"`. The rule is narrow: it judges only a declaration typed `int`, `float`, `bool`,
   `color` or `string` whose whole right-hand side is one `input.*()` call (wrapped calls
-  included). `float x = input.int(...)` stays silent (Pine casts int to float), as do
-  UDT and enum types, bare `input()`, `input.enum()`, fields inside a `type` block, and
-  any call wrapped in or followed by another expression. Return types come from the v6
-  reference; casting rules from the type-system docs.
+  and comma-separated declarations included). `float x = input.int(...)` stays silent
+  (Pine casts int to float), as do UDT and enum types, bare `input()`, `input.enum()`,
+  `const` declarations, one-line `=>` bodies, fields inside a `type` block, any call
+  wrapped in or followed by another expression, and any call whose expression may
+  continue on the next line. Return types come from the v6 reference; casting rules
+  from the type-system docs.
 
 ## [0.6.5] - 2026-09-25
 

@@ -1345,17 +1345,31 @@ export class AccurateValidator {
    * returns: `int factor = input.float(0.7, "Factor")` fails to compile on
    * TradingView (float cannot be assigned to int) but was silent here.
    *
-   * Deliberately narrow (no AST, no type inference). Fires only when ALL hold:
-   *   - the statement starts with `[var|varip] [const|simple|series|input] <T> <name> =`
-   *     where <T> is one of the five value keywords int/float/bool/color/string
-   *     (UDTs, enums and generics such as `array<int>` are never judged);
-   *   - the whole right-hand side is one `input.<fn>(...)` call: nothing after the
-   *     closing paren but whitespace or a comment (strings and comments are already
-   *     blanked in `cleanedLines`). A ternary, arithmetic, any operator, or a
-   *     wrapping call such as `math.round(input.float(1))` keeps it silent;
+   * Deliberately narrow (no AST, no type inference). A false positive is worse
+   * than a miss, so every doubt resolves to silence. Fires only when ALL hold:
+   *   - a depth-0 statement segment (`statementSegments`: `int x = input.float(1), int y = 2`
+   *     judges each declaration on its own) reads `[var|varip] [simple|series] <T> <name> =`
+   *     where <T> is one of the five value keywords int/float/bool/color/string.
+   *     UDTs, enums and generics such as `array<int>` are never judged. The only
+   *     qualifier keywords Pine lets a script write are const/simple/series
+   *     (`input` is inherited, never written);
+   *   - the declaration is not `const`: the fixes the message offers (input.int(),
+   *     int(), math.round()) still return an "input" value, which cannot initialise
+   *     a const variable, so const declarations are skipped (a missed error, by design);
+   *   - the whole segment right-hand side is one `input.<fn>(...)` call: nothing
+   *     after the closing paren but whitespace or a comment (strings and comments
+   *     are already blanked in `cleanedLines`). A ternary, arithmetic, any operator,
+   *     or a wrapping call such as `math.round(input.float(1))` keeps it silent;
+   *   - the NEXT significant line cannot continue the expression: a balanced call
+   *     closes the bracket-based join, yet Pine lets an expression carry on after it
+   *     (`bool b = input.string("On")` / `  == "On"`). A following line indented
+   *     deeper than the statement, or starting with an operator, `?`, `:`, `.`, `[`,
+   *     `,`, `and` or `or`, keeps it silent;
    *   - <fn> has a verified return type below (bare `input()` and `input.enum()`
    *     are skipped: their type depends on the argument);
-   *   - the line is not a field inside a `type` block.
+   *   - the statement has no `=>`: a one-line function body such as
+   *     `f() => int x = input.float(1), x` is not judged (a missed error, by design),
+   *     and neither is a field inside a `type` block.
    * Wrapped calls are judged on the joined statement (`wrappedStatementEnd`).
    *
    * Return types: official v6 reference, https://www.tradingview.com/pine-script-reference/v6/
@@ -1382,7 +1396,9 @@ export class AccurateValidator {
       session: 'string', symbol: 'string', source: 'float',
       price: 'float', time: 'int',
     };
-    const DECL = /^\s*(?:(?:var|varip)\s+)?(?:(?:const|simple|series|input)\s+)?(int|float|bool|color|string)\s+[A-Za-z_]\w*\s*=\s*(input\.([A-Za-z_]\w*))\s*\(/;
+    const DECL = /^\s*(?:(?:var|varip)\s+)?(?:(const|simple|series)\s+)?(int|float|bool|color|string)\s+[A-Za-z_]\w*\s*=\s*(input\.([A-Za-z_]\w*))\s*\(/;
+    const CONTINUES = /^(?:[-+*\/%?:.\[,<>=!]|(?:and|or)\b)/;
+    const indentOf = (s: string) => (/^[ \t]*/.exec(s) as RegExpExecArray)[0].length;
     let inTypeBlock = false;
     let start = 0;
     while (start < cleanedLines.length) {
@@ -1393,39 +1409,70 @@ export class AccurateValidator {
       if (/^\S/.test(first)) {
         inTypeBlock = /^(?:export\s+)?type\s+[A-Za-z_]/.test(first);
       }
-      const m = inTypeBlock ? null : DECL.exec(first);
-      const declared = m ? m[1] : '';
-      const returned = m ? INPUT_RETURN_TYPES[m[3]] : undefined;
-      if (m && returned && declared !== returned &&
-          !(declared === 'float' && returned === 'int')) {
-        const joined = end === start ? first : cleanedLines.slice(start, end + 1).join(' ');
-        // Balance-scan from the call's `(` to its matching `)`: the call must be
-        // the entire right-hand side.
-        let depth = 0;
-        let close = -1;
-        for (let k = m[0].length - 1; k < joined.length; k++) {
-          const ch = joined[k];
-          if (ch === '(' || ch === '[') depth++;
-          else if (ch === ')' || ch === ']') {
-            depth--;
-            if (depth === 0) { close = k; break; }
+      const joined = end === start ? first : cleanedLines.slice(start, end + 1).join(' ');
+      if (!inTypeBlock && /\binput\.\w/.test(joined) && !joined.includes('=>')) {
+        let next = end + 1;
+        while (next < cleanedLines.length && cleanedLines[next].trim() === '') next++;
+        const nextLine = next < cleanedLines.length ? cleanedLines[next] : '';
+        const mayContinue = nextLine !== '' &&
+          (indentOf(nextLine) > indentOf(first) || CONTINUES.test(nextLine.trim()));
+        if (!mayContinue) {
+          let offset = 0;
+          for (const segment of this.statementSegments(joined)) {
+            this.checkInputDeclarationSegment(segment, offset, start, cleanedLines, DECL, INPUT_RETURN_TYPES);
+            offset += segment.length + 1; // the depth-0 comma (no `=>` here)
           }
-        }
-        if (close !== -1 && joined.slice(close + 1).trim() === '') {
-          this.addError(
-            start + 1,
-            m[0].indexOf(m[2]),
-            m[2].length,
-            `Cannot assign "${m[2]}" (${returned}) to a variable declared "${declared}". ` +
-            (declared === 'int' && returned === 'float'
-              ? 'Pine never casts float to int automatically: declare it "float", use input.int(), or wrap the call in int() or math.round().'
-              : `Declare the variable "${returned}" or use the input function that returns ${declared}.`),
-            Severity.Error
-          );
         }
       }
       start = end + 1;
     }
+  }
+
+  /** One statement segment of the #12 rule; `offset` is its start in the joined statement. */
+  private checkInputDeclarationSegment(
+    segment: string,
+    offset: number,
+    start: number,
+    cleanedLines: string[],
+    DECL: RegExp,
+    INPUT_RETURN_TYPES: Record<string, string>
+  ): void {
+    const m = DECL.exec(segment);
+    if (!m || m[1] === 'const') return;
+    const declared = m[2];
+    const returned = INPUT_RETURN_TYPES[m[4]];
+    if (!returned || declared === returned || (declared === 'float' && returned === 'int')) return;
+    // Balance-scan from the call's `(` to its matching `)`: the call must be the
+    // entire right-hand side of the segment.
+    let depth = 0;
+    let close = -1;
+    for (let k = m[0].length - 1; k < segment.length; k++) {
+      const ch = segment[k];
+      if (ch === '(' || ch === '[') depth++;
+      else if (ch === ')' || ch === ']') {
+        depth--;
+        if (depth === 0) { close = k; break; }
+      }
+    }
+    if (close === -1 || segment.slice(close + 1).trim() !== '') return;
+    // Map the token's offset in the joined statement (lines joined by one space)
+    // back to its physical line and column.
+    let pos = offset + m[0].indexOf(m[3]);
+    let line = start;
+    while (pos > cleanedLines[line].length) {
+      pos -= cleanedLines[line].length + 1;
+      line++;
+    }
+    this.addError(
+      line + 1,
+      pos,
+      m[3].length,
+      `Cannot assign "${m[3]}" (${returned}) to a variable declared "${declared}". ` +
+      (declared === 'int' && returned === 'float'
+        ? 'Pine never casts float to int automatically: declare it "float", use input.int(), or wrap the call in int() or math.round().'
+        : `Declare the variable "${returned}" or use the input function that returns ${declared}.`),
+      Severity.Error
+    );
   }
 
   private addError(

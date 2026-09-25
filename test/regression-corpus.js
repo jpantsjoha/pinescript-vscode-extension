@@ -1162,6 +1162,50 @@ const CASES = [
     why: 'The declared type holds the ternary result (int), not the input call; the rule ' +
       'reads only right-hand sides that are the call and nothing else.',
   },
+  {
+    name: '#12: a comparison continued on the NEXT line is correct',
+    code: IND + 'bool enabled = input.string("On")\n  == "On"\nplot(enabled ? close : na)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Review blocker on PR #57: the call closes its brackets, so the bracket-based join ' +
+      'ended there and the rule reported string-to-bool, an ERROR on valid wrapped code.',
+  },
+  {
+    name: '#12: a ternary continued on the next lines is correct',
+    code: IND + 'int n = input.bool(true)\n  ? 1\n  : 0\nplot(n)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Same blocker, ternary form: the declared int holds the ternary result, not the bool input.',
+  },
+  {
+    name: '#12: arithmetic continued on the next line is correct',
+    code: IND + 'float x = input.string("2") == "2"\n  ? 1.5\n  : 2.5\nplot(x)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Same blocker with the operator on the first line and the branches wrapped below.',
+  },
+  {
+    name: '#12: `and` continued on the next line is correct',
+    code: IND + 'bool b = input.string("x") == "x"\n  and close > open\nplot(b ? 1 : 0)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Same blocker, logical form: a wrapped `and` continues the expression.',
+  },
+  {
+    name: '#12: comma-separated declarations flag the bad segment',
+    code: IND + 'int x = input.float(1), int y = 2\nplot(x + y)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why: 'Review condition on PR #57: text after the first segment made the whole statement ' +
+      'look like more than the call, so a real cast error on one line was missed.',
+  },
+  {
+    name: '#12: comma-separated declarations with a valid cast stay silent',
+    code: IND + 'float a = input.int(1), int b = 2\nplot(a + b)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Paired with the flagged segment case: int to float in the first segment is legal.',
+  },
 ];
 
 /**
