@@ -290,7 +290,10 @@ export class AccurateValidator {
    *     not end with ',' the assignment reading wins and the join stops —
    *     `plot(\ncolor=color.red\n)` (no comma yet) is a deliberate miss: the
    *     join stops early, the arity check is skipped, and skipping only ever
-   *     loses an error, never invents one.
+   *     loses an error, never invents one. The same trade-off hits a column-0
+   *     FIRST argument right after the opener: `plotshape(\nshape=shape.circle\n)`
+   *     ends the join before `shape` is seen, so the obsolete-parameter warning
+   *     is missed — an accepted false negative (Codex round-2 finding 2 on #43).
    */
   private startsTopLevelStatement(line: string, prevEndsWithComma: boolean): boolean {
     if (line.length === 0 || line[0] === ' ' || line[0] === '\t') return false;
@@ -952,11 +955,15 @@ export class AccurateValidator {
       // reported plotshape's obsolete `shape` parameter when `shape` belonged
       // to `passthrough` (review finding d1 on #43).
       //
-      // A bad argument is reported at the start of its NAME (at + nm.index),
-      // not at the argument's leading whitespace (finding d4 on #43), and not
-      // on the call's first line (finding f5 on #42). Arguments are located in
-      // the text they were extracted from; an offset into the joined statement
-      // maps back through the per-line lengths.
+      // A bad argument is reported at the start of its NAME, not at the
+      // argument's leading whitespace (finding d4 on #43), and not on the
+      // call's first line (finding f5 on #42). The `^` anchor makes nm.index
+      // always 0, so the name's offset inside the match is computed
+      // explicitly (nm[0].indexOf(nm[1])): splitArguments already trims each
+      // argument, so today both terms are 0, but the reported location must
+      // not depend on that preprocessing (Codex round-2 finding 1 on #43).
+      // Arguments are located in the text they were extracted from; an offset
+      // into the joined statement maps back through the per-line lengths.
       //
       // Computed BEFORE the variadic/unreliable-data skip below: that skip is
       // about ARITY, whose data can be incomplete while the curated parameter-
@@ -970,11 +977,15 @@ export class AccurateValidator {
           if (at !== -1) searchFrom = at + arg.length;
           const nm = arg.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)/);
           if (!nm) continue;
+          // Offset of the NAME inside the match: skips whatever leading
+          // whitespace the `^\s*` consumed (nm.index is always 0 under the
+          // `^` anchor, so it cannot carry this offset itself).
+          const nameOffset = (nm.index ?? 0) + nm[0].indexOf(nm[1]);
           const pos = at === -1
             ? { line: lineNum, column }
             : this.wrappedOffsetToPosition(
                 argSource === joined ? (wrappedLines as string[]) : [line],
-                at + (nm.index ?? 0),
+                at + nameOffset,
                 lineNum
               );
           topLevelNamedArgs.push({ name: nm[1], line: pos.line, column: pos.column });

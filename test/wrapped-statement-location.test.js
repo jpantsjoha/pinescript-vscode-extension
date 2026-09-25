@@ -15,6 +15,10 @@
  *        names: a nested call's argument named `shape` or `timeframe_gaps`
  *        must produce NO diagnostic at all (delta review, 2026-09-25), and
  *        the named-argument squiggle must start at the bad NAME.
+ *   round-2 #1 — the squiggle starts at the bad NAME even when the argument
+ *        carries leading whitespace/padding, in both the multi-line
+ *        (`plot(\n    close,\n    bogus=1\n)` → line 5, column 4) and the
+ *        single-line (`plot(close,   bogus=1)` → column 14) shapes.
  */
 
 'use strict';
@@ -104,6 +108,39 @@ describe('#43: wrapped statements — argument-level location and silence', () =
     assert.strictEqual(bad[0].line, 4);
     assert.strictEqual(bad[0].column, '    x=bar_index, '.length,
       'the underline begins at the first character of the bad name');
+  });
+
+  test('round-2 #1: a wrapped named argument skips its leading whitespace', () => {
+    const code =
+      '//@version=6\n' +
+      'indicator("t")\n' +
+      'plot(\n' +
+      '    close,\n' +
+      '    bogus=1\n' +
+      ')\n';
+    const diagnostics = validatePineScript(code);
+    const bad = diagnostics.filter(d =>
+      d.message.includes("No parameter named 'bogus'"));
+    assert.strictEqual(bad.length, 1, `expected exactly one named-parameter error, got ${JSON.stringify(diagnostics)}`);
+    // Line 5 is `    bogus=1`; the name starts at column 4.
+    assert.strictEqual(bad[0].line, 5,
+      'the error belongs on the argument\'s physical line');
+    assert.strictEqual(bad[0].column, 4,
+      'the squiggle starts at the b in bogus, not at the argument\'s indentation');
+  });
+
+  test('round-2 #1: a single-line named argument skips padding after the comma', () => {
+    const code =
+      '//@version=6\n' +
+      'indicator("t")\n' +
+      'plot(close,   bogus=1)\n';
+    const diagnostics = validatePineScript(code);
+    const bad = diagnostics.filter(d =>
+      d.message.includes("No parameter named 'bogus'"));
+    assert.strictEqual(bad.length, 1, `expected exactly one named-parameter error, got ${JSON.stringify(diagnostics)}`);
+    assert.strictEqual(bad[0].line, 3);
+    assert.strictEqual(bad[0].column, 14,
+      'the squiggle starts at the b in bogus (after `plot(close,   `), not at the padding');
   });
 
   test('d1: a nested argument named shape inside a wrapped plotshape is fully silent', () => {
