@@ -105,13 +105,25 @@ Compile errors cannot be silenced.
 
 ## Editing features
 
-- **Validation against all 475 built-in functions** in TradingView's current v6 reference,
-  including every documented overload.
-- **IntelliSense** for all 475 built-ins in the v6 reference, with every documented
-  overload in signature help, plus built-in variables and constants.
-- **Signature help** with parameter hints as you type the arguments.
-- **Hover documentation** for functions, variables and constants.
+- **Completions, signature help and hover for all 475 built-in functions** in
+  TradingView's v6 reference, with every documented overload. Type `ta.vwap(` and
+  signature help lists each of its forms as you fill in the arguments.
+- **Constants and variables complete after a namespace dot.** Type `xloc.`, `shape.`,
+  `location.`, `size.`, `display.`, `session.` or `strategy.commission.` and the list
+  offers that namespace's members, including the `plot.style_*` forms, each with its
+  description on hover.
+- **Misspelled constants are flagged.** `color.purplee` is underlined as an error, just
+  as TradingView rejects it.
+- **Wrapped statements are read as one.** Split a call across lines and the argument
+  checks still apply, and names declared on the wrapped lines stay defined.
 - **Syntax highlighting** for v6, including `type`, `enum` and `method`.
+
+![Works alongside AI inline suggestions: Pine highlighting and checks stay on while Copilot-style ghost text completes a line.](./images/screenshots/works-with-ai-inline-suggestions.png)
+
+The grey ghost text above comes from VS Code's AI inline suggestions (GitHub Copilot or
+similar), not from this extension, which has no inline-completion feature. What the
+extension adds in that picture is the Pine v6 syntax highlighting, and its checks run on
+the finished line.
 
 ![Function signature help](./images/screenshots/blog-image-function-tip.png)
 
@@ -159,6 +171,10 @@ Compile errors cannot be silenced.
 ---
 
 ## What's new
+
+**Unreleased on main**: the full v6 reference in IntelliSense, constant completions after
+a namespace dot, misspelled-constant errors and checks that read wrapped statements as
+one. See the [CHANGELOG highlights](./CHANGELOG.md) until the next release folds them in.
 
 **0.6.4**: current with TradingView's September 2026 Pine v6 reference
 (`request.footprint()`, `footprint.*`, `volume_row.*`), every documented overload accepted,

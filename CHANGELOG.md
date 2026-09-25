@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Merged on main, not yet in a tagged release.
 
+### Highlights
+
+- IntelliSense now covers all 475 built-in functions in the v6 reference, with every
+  documented overload in completions, signature help and hover.
+- Constants and variables complete after a namespace dot (`xloc.`, `shape.`,
+  `strategy.commission.`, ...), with their descriptions on hover.
+- A misspelled constant such as `color.purplee`, and an unknown namespace, are now
+  errors, as on TradingView.
+- Statements wrapped across lines are validated as one statement.
+
 ### ✨ IntelliSense covers the whole v6 reference (#36, PR #40)
 
 - Completions, signature help and hover now draw on all 475 built-in functions in the
