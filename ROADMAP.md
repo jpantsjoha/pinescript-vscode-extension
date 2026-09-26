@@ -92,8 +92,8 @@ inference. Git history keeps the old code.
 
 1. #54 publish engine 0.4.2 — reaches external npm consumers (pinescript-plugin); the CLI and MCP server run the local engine and do not wait on it. Needs JP's npm 2FA, about 10 minutes.
 2. #49 quick fixes — done on `feat/49-quick-fixes`; merge, then ship in 0.7.0.
-3. #55 one engine — built on `feat/55-single-engine`; merge after review. Removes the double-fix cost and the lag that #54 had to repair.
-4. #12 narrow cast rule.
+3. #55 one engine — **merged** (PR #59).
+4. #12 narrow cast rule — **merged** (PR #57).
 
 ## Related
 
