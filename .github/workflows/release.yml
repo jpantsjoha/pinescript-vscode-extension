@@ -29,10 +29,13 @@ jobs:
       id: get_version
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
+    # Step outputs reach shell scripts through env, never ${{ }} inside `run:`,
+    # so a crafted tag name cannot inject shell.
     - name: Verify version matches package.json
+      env:
+        TAG_VERSION: ${{ steps.get_version.outputs.VERSION }}
       run: |
         PACKAGE_VERSION=$(node -p "require('./package.json').version")
-        TAG_VERSION="${{ steps.get_version.outputs.VERSION }}"
         if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
           echo "❌ Version mismatch: package.json=$PACKAGE_VERSION, tag=$TAG_VERSION"
           exit 1
@@ -63,8 +66,9 @@ jobs:
 
     - name: Extract changelog for version
       id: changelog
+      env:
+        VERSION: ${{ steps.get_version.outputs.VERSION }}
       run: |
-        VERSION="${{ steps.get_version.outputs.VERSION }}"
         # Extract changelog section for this version
         CHANGELOG=$(awk "/## \[${VERSION}\]/,/## \[/" CHANGELOG.md | sed '$d' | tail -n +2)
         if [ -z "$CHANGELOG" ]; then
@@ -87,7 +91,10 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Release Summary
+      env:
+        VERSION: ${{ steps.get_version.outputs.VERSION }}
+        REPO: ${{ github.repository }}
       run: |
-        echo "✅ Release v${{ steps.get_version.outputs.VERSION }} created successfully"
+        echo "✅ Release v${VERSION} created successfully"
         echo "📦 VSIX package uploaded to GitHub Releases"
-        echo "🔗 https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_version.outputs.VERSION }}"
+        echo "🔗 https://github.com/${REPO}/releases/tag/v${VERSION}"

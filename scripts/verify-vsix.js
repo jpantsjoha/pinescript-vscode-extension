@@ -97,15 +97,22 @@ const allowedPatterns = [
   /^extension\/(readme|changelog)\.md$/i, // vsce 4 lower-cases these names
   /^extension\/syntaxes\/[^/]+\.json$/,
   /^extension\/snippets\/[^/]+\.json$/,
-  /^extension\/dist\/src\/[^/]+\.js$/,
-  /^extension\/dist\/engine\/(index|(src|data)\/[^/]+)\.js$/,
-  /^extension\/dist\/v6\/[^/]+\.js$/,
 ];
+// Compiled code: exactly one .js per TypeScript source, by name. A pattern such as
+// dist/src/*.js would also pass `extension 2.js`, the conflict copy a synced folder
+// (iCloud, Dropbox) leaves behind — seen in this repo's own working tree.
+const tsNames = dir => (fs.existsSync(path.join(ROOT, dir)) ? fs.readdirSync(path.join(ROOT, dir)) : [])
+  .filter(f => f.endsWith('.ts') && !f.endsWith('.d.ts')).map(f => f.replace(/\.ts$/, '.js'));
+for (const f of tsNames('src')) allowedExact.add(`extension/dist/src/${f}`);
+for (const f of tsNames('v6')) allowedExact.add(`extension/dist/v6/${f}`);
+for (const p of required) allowedExact.add(`extension/${p}`);
 const unexpected = entries.filter(e => !e.endsWith('/') && !allowedExact.has(e) && !allowedPatterns.some(re => re.test(e)));
 for (const e of unexpected) fail(`unexpected file in VSIX (not on the expected-contents list): ${e}`);
 
-if (unsafe.length || modes.length !== entries.length) {
-  console.error(`verify-vsix: FAIL\n  - ${failures.join('\n  - ')}`);
+// Any listing failure (unsafe entry, missing runtime file, second engine, unexpected
+// file) stops here: an archive that fails its listing is never extracted or run.
+if (failures.length) {
+  console.error(`verify-vsix: FAIL (listing; not extracted)\n  - ${failures.join('\n  - ')}`);
   process.exit(1);
 }
 

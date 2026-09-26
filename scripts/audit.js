@@ -255,10 +255,13 @@ function auditPackaging() {
   const ships = f => listed && listed.has(f);
 
   // Guards for where scripts/vsce-ls.js differs from `vsce package` (see its header).
-  if (Object.prototype.hasOwnProperty.call(pkg, 'files')) {
-    fail('packaging', 'package.json has a `files` field: `vsce package` rejects it alongside .vscodeignore, and scripts/vsce-ls.js would not notice');
-  } else {
-    pass('packaging', 'package.json has no `files` field (packaging is governed by .vscodeignore alone)');
+  try {
+    const manifestCheck = JSON.parse(execFileSync(process.execPath, [path.join(ROOT, 'scripts/vsce-ls.js'), '--check-manifest'],
+      { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
+    if (manifestCheck.ok) pass('packaging', 'package.json has no `files` field (packaging is governed by .vscodeignore alone)');
+    else fail('packaging', manifestCheck.problem);
+  } catch (err) {
+    fail('packaging', `could not check the manifest: ${(err.stderr || err.message).toString().split('\n')[0]}`);
   }
   try {
     const cmp = JSON.parse(execFileSync(process.execPath, [path.join(ROOT, 'scripts/vsce-ls.js'), '--compare-npm'],
@@ -295,6 +298,23 @@ function auditPackaging() {
     fail('packaging', 'CI does not run scripts/verify-vsix.js on the packaged VSIX — nothing proves the engine ships');
   } else {
     pass('packaging', 'CI lists the packaged VSIX entries and executes activate() (scripts/verify-vsix.js)');
+  }
+  // The tag workflows must verify the exact VSIX BEFORE it leaves the building.
+  for (const [wf, gates] of [
+    ['.github/workflows/publish.yml', ['vsce publish', 'ovsx publish']],
+    ['.github/workflows/release.yml', ['action-gh-release']],
+  ]) {
+    if (!exists(wf)) { fail('packaging', `${wf} is missing`); continue; }
+    const yaml = read(wf);
+    const verifyAt = yaml.search(/node scripts\/verify-vsix\.js/);
+    const late = gates.filter(g => yaml.includes(g) && (verifyAt < 0 || yaml.indexOf(g) < verifyAt));
+    if (verifyAt < 0) {
+      fail('packaging', `${wf} never runs scripts/verify-vsix.js on the VSIX it ships`);
+    } else if (late.length) {
+      fail('packaging', `${wf} runs ${late.join(', ')} before scripts/verify-vsix.js`);
+    } else {
+      pass('packaging', `${wf} verifies the VSIX before ${gates.filter(g => yaml.includes(g)).join(' / ') || 'shipping'}`);
+    }
   }
   if (!exists('scripts/watch-smoke.js') || !/node scripts\/watch-smoke\.js/.test(ciYaml)) {
     fail('packaging', 'CI does not run scripts/watch-smoke.js — `npm run watch` could silently stop syncing dist/engine');

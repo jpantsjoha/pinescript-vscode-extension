@@ -1,8 +1,21 @@
 # Project Status
 
-**Updated**: 2026-09-25
+**Updated**: 2026-09-26
 **Marketplace**: 0.6.5 · **Open VSX**: 0.6.5 (released 2026-09-25, tag `v0.6.5` on `166a268`)
 **Engine on npm**: `pinescript-v6-validator@0.4.1`, which lags the editor (see #54). On `feat/55-single-engine` (PR #59) the extension, `validate-cli.js` and the MCP server no longer depend on the npm engine: they load `dist/engine`, the local build of `packages/validator`. The npm package matters only to external consumers such as pinescript-plugin.
+
+## 2026-09-26: tooling moves to Node 22 (PR #59, #55)
+
+**Operator decision (JP, 2026-09-25, release gate):** development tooling and CI run
+on maintained Node only. Node 18 and 20 are end-of-life
+(https://nodejs.org/en/about/previous-releases, fetched 2026-09-25), and the pinned
+`@vscode/vsce` 4.0.0 requires Node 22. CI tests on 22.x and 24.x, the tag workflows run
+on 22, and `.nvmrc` is `22`. The shipped extension runs on VS Code's bundled runtime,
+so users are unaffected.
+
+**At merge of PR #59:** branch protection's required checks must switch from
+`Test & Lint (18.x)` / `Test & Lint (20.x)` to `Test & Lint (22.x)` / `Test & Lint (24.x)`,
+or the PR cannot report its required checks. Owner: JP (repository settings).
 
 ## 2026-09-25: 0.6.5 released — accuracy and IntelliSense milestone closed
 
@@ -50,7 +63,7 @@ through the CLI; on 0.6.5 main they already used the local syntactic copies.
 
 ## What waits on whom
 
-- **JP**: #54 npm publish (2FA); decision board rows 2–4.
+- **JP**: #54 npm publish (2FA); decision board rows 2–4; at the merge of PR #59, switch the required checks to `Test & Lint (22.x)` / `(24.x)`.
 - **Next session**: #49 quick fixes on `feat/49-quick-fixes`; #55 is built on `feat/55-single-engine` (PR #59) and does not wait on 0.4.2.
 
 ## Repository hygiene

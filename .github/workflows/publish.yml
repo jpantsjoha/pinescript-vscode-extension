@@ -59,7 +59,9 @@ jobs:
     - name: Publish to VS Code Marketplace
       env:
         VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      run: npx --no-install vsce publish -p "$VSCE_PAT" --packagePath "pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix"
+      # vsce 4.0.0 reads VSCE_PAT from the environment (--pat defaults to it), so the
+      # token never appears on a command line.
+      run: npx --no-install vsce publish --packagePath "pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix"
 
     # Open VSX serves Cursor, Windsurf, VSCodium, Gitpod and Theia. Its token was
     # checked in the preflight step, before the Marketplace publish.

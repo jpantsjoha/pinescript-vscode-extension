@@ -44,11 +44,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   engine file would be excluded or a second engine copy would ship, fails if
   package.json gains a `files` field, and fails if vsce's listing differs between
   its npm and no-dependency modes.
+- `test/packaging-guards.test.js` proves the packaging guards fail on bad input: a
+  VSIX with an extra entry, a package.json `files` field, and a dependency only
+  vsce's npm mode would ship. The audit also requires the publish and release
+  workflows to run `verify-vsix` before they publish. `verify-vsix` stops before
+  extraction when the listing already failed. The publish workflow reads the vsce
+  token from `VSCE_PAT` rather than the command line. The release workflow passes
+  the tag version to its scripts through `env`.
 - **Development tooling now requires Node 22** (`.nvmrc`). CI runs on Node 22 and
   24; Node 18 and 20 are end-of-life and vsce 4.0.0 requires Node 22. The
   extension itself runs on VS Code's bundled runtime, so users are unaffected.
 - No diagnostic changes: identical output on every `.pine` file in the repo against
-  the 0.6.5 build, and all 107 regression cases pass through the CLI.
+  the 0.6.5 build, and all 111 regression-corpus cases (107 cases plus 4
+  suppression cases) pass through the CLI.
 - `test/engine-parity.test.js` now fails the build if a copy of an engine module
   reappears in `src/` or `v6/`, if a source file imports around `src/engine.ts`, if
   the build bundles the npm package, or if `dist/engine` differs from the local

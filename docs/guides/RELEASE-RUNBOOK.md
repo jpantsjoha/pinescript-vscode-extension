@@ -76,14 +76,16 @@ Four places must agree: `package.json`, `CHANGELOG.md`, `README.md`, git tag.
 ### 4. Package and **execute** the packaged code
 
 ```bash
-rm -f build/*.vsix && npx @vscode/vsce package --out build/
-unzip -q build/*.vsix -d /tmp/vsix-check
+rm -f build/*.vsix && npm run package          # pinned local vsce, never a global one
+node scripts/verify-vsix.js build/pinescript-v6-extension-X.Y.Z.vsix
 ```
 
-Then stub `vscode` inside the extracted copy and run the validator against
-`test/fixtures/corpus/`. Inspecting the file list is not enough — the failure this
-catches is a `.vscodeignore` rule excluding something loaded at runtime, which
-builds and installs fine and dies on activation.
+`verify-vsix` checks the archive listing (expected contents only, the engine ships
+exactly once, no unsafe entries), then extracts it and executes the packaged
+`activate()` with a stubbed `vscode`. Inspecting the file list alone is not enough —
+the failure this catches is a `.vscodeignore` rule excluding something loaded at
+runtime, which builds and installs fine and dies on activation. Publish only that
+file: `npx --no-install vsce publish --packagePath <it>`.
 
 ### 5. Privacy check
 
