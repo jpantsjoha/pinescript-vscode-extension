@@ -4,7 +4,7 @@ Build order for the extension and its engine, `pinescript-v6-validator`. Derived
 the retired 2025-10-15 validator roadmap (deleted 2026-09-23; git history keeps it — its 70%/95%
 parity figures were never measured; treat percentages there as unsupported), the
 roadmap-reconciliation work that used to live in `STATUS.md`, and the open GitHub
-issues as of 2026-09-25 (reconciled after the 0.6.5 release). Status words: **not started** · **blocked** · **in
+issues as of 2026-09-26 (reconciled after the 0.7.0 release). Status words: **not started** · **blocked** · **in
 progress** · **shipped**.
 
 ## Shipped
@@ -49,6 +49,14 @@ parsed as code), #15 (UDT `.new()`).
 | Built-in constants and variables complete after a namespace dot, with hover descriptions and line-aware shadowing | [#45](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/45) | PR #46 |
 | Named-parameter completions and value suggestions, including wrapped calls | [#13](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/13) | PR #51 |
 
+## Shipped in 0.7.0 (2026-09-26)
+
+| Item | Issue | PR |
+|---|---|---|
+| Quick fixes: misspelled constant, `shape=` → `style=`, `ignore_invalid_symbol=true`, `// pine-ignore: S<n>`, `//@version=6`; each re-validated before it is offered | [#49](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/49) | PR #58 |
+| Invalid cast from a direct `input.*()` call (`int x = input.float(...)`) is an error | [#12](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/12) | PR #57 |
+| One engine: the syntactic validator and v6 data are imported from `packages/validator`, not copied; VSIX verified file by file; tooling on Node 22 | [#55](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/55) | PR #59 |
+
 ## Decided — the AST path
 
 Deleted on 2026-09-23 (operator instruction: repair what is useful, prune the rest).
@@ -65,35 +73,38 @@ inference. Git history keeps the old code.
 | Milestone | Theme | State |
 |---|---|---|
 | 0.6.3 – 0.6.5 | Accuracy and IntelliSense: false positives fixed, the full v6 reference in the editor, parameter-name completions | **shipped** 2026-09-25 |
-| engine 0.4.2 | External npm consumers (the pinescript-plugin agent plugin) get the 0.6.5 fixes; the extension, CLI and MCP server already run the local engine (#55) | **blocked** on operator npm 2FA (#54) |
-| 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the syntactic validator imported rather than copied (#55) | #55 merged (PR #59); #49 done on branch `feat/49-quick-fixes` |
-| later | Types without an AST: narrow cast rule (#12); rename (#5) | #12 **merged** (PR #57); #5 not started |
+| 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the invalid-cast rule (#12), one engine (#55) | **shipped** 2026-09-26 |
+| engine 0.4.2 | The npm engine catches up with 0.7.0, for external consumers (the pinescript-plugin agent plugin) | **waits on** operator npm 2FA (#54) |
+| 0.7.x | Precision: missed errors and misleading advice found during 0.7.0 (#61, #60), packaging-guard follow-ups (#62) | not started |
+| later | Rename refactoring (#5) | not started |
 
-## Not started — open issues
+## Open issues
 
 **Engine and delivery**
-- [#54](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/54) Publish engine 0.4.2. The npm 0.4.1 engine fails 27 of 107 regression cases the 0.6.5 editor passes, so the external agent plugin (pinescript-plugin) still shows fixed false positives. The extension, `validate-cli.js` and the MCP server load the local engine build (#55) and do not wait on it.
-- [#55](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/55) One engine: import `AccurateValidator`, `documentChecks` and the v6 data from the package instead of copying them into `src/parser/` and `v6/`. **Built** on `feat/55-single-engine` (PR pending review): the copies are deleted, everything loads `dist/engine` (the local package build), and the extension no longer depends on the npm engine at runtime.
+- [#54](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/54) Publish engine 0.4.2. The npm 0.4.1 engine fails 27 of 107 regression cases the editor passes, so the external agent plugin (pinescript-plugin) still shows fixed false positives. The extension, `validate-cli.js` and the MCP server run the local engine build and do not wait on it.
+- [#62](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/62) Packaging-guard follow-ups from the #59 review (all low severity).
 
 **Validator**
-- [#12](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/12) No error on an invalid cast (`int x = input.float(...)`). **In progress — built on `feat/12-cast-rule`, PR #57 approved, not merged:** a narrow declared-type vs direct `input.*()` return-type rule, no AST; general type inference stays out of scope.
+- [#61](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/61) Missed error: a comment line inside a wrapped call makes a later `name=` argument shadow its namespace, hiding misspellings further down.
+- [#60](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/60) S1 on `request.security_lower_tf` suggests a `lookahead` argument that function does not have.
 
 **Editor / IntelliSense**
-- [#49](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/49) Quick fixes: **done** on `feat/49-quick-fixes` (five fixes, each re-validated through all three sources; S1 gets only the ignore action; ships with 0.7.0)
-- [#5](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/5) Variable refactor support wanted
+- [#5](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/5) Variable refactor support wanted.
 
 **Known limits, not scheduled**
 - Completion and signature help look back 30 lines for an open call; a call opened further up falls back to ordinary completions (a miss, never a wrong suggestion).
+- The #12 rule deliberately skips `const` declarations, `=>` statements, qualifier-only mismatches and UDT field defaults (misses, never false positives).
 
 **Out of scope until asked for**
 - [#1](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/1) Pine Script v5. The extension targets v6 by design.
 
 ## Next up (recommended order)
 
-1. #54 publish engine 0.4.2 — reaches external npm consumers (pinescript-plugin); the CLI and MCP server run the local engine and do not wait on it. Needs JP's npm 2FA, about 10 minutes.
-2. #49 quick fixes — done on `feat/49-quick-fixes`; merge, then ship in 0.7.0.
-3. #55 one engine — **merged** (PR #59).
-4. #12 narrow cast rule — **merged** (PR #57).
+1. #54 publish engine 0.4.2 at the 0.7.0 cut, so pinescript-plugin gets the same fixes. Needs JP's npm 2FA, about 10 minutes.
+2. #61 — a missed error on ordinary code (wrapped calls with comments are common).
+3. #60 — advice that cannot be followed.
+4. #62 — guard hardening.
+5. #5 — rename, the largest remaining editor feature.
 
 ## Related
 

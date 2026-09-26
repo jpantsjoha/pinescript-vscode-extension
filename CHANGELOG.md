@@ -9,7 +9,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed — one engine (#55)
+## [0.7.0] - 2026-09-26
+
+One-click fixes for common mistakes, a new check TradingView enforces, and one engine
+behind every surface.
+
+### Highlights
+
+- **Quick fixes on the lightbulb** (Ctrl+. / Cmd+.): correct a misspelled constant
+  (`color.purplee` → `color.purple`), rename `shape=` to `style=` on `plotshape`, add
+  `ignore_invalid_symbol=true` to a hard-coded external feed, insert a missing
+  `//@version=6`, or silence one semantic check on one line. A fix is offered only when
+  it is unambiguous and still matches the current text.
+- **Invalid casts from inputs are errors**, as on TradingView:
+  `int factor = input.float(0.7)` is flagged; `float x = input.int(1)` stays valid.
+- **One engine.** The editor, the command-line checker and the MCP server run exactly
+  the same validator build, and the next npm engine release carries the same code.
+- **A smaller, verified package:** 36 files and 1.4 MB instead of 58 files and 2.7 MB,
+  and every release is checked file by file before it is published.
+- No change on existing scripts: all 21 `.pine` files in the repository give exactly the
+  same diagnostics as 0.6.5 (32 diagnostics, none new, none gone).
+
+### ✨ Added
+
+- **Invalid cast from an input (#12).** `int factor = input.float(0.7, "Factor")` is now
+  an error, as on TradingView: `Cannot assign "input.float" (float) to a variable declared
+  "int"`. The rule is narrow: it judges only a declaration typed `int`, `float`, `bool`,
+  `color` or `string` whose whole right-hand side is one `input.*()` call (wrapped calls
+  and comma-separated declarations included). `float x = input.int(...)` stays silent
+  (Pine casts int to float), as do UDT and enum types, bare `input()`, `input.enum()`,
+  `const` declarations, one-line `=>` bodies, fields inside a `type` block, any call
+  wrapped in or followed by another expression, and any call whose expression may
+  continue on the next line. Return types come from the v6 reference; casting rules
+  from the type-system docs.
+- Quick fixes (#49). The lightbulb offers one-click corrections for diagnostics the
+  extension already reports: a misspelled namespace constant (only when exactly one
+  documented member is within two edits), `shape=` renamed to `style=` on `plotshape`
+  when the value is a `shape.*` constant or a string (and to `char=` on `plotchar` when
+  the value is a string), `ignore_invalid_symbol=true` for S10 unless the flag is already
+  passed by name or position, `// pine-ignore: S<n>` for any semantic check, and
+  `//@version=6` when a script declares no version. S1 gets no rewrite: `expr[1]` with
+  `lookahead_on` is only right on a higher timeframe with a live expression, and the text
+  cannot prove either. Actions apply only to this extension's diagnostics (source `pine`),
+  and only when re-validating the current text still produces the same diagnostic; a
+  name the script may redeclare (`MyShape shape = ...`) gets no rewrite, and an existing
+  `// pine-ignore` that already covers the check is left alone. Each fix is tested by applying it
+  and re-validating through all three diagnostic sources. Diagnostics now carry
+  `source: 'pine'`, and semantic ones their check id (`S1`..`S10`) as the code.
+
+### 🔧 Changed — one engine and hardened packaging (#55, PR #59)
 
 - The extension, IntelliSense, `validate-cli.js`, the MCP server and the tests now
   load one engine: `packages/validator`, compiled locally and copied into
@@ -54,40 +102,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Development tooling now requires Node 22** (`.nvmrc`). CI runs on Node 22 and
   24; Node 18 and 20 are end-of-life and vsce 4.0.0 requires Node 22. The
   extension itself runs on VS Code's bundled runtime, so users are unaffected.
-- No diagnostic changes: identical output on every `.pine` file in the repo against
-  the 0.6.5 build, and all 111 regression-corpus cases (107 cases plus 4
-  suppression cases) pass through the CLI.
+- No diagnostic changes from the engine move: identical output on every `.pine` file
+  in the repo against the 0.6.5 build, and every regression-corpus case passes
+  through the CLI.
 - `test/engine-parity.test.js` now fails the build if a copy of an engine module
   reappears in `src/` or `v6/`, if a source file imports around `src/engine.ts`, if
   the build bundles the npm package, or if `dist/engine` differs from the local
   engine build.
-
-### Added
-
-- **Invalid cast from an input (#12).** `int factor = input.float(0.7, "Factor")` is now
-  an error, as on TradingView: `Cannot assign "input.float" (float) to a variable declared
-  "int"`. The rule is narrow: it judges only a declaration typed `int`, `float`, `bool`,
-  `color` or `string` whose whole right-hand side is one `input.*()` call (wrapped calls
-  and comma-separated declarations included). `float x = input.int(...)` stays silent
-  (Pine casts int to float), as do UDT and enum types, bare `input()`, `input.enum()`,
-  `const` declarations, one-line `=>` bodies, fields inside a `type` block, any call
-  wrapped in or followed by another expression, and any call whose expression may
-  continue on the next line. Return types come from the v6 reference; casting rules
-  from the type-system docs.
-- Quick fixes (#49). The lightbulb offers one-click corrections for diagnostics the
-  extension already reports: a misspelled namespace constant (only when exactly one
-  documented member is within two edits), `shape=` renamed to `style=` on `plotshape`
-  when the value is a `shape.*` constant or a string (and to `char=` on `plotchar` when
-  the value is a string), `ignore_invalid_symbol=true` for S10 unless the flag is already
-  passed by name or position, `// pine-ignore: S<n>` for any semantic check, and
-  `//@version=6` when a script declares no version. S1 gets no rewrite: `expr[1]` with
-  `lookahead_on` is only right on a higher timeframe with a live expression, and the text
-  cannot prove either. Actions apply only to this extension's diagnostics (source `pine`),
-  and only when re-validating the current text still produces the same diagnostic; a
-  name the script may redeclare (`MyShape shape = ...`) gets no rewrite, and an existing
-  `// pine-ignore` that already covers the check is left alone. Each fix is tested by applying it
-  and re-validating through all three diagnostic sources. Diagnostics now carry
-  `source: 'pine'`, and semantic ones their check id (`S1`..`S10`) as the code.
 
 ## [0.6.5] - 2026-09-25
 

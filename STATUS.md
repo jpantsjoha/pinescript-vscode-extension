@@ -1,57 +1,55 @@
 # Project Status
 
 **Updated**: 2026-09-26
-**Marketplace**: 0.6.5 · **Open VSX**: 0.6.5 (released 2026-09-25, tag `v0.6.5` on `166a268`)
-**Engine on npm**: `pinescript-v6-validator@0.4.1`, which lags the editor (see #54). On `feat/55-single-engine` (PR #59) the extension, `validate-cli.js` and the MCP server no longer depend on the npm engine: they load `dist/engine`, the local build of `packages/validator`. The npm package matters only to external consumers such as pinescript-plugin.
+**Marketplace / Open VSX**: 0.6.5 live; **0.7.0 in release** (branch `release/0.7.0`)
+**Engine**: the extension, `validate-cli.js` and the MCP server run the local build of `packages/validator` (0.4.2 in this release). npm has 0.4.1 until 0.4.2 is published (#54), which only external consumers such as pinescript-plugin need.
 
-## 2026-09-26: tooling moves to Node 22 (PR #59, #55)
+## 2026-09-26: 0.7.0 — quick fixes, the invalid-cast rule, one engine
 
-**Operator decision (JP, 2026-09-25, release gate):** development tooling and CI run
-on maintained Node only. Node 18 and 20 are end-of-life
-(https://nodejs.org/en/about/previous-releases, fetched 2026-09-25), and the pinned
-`@vscode/vsce` 4.0.0 requires Node 22. CI tests on 22.x and 24.x, the tag workflows run
-on 22, and `.nvmrc` is `22`. The shipped extension runs on VS Code's bundled runtime,
-so users are unaffected.
+Three PRs, built in parallel worktrees and each reviewed independently on its exact
+head before merging:
 
-**At merge of PR #59:** branch protection's required checks must switch from
-`Test & Lint (18.x)` / `Test & Lint (20.x)` to `Test & Lint (22.x)` / `Test & Lint (24.x)`,
-or the PR cannot report its required checks. Owner: JP (repository settings).
+| PR | Issue | Merged | Review rounds |
+|---|---|---|---|
+| #59 one engine, verified packaging, Node 22 tooling | #55 | `4e9cc5a` | sol-xhigh ×4 REQUEST CHANGES, Opus CONCERNS, Opus PASS |
+| #57 invalid cast from `input.*()` | #12 | `11988cc` | sol-xhigh REQUEST CHANGES ×2, APPROVE; Opus PASS on the rebase |
+| #58 quick fixes | #49 | `26c8f6c` | sol-xhigh REQUEST CHANGES ×3, APPROVE; Opus CONCERNS (docs conflict), PASS |
 
-## 2026-09-25: 0.6.5 released — accuracy and IntelliSense milestone closed
+Codex sol-xhigh reviewed until its login returned 401 on 2026-09-25; from then on an
+Opus 5.5 subagent running the `pr-review` skill reviewed, as its named fallback (JP,
+2026-09-26). Every round caught a real defect the green suite had missed, including an
+unsafe S1 quick-fix rewrite, a cast-rule false positive on wrapped expressions, and
+iCloud conflict copies that the old VSIX check would have shipped.
 
-0.6.3 → 0.6.5 closed every open false-positive and IntelliSense issue: #9 #10 #11 #13
-#14 #16 #24 #25 #26 #36 #37 #42 #45 #47. PR #52 merged as `166a268` (tree identical to
-the reviewed `8a5294e`) after three independent review rounds ended in APPROVE FOR
-RELEASE with no conditions. The exact-candidate VSIX was built from a clean export,
-extracted and executed. Publish run `36168618011` passed every step; both registries
-reported 0.6.5 about 6½ minutes later.
-
-**Gap found while reconciling:** the npm engine 0.4.1 fails 27 of 107 regression cases
-that 0.6.5 passes (`node -e` over `test/regression-corpus.js` against
-`node_modules/pinescript-v6-validator`). The external agent plugin, pinescript-plugin,
-shows those false positives until 0.4.2 is published (#54). With #55 (PR #59) the
-extension, `validate-cli.js` and the MCP server run the local engine and pass all 107
-through the CLI; on 0.6.5 main they already used the local syntactic copies.
+**Operator decisions recorded:** tooling and CI on Node 22/24, Node 18 and 20 being
+end-of-life (JP, 2026-09-25); branch protection now requires `Test & Lint (22.x)` and
+`(24.x)` (switched 2026-09-26 at the merge of #59, on JP's instruction).
 
 ## Where this stands
 
+Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
+
 | Signal | State | Command |
 |---|---|---|
-| Tests | 578 · 577 pass · 1 skip · 0 fail | `npm test` |
-| Audit | 22 pass · 0 warn · 0 fail | `npm run audit` |
-| Golden corpus | 4 tracked fixtures + 7 gitignored `examples/*.pine`: 0 errors; tracked fixtures 0 warnings | `node --test test/golden-corpus.test.js` |
-| Regression corpus | 107 cases; correct-code cases fail on warnings as well as errors | `test/regression-corpus.js` |
+| Tests | 796 · 796 pass · 0 skip · 0 fail (26 files) | `npm test` |
+| Audit | 29 pass · 0 warn · 0 fail (in the repo, 1 warn until the v0.7.0 tag exists) | `npm run audit` |
+| Self-test, watch smoke, typecheck | pass | `node test/v0.4.0-self-test.js`, `npm run test:watch`, `npx tsc --noEmit` |
+| Regression corpus | 131 cases + 4 suppression cases; correct-code cases fail on warnings too | `test/regression-corpus.js` |
+| Golden corpus | 4 committed fixtures, 0 errors, 0 warnings | `node --test test/golden-corpus.test.js` |
+| Diagnostics vs 0.6.5 | 21 `.pine` files, 32 diagnostics, 0 new, 0 gone | `node scripts/diff-diagnostics.js --against v0.6.5` |
+| VSIX | 0.7.0: 36 files, 1.43 MB; `verify-vsix` PASS (activate, allowlist, one engine) | `npm run package`, `npm run verify:vsix` |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) | — |
-| Diagnostic sources | AccurateValidator, documentChecks, engine semantic checks in the editor, `validate-cli.js` and the MCP server | `npm run audit` |
-| VSIX | 0.6.5 from `8a5294e`: 58 files, 2.66 MB, extracted and executed; no `.env`, hooks or examples | 2026-09-25 |
-| Open issues | #54 #55 #49 #12 #5 #1 | `gh issue list` |
+| Open issues | #54 #60 #61 #62 #5 #1 | `gh issue list` |
+
+The test strategy (nine layers, the gate matrix, independent review) is in
+[docs/guides/TESTING-GUIDE.md](./docs/guides/TESTING-GUIDE.md).
 
 ## Operator decision board
 
 | # | Group | Decision | Unblocks | Recommendation | Right | Wrong | Reversibility |
 |---|---|---|---|---|---|---|---|
-| 1 | DO NOW | Publish engine 0.4.2 (npm 2FA, #54) | pinescript-plugin users get the 0.6.5 fixes | Publish today | Every surface agrees about a file again | Agent-plugin users keep seeing 27 fixed false positives | cheap |
-| 2 | SCHEDULE | Start 0.7.0 with #49 quick fixes | The next user-visible release | Yes, after #54 | One-click fixes for the four commonest diagnostics | A week on refactor work users do not see | cheap |
+| 1 | DO NOW | Publish engine 0.4.2 (npm 2FA, #54) after the 0.7.0 tag | pinescript-plugin gets every fix since 0.4.1 | Publish at the cut | Agent and editor agree on every file | Agent users keep 27 fixed false positives | cheap |
+| 2 | SCHEDULE | Re-authenticate Codex (`codex login`) | Non-Claude review lane back first in line | 2 minutes | Reviewer from a different model family | Reviews stay Claude-on-Claude | cheap |
 | 3 | SCHEDULE | Confirm the six inferred fields in the operating profile | Profile moves from `seed` to `active` | 10 minutes | Gates bind to confirmed facts | Gates keep citing inferences | cheap |
 | 4 | DEFER | GitHub sensitive-data purge of old history | — | Park; revisit if the repo is audited | — | — | one-way |
 
@@ -59,12 +57,12 @@ through the CLI; on 0.6.5 main they already used the local syntactic copies.
 
 | Project | Relationship |
 |---|---|
-| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. Consumes `pinescript-v6-validator` from npm, which is built from the same `packages/validator` source the extension bundles; the two agree once each release publishes the engine (#54 for 0.4.2). |
+| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. Consumes `pinescript-v6-validator` from npm, which is built from the same `packages/validator` source the extension bundles; the two agree once each release publishes the engine (0.4.2 with 0.7.0, #54). |
 
 ## What waits on whom
 
-- **JP**: #54 npm publish (2FA); decision board rows 2–4; at the merge of PR #59, switch the required checks to `Test & Lint (22.x)` / `(24.x)`.
-- **Next session**: #49 quick fixes on `feat/49-quick-fixes`; #55 is built on `feat/55-single-engine` (PR #59) and does not wait on 0.4.2.
+- **JP**: engine 0.4.2 npm publish (2FA); decision board rows 2–4.
+- **Next session**: #61 (missed error with comments inside wrapped calls), #60, #62.
 
 ## Repository hygiene
 

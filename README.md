@@ -26,6 +26,9 @@ mistakes one paste at a time. This extension moves that feedback into your edito
 - **Catches what TradingView does not.** Some scripts compile and still give wrong answers:
   a higher-timeframe request that repaints, a `ta.*` call that skips bars, an accumulator
   that grows forever. The semantic checks flag them, with the reason and the fix.
+- **Fixes in one click.** Common mistakes, such as a misspelled constant or a wrong
+  parameter name, come with a lightbulb fix that is offered only when the right edit is
+  certain.
 - **No noise on correct code.** Every check is tested in both directions: it must catch the
   real error and stay silent on valid code. A false positive is treated as a bug.
 - **Works where you work.** VS Code, Cursor, Windsurf and VSCodium, plus a command-line
@@ -46,7 +49,7 @@ mistakes one paste at a time. This extension moves that feedback into your edito
      [Open VSX](https://open-vsx.org/extension/jpantsjoha/pinescript-v6-extension).
    - Offline: download the `.vsix` from
      [Releases](https://github.com/jpantsjoha/pinescript-vscode-extension/releases) and run
-     `code --install-extension pinescript-v6-extension-0.6.5.vsix`.
+     `code --install-extension pinescript-v6-extension-0.7.0.vsix`.
 2. **Open or create a `.pine` file.** Highlighting and checks start immediately; there is
    nothing to configure.
 3. **Paste this and watch the checks work:**
@@ -84,6 +87,7 @@ mistakes one paste at a time. This extension moves that feedback into your edito
 | Misspelled constant | `color.purplee`, `xloc.bar_indexx` |
 | Unknown parameter name | `plotshape(cond, shape=shape.circle)`: the parameter is `style=` |
 | Undefined function or namespace | `ta.smaa(close, 14)`, `mylib.value` |
+| Invalid cast from an input | `int length = input.float(14.5)`: Pine never casts `float` to `int` (`float x = input.int(1)` is fine) |
 | Plot calls inside a block | `if cond` then `plot(x)`: plot at global scope with `na` instead |
 | Platform limits | more than 64 plots or 40 `request.*()` calls |
 
@@ -174,13 +178,18 @@ the finished line.
 - **AI coding agents:** [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin)
   gives agents Pine Script v6 skills and an MCP validation tool built on the same engine,
   so an agent and your editor never disagree about a file.
-- **Contributing:** see [CONTRIBUTING](./docs/guides/CONTRIBUTING.md). Every fix ships with
-  a test that proves it catches the real error and one that proves it stays quiet on
-  valid code.
+- **Contributing:** see [CONTRIBUTING](./docs/guides/CONTRIBUTING.md) and the
+  [testing guide](./docs/guides/TESTING-GUIDE.md). Tooling needs Node 22 (`.nvmrc`).
+  Every fix ships with a test that proves it catches the real error and one that proves
+  it stays quiet on valid code.
 
 ---
 
 ## What's new
+
+**0.7.0**: quick fixes on the lightbulb, invalid casts from `input.*()` flagged as
+TradingView does, one engine behind the editor, the CLI and the MCP server, and a
+smaller package that is verified file by file before every release.
 
 **0.6.5**: the full v6 reference in IntelliSense, parameter-name completions inside
 calls, constant completions after a namespace dot, misspelled-constant and
