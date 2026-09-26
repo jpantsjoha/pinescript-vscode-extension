@@ -8,7 +8,9 @@
  *
  * Usage:
  *   node validate-cli.js <file.pine> [more.pine ...]
- *   node validate-cli.js --local-engine <file.pine>   # working-tree engine, not the published one
+ *
+ * The engine is always the local build in dist/engine (run `npm run build` first).
+ * `--local-engine` is accepted for backwards compatibility and changes nothing.
  *
  * Exit code: 0 if no severity-0 errors in any file, 1 if any, 2 on a tooling failure.
  */
@@ -23,32 +25,29 @@ const paint = (t, col) => `${col}${t}${c.reset}`;
 
 function loadValidators() {
   const out = {};
-  try { out.accurate = new (require('./dist/src/parser/accurateValidator').AccurateValidator)(); }
-  catch (e) { out.accurateErr = e.message; }
-  // The editor emits diagnostics from TWO sources: AccurateValidator plus the
-  // whole-document heuristics. A CLI that ran only the first reported "0 errors"
-  // on files the editor covered in squiggles, so both run here by default.
-  try { out.documentChecks = { validate: require('./dist/src/parser/documentChecks').runDocumentChecks }; }
-  catch (e) { out.documentChecksErr = e.message; }
-  // Semantic checks — the third diagnostic source, from the published engine.
-  // ADR-0001: written once, consumed here and by the extension.
+  // ONE engine for all three diagnostic sources: dist/engine, the local build of
+  // packages/validator that the build copies next to dist/src and that ships in the
+  // VSIX (issue #55). The CLI therefore prints exactly what the editor shows.
   //
-  // By default this is the PUBLISHED package in node_modules, i.e. what the VSIX
-  // ships — so a fix in packages/validator/src is invisible here until the engine
-  // is published and the dependency bumped. That bit once: S1's positional-lookahead
-  // fix was green in `npm test` (which runs the local build) while this CLI kept
-  // printing the old warnings. Pass --local-engine (or PINE_ENGINE=local) to run
-  // the working-tree build instead; the banner always says which one ran.
-  try {
-    const useLocal = process.argv.includes('--local-engine') || process.env.PINE_ENGINE === 'local';
-    const engPath = useLocal ? './packages/validator/dist/index.js' : 'pinescript-v6-validator';
-    const eng = require(engPath);
-    const pkg = require(useLocal ? './packages/validator/package.json' : 'pinescript-v6-validator/package.json');
-    out.engineLabel = `engine ${pkg.version} (${useLocal ? 'local build: packages/validator/dist' : 'published: node_modules'})`;
-    out.semanticChecks = {
-      validate: (code) => eng.applySuppressions(eng.runSemanticChecks(code), eng.extractSuppressions(code))
-    };
-  } catch (e) { out.semanticChecksErr = e.message; }
+  // It used to take its semantic checks from the PUBLISHED npm package by default,
+  // so a fix in packages/validator/src stayed invisible here until a release; the
+  // S1 positional-lookahead fix was green in `npm test` while this CLI kept printing
+  // the old warnings. `--local-engine` / PINE_ENGINE=local selected the working tree;
+  // local is now the only mode and the flag is accepted and ignored.
+  let eng;
+  try { eng = require('./dist/engine/index.js'); }
+  catch (e) { out.accurateErr = e.message; return out; }
+  const pkg = require('./packages/validator/package.json');
+  out.engineLabel = `engine ${pkg.version} (local build: dist/engine from packages/validator)`;
+  out.accurate = new eng.AccurateValidator();
+  // The editor emits diagnostics from the validator AND the whole-document
+  // heuristics. A CLI that ran only the first reported "0 errors" on files the
+  // editor covered in squiggles, so both run here.
+  out.documentChecks = { validate: eng.runDocumentChecks };
+  // Semantic checks (S1-S10), with the same suppressions the editor applies.
+  out.semanticChecks = {
+    validate: (code) => eng.applySuppressions(eng.runSemanticChecks(code), eng.extractSuppressions(code))
+  };
   return out;
 }
 
@@ -83,13 +82,12 @@ function main() {
   const args = process.argv.slice(2);
   const files = args.filter(a => !a.startsWith('--'));
   if (files.length === 0) {
-    console.error('Usage: node validate-cli.js [--local-engine] <file.pine> ...');
+    console.error('Usage: node validate-cli.js <file.pine> ...');
     process.exit(2);
   }
   const v = loadValidators();
-  if (v.engineLabel) console.log(paint(`semantic checks: ${v.engineLabel}`, c.dim));
-  else if (v.semanticChecksErr) console.log(paint(`semantic checks unavailable: ${v.semanticChecksErr}`, c.yellow));
-  if (!v.accurate) { console.error('AccurateValidator load failed:', v.accurateErr, '\nRun: npm run build'); process.exit(2); }
+  if (!v.accurate) { console.error('Engine load failed:', v.accurateErr, '\nRun: npm run build'); process.exit(2); }
+  console.log(paint(v.engineLabel, c.dim));
 
   let totalErrors = 0;
   for (const file of files) {

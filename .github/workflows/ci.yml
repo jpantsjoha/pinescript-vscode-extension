@@ -13,7 +13,10 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        # Tooling runs on maintained Node only: 18 and 20 are end-of-life, and the
+        # pinned @vscode/vsce 4.0.0 requires Node 22. The shipped extension runs on
+        # VS Code's own bundled runtime, so this governs tooling, not users.
+        node-version: [22.x, 24.x]
 
     steps:
     - name: Checkout code
@@ -43,6 +46,9 @@ jobs:
     - name: Run v0.4.0 self-test
       run: node test/v0.4.0-self-test.js
 
+    - name: Watch smoke test (npm run watch syncs dist/engine; no orphans)
+      run: node scripts/watch-smoke.js
+
     - name: Verify build artifacts
       run: |
         if [ ! -d "dist" ]; then
@@ -70,7 +76,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20.x
+        node-version: 22.x
         cache: 'npm'
 
     - name: Install dependencies
@@ -79,9 +85,8 @@ jobs:
     - name: Build extension
       run: npm run build
 
-    - name: Install vsce
-      run: npm install -g @vscode/vsce
-
+    # vsce is a pinned devDependency (installed by npm ci); `npm run package`
+    # uses node_modules/.bin/vsce, the same version the audit asks.
     - name: Create build directory
       run: mkdir -p build
 
@@ -96,6 +101,9 @@ jobs:
         fi
         VSIX_SIZE=$(du -h build/pinescript-v6-extension-*.vsix | cut -f1)
         echo "✅ VSIX package created: $VSIX_SIZE"
+
+    - name: Verify packaged VSIX (entries + execute activate())
+      run: node scripts/verify-vsix.js build/pinescript-v6-extension-*.vsix
 
     - name: Upload VSIX artifact
       uses: actions/upload-artifact@v4
@@ -116,7 +124,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20.x
+        node-version: 22.x
         cache: 'npm'
 
     - name: Install dependencies
@@ -168,7 +176,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20.x
+        node-version: 22.x
 
     - name: Run npm audit
       run: |

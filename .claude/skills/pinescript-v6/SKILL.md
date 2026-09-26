@@ -12,9 +12,8 @@ A `.pine` file edited by Claude is validated automatically by the PostToolUse ho
 
 ```bash
 npm run build                       # required once after any TypeScript change
-node validate-cli.js <file.pine>    # AccurateValidator — same engine the editor runs
+node validate-cli.js <file.pine>    # all three diagnostic sources, from dist/engine — the engine the editor runs
 node validate-cli.js examples/*.pine
-node validate-cli.js --local-engine <f>   # working-tree engine, after an engine edit
 ```
 
 Exit code 0 means no severity-0 errors.
@@ -42,7 +41,7 @@ the "still flags" test, do not ship the rule.
 
 ## Where the data lives
 
-`v6/parameter-requirements-merged.ts` = `{...GENERATED, ...MANUAL}` — manual wins.
+`packages/validator/data/parameter-requirements-merged.ts` = `{...GENERATED, ...MANUAL}` — manual wins.
 
 | File | Role |
 |---|---|

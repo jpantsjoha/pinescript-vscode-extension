@@ -112,7 +112,7 @@ recorded with an owner and a resolving trigger, and the roster role is tagged.
 |---|---|---|
 | R0 | Read-only audit, `validate-cli.js` runs | Grounding and verification of load-bearing claims |
 | R1 | Docs, tests, examples, `STATUS.md`/`ROADMAP.md` edits | Focused check (`npm test` / `npm run audit`) and a loud, reversible rollback (git revert) |
-| R2 | Validator logic (`src/parser/`, `packages/validator/src/`), `v6/` data, packaging config (`.vscodeignore`, `package.json`), test fixtures | Durable plan/checkpoint, git worktree, regression-first (golden corpus stays at 0 errors), convergence gate (`npm run build && npm test && npm run audit`) |
+| R2 | Validator logic (`packages/validator/src/`), `packages/validator/data/` and `v6/` data, packaging config (`.vscodeignore`, `package.json`), test fixtures | Durable plan/checkpoint, git worktree, regression-first (golden corpus stays at 0 errors), convergence gate (`npm run build && npm test && npm run audit`) |
 | R3 | VS Code Marketplace publish (`vsce`), npm publish of the engine, git tag/release, `.github/workflows/`, `.claude/hooks/` and settings, deleting golden-corpus files, anything touching credentials (`VSCE_PAT`, `.npmrc`) | Explicit JP authority, paired false-positive/false-negative domain tests, independent review (a non-authoring lane), exact evidence binding, rollback (patch release) and observation (marketplace installs/rating, GitHub issues) |
 
 Verified against JP's task brief, 2026-09-22, and cross-checked here against
@@ -123,8 +123,8 @@ Verified against JP's task brief, 2026-09-22, and cross-checked here against
 - `test/fixtures/corpus/` — the golden corpus; the false-positive gate (`test/golden-corpus.test.js`) reads it directly. Deletion or shrinkage is R3.
 - `test/golden-corpus.test.js` — defines the CI false-positive gate itself (both the 4 tracked fixtures and the 7 gitignored `examples/` files).
 - `test/regression-corpus.js` — regression harness run against the published artefact (`test/npm-package.test.js`), not just the source tree.
-- `v6/parameter-requirements-generated.ts` — auto-scraped dataset (457 functions, 2025-10-03). Manual corrections never go here — they go in `v6/parameter-requirements.ts`, or a re-crawl silently erases them.
-- `scripts/audit.js` — the self-audit gate; a change here can silently weaken the gate it enforces. Covers `src/parser/` modules plus the engine import only — a new diagnostic source added inside the engine package is not covered by this guard (CLAUDE.md, "Diagnostics come from MORE THAN ONE place").
+- `packages/validator/data/parameter-requirements-generated.ts` — auto-scraped dataset. Manual corrections never go here — they go in `packages/validator/data/parameter-requirements.ts`, or a re-crawl silently erases them.
+- `scripts/audit.js` — the self-audit gate; a change here can silently weaken the gate it enforces. Covers the engine exports `extension.ts` imports from `./engine` only — a new check added inside an existing engine function is not covered by this guard (CLAUDE.md, "Diagnostics come from MORE THAN ONE place").
 - `.github/workflows/` — CI, PR-check, publish, and release pipelines; governs credentialled publish steps (`VSCE_PAT`).
 - `.claude/hooks/` — pre-commit enforcement (`validate-pine.sh`, wired per `npm run audit` "harness" check).
 - `CLAUDE.md` (repo root) — the project constitution.
@@ -149,8 +149,8 @@ checks on the generated outputs specifically (verified: `npm run audit` "packagi
   `runSemanticChecks` (S1–S9) — are wired into both `validate-cli.js` and the golden
   corpus test; `scripts/audit.js` fails the build otherwise (verified: `npm run audit`
   "diagnostics" checks, both PASS, 2026-09-22).
-- Manual parameter overrides go in `v6/parameter-requirements.ts`, never
-  `v6/parameter-requirements-generated.ts`.
+- Manual parameter overrides go in `packages/validator/data/parameter-requirements.ts`, never
+  `packages/validator/data/parameter-requirements-generated.ts`.
 - Overloaded functions carry an explicit `overloads` array and are never flattened into
   one parameter list (CLAUDE.md, "Data layer").
 - No AI/Claude co-author trailers or attribution in commits or PRs. Note on sourcing: the
@@ -225,9 +225,8 @@ session, 2026-09-22):
 npm run typecheck                  # npx tsc --noEmit — exit 0, clean (verified 2026-09-22)
 npm run audit                      # scripts/audit.js — 20 pass · 1 warn · 0 fail (verified 2026-09-23)
 npm test                           # clean build + node --test test/*.test.js — 359 tests, 358 pass, 0 fail, 1 skipped (verified 2026-09-23)
-npm run build                      # rm -rf dist, tsc (root + packages/validator), copy engine dist into dist/engine
-node validate-cli.js <file.pine>          # headless single-file check
-node validate-cli.js --local-engine <file.pine>   # run the working-tree engine instead of the published one
+npm run build                      # rm -rf dist, tsc packages/validator then root, copy the LOCAL engine build into dist/engine
+node validate-cli.js <file.pine>          # headless single-file check against dist/engine (the engine the VSIX ships)
 npm audit --audit-level=moderate   # dependency security scan (also run in CI: .github/workflows/ci.yml "security" job, non-blocking there — "|| true")
 python3 /Users/jp/.claude/plugins/marketplaces/join-the-team-marketplace/skills/operating-model-bootstrap/scripts/validate_operating_model.py --target .   # profile drift check (verified script exists, 2026-09-22)
 ```
@@ -245,9 +244,9 @@ substitute a weaker gate silently.
 
 ## Data freshness and statistical gates
 
-- Sources and owners: `v6/parameter-requirements-generated.ts` (457 function signatures,
+- Sources and owners: `packages/validator/data/parameter-requirements-generated.ts` (function signatures,
   auto-scraped from TradingView's official Pine Script v6 reference) — owner JP.
-  `v6/parameter-requirements.ts` (`MODERN_V6_FUNCTIONS`, hand-verified overrides and
+  `packages/validator/data/parameter-requirements.ts` (`MODERN_V6_FUNCTIONS`, hand-verified overrides and
   post-scrape API additions) — owner JP.
 - Freshness/completeness/correctness criteria: re-crawl is due whenever TradingView
   publishes Pine Script release notes after the last scrape date; `scripts/audit.js`
@@ -266,7 +265,7 @@ substitute a weaker gate silently.
   (verified: the v6-data staleness is one of the two WARNs in `npm run audit`'s
   19-pass/2-warn/0-fail result). Remediation path: `npm run crawl`, `npm run generate`,
   or `npm run scrape` (verified script names in `package.json`), followed by manual
-  review before merging into `v6/parameter-requirements-generated.ts`.
+  review before merging into `packages/validator/data/parameter-requirements-generated.ts`.
 
 ## Review roles and verdict semantics
 

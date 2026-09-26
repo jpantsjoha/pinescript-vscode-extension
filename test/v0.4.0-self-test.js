@@ -17,8 +17,8 @@ const path = require('path');
 const v6Data = require('../v6/raw/v6-language-constructs.json');
 
 // Load our implementation
-const { AccurateValidator } = require('../dist/src/parser/accurateValidator');
-const { NAMESPACE_CONSTANTS, CONSTANT_NAMESPACES } = require('../dist/v6/pine-constants-complete');
+const { AccurateValidator } = require('../dist/engine/src/accurateValidator');
+const { NAMESPACE_CONSTANTS, CONSTANT_NAMESPACES } = require('../dist/engine/data/pine-constants-complete');
 const {
   STANDALONE_BUILTINS,
   VARIABLE_NAMESPACES,
@@ -26,7 +26,7 @@ const {
   KEYWORDS,
   OPERATORS,
   TYPE_NAMES
-} = require('../dist/v6/pine-builtins-complete');
+} = require('../dist/engine/data/pine-builtins-complete');
 
 console.log('🔍 v0.4.0 SELF-TEST - Complete v6 Language Coverage\n');
 console.log('='.repeat(60));

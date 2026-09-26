@@ -1,19 +1,17 @@
 /**
- * Engine parity — the extension's local copies must not drift from the package.
+ * Single engine — there is ONE validator and ONE dataset, and no copies.
  *
- * ADR-0001 says a check is written once, in the engine. That holds for the
- * SEMANTIC checks, which the extension genuinely consumes. It does NOT yet hold
- * for the syntactic validator: `src/parser/accurateValidator.ts` and
- * `documentChecks.ts` are near-identical copies of the package sources, and
- * `v6/` duplicates `packages/validator/data/`.
+ * ADR-0001 says a check is written once, in the engine. Until issue #55 that held
+ * only for the semantic checks: `src/parser/accurateValidator.ts`,
+ * `src/parser/documentChecks.ts` and six `v6/` data files were near-identical
+ * copies of `packages/validator`, kept in step by a parity test. Two copies drift,
+ * and a drifted copy means the editor and the agent disagree about the same file.
  *
- * A code review caught the documentation claiming "consumed, never copied" while
- * two byte-identical files sat in the repo. Rather than assert the property, this
- * enforces it: if the copies diverge the build fails, and the agent and the editor
- * cannot end up disagreeing about the same file.
- *
- * The real fix is for the extension to import everything from the engine, as it
- * already does for semantic checks. Until then this is the guard.
+ * Now the extension, IntelliSense, validate-cli.js, the MCP server and the tests
+ * all load `dist/engine/`, which the build copies from the LOCAL compile of
+ * `packages/validator`. This suite fails if a copy reappears, if anything imports
+ * around the engine, or if the build goes back to shipping the published npm
+ * package (npm 0.4.1 failed 27 of 107 regression cases the local source passed).
  */
 
 const { test } = require('node:test');
@@ -22,65 +20,105 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+const PKG_SRC = path.join(ROOT, 'packages/validator/src');
+const PKG_DATA = path.join(ROOT, 'packages/validator/data');
 
-/** Import paths legitimately differ between the two trees. */
-function normalise(source) {
-  return source
-    .replace(/from '\.\.\/(?:\.\.\/v6|data)\//g, "from '<DATA>/")
-    // The package's Diagnostic carries an optional checkId (semantic findings
-    // only); the extension's copy does not need it. That field is the one
-    // sanctioned difference.
-    .replace(/\n\s*\/\*\*\n(?:\s*\*[^\n]*\n)*?\s*\*\/\n\s*checkId\?: string;/, '')
-    .replace(/\r\n/g, '\n')
-    .trim();
-}
-
-const MIRRORED_MODULES = ['accurateValidator', 'documentChecks', 'checkRegistry'];
-
-for (const name of MIRRORED_MODULES) {
-  test(`engine parity: src/parser/${name}.ts matches the package`, (t) => {
-    const local = path.join(ROOT, 'src/parser', `${name}.ts`);
-    const pkg = path.join(ROOT, 'packages/validator/src', `${name}.ts`);
-
-    if (!fs.existsSync(local)) {
-      t.skip(`${name} is not mirrored in the extension — nothing to drift`);
-      return;
-    }
-    assert.ok(fs.existsSync(pkg), `package is missing ${name}.ts`);
-
-    assert.strictEqual(
-      normalise(fs.readFileSync(local, 'utf8')),
-      normalise(fs.readFileSync(pkg, 'utf8')),
-      `src/parser/${name}.ts has drifted from packages/validator/src/${name}.ts. ` +
-      `Two copies of a check mean the editor and the agent can disagree about the ` +
-      `same file — copy the package version over, or better, import it.`
-    );
-  });
-}
-
-test('engine parity: the v6 dataset matches the package data', () => {
-  const dataDir = path.join(ROOT, 'packages/validator/data');
-  const drifted = [];
-
-  for (const file of fs.readdirSync(dataDir).filter(f => f.endsWith('.ts'))) {
-    const local = path.join(ROOT, 'v6', file);
-    if (!fs.existsSync(local)) continue;
-    const a = fs.readFileSync(local, 'utf8');
-    const b = fs.readFileSync(path.join(dataDir, file), 'utf8');
-    if (a !== b) drifted.push(file);
+function walk(dir, out = []) {
+  if (!fs.existsSync(dir)) return out;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(full, out);
+    else out.push(full);
   }
+  return out;
+}
 
-  assert.deepStrictEqual(drifted, [],
-    'The signature dataset exists in two places and they have diverged. The ' +
-    'extension and the engine would then disagree about which parameters exist.');
+const tsModules = dir => fs.readdirSync(dir).filter(f => f.endsWith('.ts')).map(f => f.replace(/\.ts$/, ''));
+const rel = p => path.relative(ROOT, p);
+
+test('single engine: no copy of an engine module exists outside packages/validator', () => {
+  const engineNames = new Set([...tsModules(PKG_SRC), ...tsModules(PKG_DATA)]);
+  const copies = [...walk(path.join(ROOT, 'src')), ...walk(path.join(ROOT, 'v6'))]
+    .filter(f => f.endsWith('.ts'))
+    .filter(f => engineNames.has(path.basename(f, '.ts')));
+
+  assert.deepStrictEqual(copies.map(rel), [],
+    'An engine module has been copied back into the extension. Import it through ' +
+    'src/engine.ts instead — a second copy is how the editor and the agent end up ' +
+    'disagreeing about the same file.');
 });
 
-test('engine parity: the extension consumes semantic checks rather than copying them', () => {
-  // The one part of ADR-0001 that is genuinely satisfied — assert it stays that way.
-  assert.ok(!fs.existsSync(path.join(ROOT, 'src/parser/semanticChecks.ts')),
-    'Semantic checks must come from the engine, never be copied into src/parser/');
+test('single engine: extension sources load the engine only through src/engine.ts', () => {
+  const offenders = [];
+  for (const file of walk(path.join(ROOT, 'src')).filter(f => f.endsWith('.ts'))) {
+    const body = fs.readFileSync(file, 'utf8');
+    const specifiers = [...body.matchAll(/(?:from\s+|require\()\s*['"]([^'"]+)['"]/g)].map(m => m[1]);
+    for (const spec of specifiers) {
+      const isEngineLoader = rel(file) === path.join('src', 'engine.ts');
+      if (spec === 'pinescript-v6-validator' || spec.startsWith('pinescript-v6-validator/')) {
+        offenders.push(`${rel(file)} -> ${spec} (published npm package)`);
+      } else if (/packages\/validator/.test(spec) && !(isEngineLoader && /packages\/validator\/dist\//.test(spec))) {
+        offenders.push(`${rel(file)} -> ${spec}`);
+      } else if (/\/engine\//.test(spec) && !isEngineLoader) {
+        offenders.push(`${rel(file)} -> ${spec}`);
+      } else if (/\/v6\//.test(spec) && !/\/v6\/v6-manual$/.test(spec)) {
+        offenders.push(`${rel(file)} -> ${spec} (reference data lives in the engine)`);
+      }
+    }
+  }
+  assert.deepStrictEqual(offenders, []);
 
-  const extension = fs.readFileSync(path.join(ROOT, 'src/extension.ts'), 'utf8');
-  assert.match(extension, /require\(['"]\.\.\/engine\/index\.js['"]\)/,
-    'extension.ts must load the semantic checks from the engine copy in dist/');
+  const loader = fs.readFileSync(path.join(ROOT, 'src/engine.ts'), 'utf8');
+  assert.match(loader, /require\(['"]\.\.\/engine\/index\.js['"]\)/,
+    'src/engine.ts must load the engine from dist/engine at runtime');
+  // Only type imports from the package declarations: a value import would make
+  // `tsc -p .` compile a second copy of the engine into dist/packages/.
+  for (const m of loader.matchAll(/^import\s+(.*?)\s+from\s+'\.\.\/packages\/validator\/[^']+';$/gm)) {
+    assert.match(m[1], /^type\b/, `src/engine.ts must use \`import type\` for the package: ${m[0]}`);
+  }
+  assert.doesNotMatch(loader, /^export\s+\{[^}]*\}\s+from\s+'\.\.\/packages/m,
+    'src/engine.ts may only re-export TYPES from the package declarations');
+});
+
+test('single engine: the VSIX ships the local build, not the published npm package', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.ok(!(manifest.dependencies || {})['pinescript-v6-validator'],
+    'pinescript-v6-validator is a runtime dependency again. The extension loads ' +
+    'dist/engine (the local build); a runtime dependency on the published package ' +
+    'invites a build that ships last release\'s engine.');
+
+  const build = manifest.scripts.build;
+  assert.match(build, /tsc -p packages\/validator/, 'build must compile packages/validator');
+  assert.match(build, /cp -R packages\/validator\/dist\/\* dist\/engine\//,
+    'build must copy the LOCAL packages/validator build into dist/engine');
+  assert.doesNotMatch(build, /node_modules\/pinescript-v6-validator/,
+    'build must not copy the published npm engine into dist/engine');
+});
+
+test('single engine: dist/engine is byte-identical to the packages/validator build, and nothing ships twice', (t) => {
+  const pkgDist = path.join(ROOT, 'packages/validator/dist');
+  const engineDist = path.join(ROOT, 'dist/engine');
+  if (!fs.existsSync(engineDist) || !fs.existsSync(pkgDist)) {
+    // Locally a bare `node --test` before a build may skip; in CI the build always
+    // runs first, so absent output means the gate would be vacuous — fail instead.
+    assert.ok(!process.env.CI, 'dist/engine or packages/validator/dist is missing in CI — the build did not run');
+    t.skip('not built — run `npm run build` (npm test does)');
+    return;
+  }
+
+  const listing = dir => walk(dir).map(f => path.relative(dir, f)).sort();
+  assert.deepStrictEqual(listing(engineDist), listing(pkgDist),
+    'dist/engine and packages/validator/dist list different files');
+  const differing = listing(pkgDist).filter(f =>
+    !fs.readFileSync(path.join(pkgDist, f)).equals(fs.readFileSync(path.join(engineDist, f))));
+  assert.deepStrictEqual(differing, [], 'dist/engine differs from the local engine build');
+
+  // The extension's own compile must not contain a second engine.
+  const extensionOut = [...walk(path.join(ROOT, 'dist/src')), ...walk(path.join(ROOT, 'dist/v6')),
+    ...walk(path.join(ROOT, 'dist/packages'))];
+  const engineNames = new Set([...tsModules(PKG_SRC), ...tsModules(PKG_DATA), 'index']);
+  const duplicated = extensionOut
+    .filter(f => f.endsWith('.js'))
+    .filter(f => rel(f).startsWith(path.join('dist', 'packages')) || engineNames.has(path.basename(f, '.js')));
+  assert.deepStrictEqual(duplicated.map(rel), [], 'engine code compiled twice into dist/');
 });

@@ -657,7 +657,7 @@ Before approving ANY release:
 - `test-flashcrash-strategy.js` - Real-world strategy validation
 
 ### Validator Source
-- `src/parser/accurateValidator.ts` - Main validator implementation
+- `packages/validator/src/accurateValidator.ts` - Main validator implementation (the one engine; loaded from `dist/engine`)
   - `checkTernaryOperatorSyntax()` - Ternary validation (v1.1.0)
   - `checkExpressionContinuation()` - Expression validation (v1.1.0)
   - `checkMultiLineStatements()` - Multi-line validation (v1.2.0)

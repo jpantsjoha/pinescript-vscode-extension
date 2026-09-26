@@ -18,7 +18,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const ADVISORY = process.argv.includes('--warn');
@@ -224,16 +224,102 @@ function auditPackaging() {
     pass('packaging', `entry point ${main} is not excluded by .vscodeignore`);
   }
 
-  // The compiled data the validator loads at runtime must survive packaging.
-  // Excluding dist/v6/ would ship an extension that dies at activation, so this
-  // must be able to FAIL — the previous form had no else branch and was inert.
-  const excludesRuntimeData = /^dist\/v6/m.test(ignore) || /^dist\/\*\*/m.test(ignore);
-  if (excludesRuntimeData) {
-    fail('packaging', '.vscodeignore excludes dist/v6/, which the validator loads at runtime — the extension would fail on activation');
-  } else if (/^v6\/\*\*/m.test(ignore)) {
-    pass('packaging', 'v6/ TypeScript sources excluded; compiled dist/v6/ ships instead');
+  // The engine (validator code + reference data) loads at runtime from dist/engine/,
+  // the local build of packages/validator. The pinned @vscode/vsce decides what
+  // ships (scripts/vsce-ls.js runs its listFiles on a placeholder skeleton), so
+  // .vscodeignore is judged exactly as `vsce package` judges it, before any build.
+  const tsModules = dir => (exists(dir) ? fs.readdirSync(path.join(ROOT, dir)) : [])
+    .filter(f => f.endsWith('.ts')).map(f => f.replace(/\.ts$/, ''));
+  const engineSrc = tsModules('packages/validator/src');
+  const engineData = tsModules('packages/validator/data');
+  const runtime = [
+    main, 'dist/src/engine.js', 'dist/engine/index.js',
+    ...engineSrc.map(m => `dist/engine/src/${m}.js`),
+    ...engineData.map(m => `dist/engine/data/${m}.js`),
+  ];
+  const secondEngine = [
+    'packages/validator/index.ts', 'packages/validator/package.json',
+    'packages/validator/dist/index.js',
+    ...engineSrc.flatMap(m => [`packages/validator/src/${m}.ts`, `packages/validator/dist/src/${m}.js`]),
+    ...engineData.flatMap(m => [`packages/validator/data/${m}.ts`, `packages/validator/dist/data/${m}.js`]),
+  ];
+  let listed;
+  try {
+    listed = new Set(JSON.parse(execFileSync(process.execPath,
+      [path.join(ROOT, 'scripts/vsce-ls.js'), ...runtime, ...secondEngine],
+      { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })));
+  } catch (err) {
+    fail('packaging', `could not ask vsce which files ship (scripts/vsce-ls.js): ${(err.stderr || err.message).toString().split('\n')[0]}`);
+    listed = null;
+  }
+  const ships = f => listed && listed.has(f);
+
+  // Guards for where scripts/vsce-ls.js differs from `vsce package` (see its header).
+  try {
+    const manifestCheck = JSON.parse(execFileSync(process.execPath, [path.join(ROOT, 'scripts/vsce-ls.js'), '--check-manifest'],
+      { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
+    if (manifestCheck.ok) pass('packaging', 'package.json has no `files` field (packaging is governed by .vscodeignore alone)');
+    else fail('packaging', manifestCheck.problem);
+  } catch (err) {
+    fail('packaging', `could not check the manifest: ${(err.stderr || err.message).toString().split('\n')[0]}`);
+  }
+  try {
+    const cmp = JSON.parse(execFileSync(process.execPath, [path.join(ROOT, 'scripts/vsce-ls.js'), '--compare-npm'],
+      { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
+    if (cmp.onlyNone.length || cmp.onlyNpm.length) {
+      fail('packaging', `vsce listings differ between PackageManager.None and Npm — only None: ${cmp.onlyNone.join(', ') || '-'}; only Npm: ${cmp.onlyNpm.join(', ') || '-'}`);
+    } else {
+      pass('packaging', `vsce listing is identical with PackageManager.None and Npm (${cmp.none} files)`);
+    }
+  } catch (err) {
+    fail('packaging', `could not compare vsce dependency modes: ${(err.stderr || err.message).toString().split('\n')[0]}`);
+  }
+  const dropped = listed ? runtime.filter(f => !ships(f)) : [];
+  const duplicated = listed ? secondEngine.filter(f => ships(f)) : [];
+  if (!listed) {
+    // already failed above
+  } else if (dropped.length) {
+    fail('packaging', `.vscodeignore excludes runtime files the extension loads — it would fail on activation: ${dropped.join(', ')}`);
   } else {
-    warn('packaging', 'v6/ TypeScript sources are shipped in the VSIX; only dist/v6/ is needed at runtime');
+    pass('packaging', `vsce ships all ${runtime.length} runtime engine/entry files`);
+  }
+  if (!listed) {
+    // already failed above
+  } else if (duplicated.length) {
+    fail('packaging', `.vscodeignore lets a second engine copy ship: ${duplicated.join(', ')}`);
+  } else {
+    pass('packaging', `vsce ships none of ${secondEngine.length} second-engine paths (packages/validator sources and build)`);
+  }
+
+  // The engine's presence in the VSIX is proved on the real artefact, not on this
+  // file: CI must run scripts/verify-vsix.js after packaging (issue #55 review).
+  const ciYaml = exists('.github/workflows/ci.yml') ? read('.github/workflows/ci.yml') : '';
+  if (!exists('scripts/verify-vsix.js') || !/node scripts\/verify-vsix\.js/.test(ciYaml)) {
+    fail('packaging', 'CI does not run scripts/verify-vsix.js on the packaged VSIX — nothing proves the engine ships');
+  } else {
+    pass('packaging', 'CI lists the packaged VSIX entries and executes activate() (scripts/verify-vsix.js)');
+  }
+  // The tag workflows must verify the exact VSIX BEFORE it leaves the building.
+  for (const [wf, gates] of [
+    ['.github/workflows/publish.yml', ['vsce publish', 'ovsx publish']],
+    ['.github/workflows/release.yml', ['action-gh-release']],
+  ]) {
+    if (!exists(wf)) { fail('packaging', `${wf} is missing`); continue; }
+    const yaml = read(wf);
+    const verifyAt = yaml.search(/node scripts\/verify-vsix\.js/);
+    const late = gates.filter(g => yaml.includes(g) && (verifyAt < 0 || yaml.indexOf(g) < verifyAt));
+    if (verifyAt < 0) {
+      fail('packaging', `${wf} never runs scripts/verify-vsix.js on the VSIX it ships`);
+    } else if (late.length) {
+      fail('packaging', `${wf} runs ${late.join(', ')} before scripts/verify-vsix.js`);
+    } else {
+      pass('packaging', `${wf} verifies the VSIX before ${gates.filter(g => yaml.includes(g)).join(' / ') || 'shipping'}`);
+    }
+  }
+  if (!exists('scripts/watch-smoke.js') || !/node scripts\/watch-smoke\.js/.test(ciYaml)) {
+    fail('packaging', 'CI does not run scripts/watch-smoke.js — `npm run watch` could silently stop syncing dist/engine');
+  } else {
+    pass('packaging', 'CI smoke-tests `npm run watch` (scripts/watch-smoke.js)');
   }
 
   // Credentials must never be packaged. vsce reads the working tree, so a gitignored
@@ -284,7 +370,7 @@ function auditVersionConsistency() {
 // 6. Pine v6 reference-data currency
 //──────────────────────────────────────────────────────────
 function auditDataCurrency() {
-  const generated = 'v6/parameter-requirements-generated.ts';
+  const generated = 'packages/validator/data/parameter-requirements-generated.ts';
   if (!exists(generated)) {
     fail('v6 data', `${generated} missing — the validator has no signature data`);
     return;
@@ -297,8 +383,8 @@ function auditDataCurrency() {
   }
 
   const ageDays = Math.floor((Date.now() - new Date(stamp[1])) / 86400000);
-  const hasManualCatchUp = exists('v6/parameter-requirements.ts') &&
-    read('v6/parameter-requirements.ts').includes('MODERN_V6_FUNCTIONS');
+  const manual = 'packages/validator/data/parameter-requirements.ts';
+  const hasManualCatchUp = exists(manual) && read(manual).includes('MODERN_V6_FUNCTIONS');
 
   if (ageDays > 180 && !hasManualCatchUp) {
     fail('v6 data', `reference scraped ${stamp[1]} (${ageDays}d ago) with no manual catch-up layer`);
@@ -318,25 +404,20 @@ function auditDataCurrency() {
 // false alertcondition errors survived a green test run.
 //──────────────────────────────────────────────────────────
 function auditDiagnosticCoverage() {
-  const parserDir = 'src/parser';
-  if (!exists(parserDir)) return;
-
-  // A diagnostic source is any module the extension imports AND that returns
-  // diagnostics — identified by exporting a validate/check entry point.
+  // Since issue #55 every diagnostic source lives in ONE engine (packages/validator),
+  // loaded by the extension through src/engine.ts. A source is any engine export
+  // extension.ts takes that returns diagnostics: a Validator class or a *Checks
+  // function (runDocumentChecks, runSemanticChecks via engine.runSemanticChecks).
   const extension = exists('src/extension.ts') ? read('src/extension.ts') : '';
-  const sources = fs.readdirSync(path.join(ROOT, parserDir))
-    .filter(f => f.endsWith('.ts'))
-    .filter(f => {
-      const body = read(`${parserDir}/${f}`);
-      return /export (class|function) \w*(Validator|Checks|runDocumentChecks)/.test(body);
-    })
-    .map(f => f.replace(/\.ts$/, ''))
-    .filter(name => new RegExp(`from '\\./parser/${name}'`).test(extension));
-
-  // Since ADR-0001 the semantic checks live in the published engine rather than
-  // src/parser/, so they are named by their package import instead of a local file.
-  if (/pinescript-v6-validator|engine\/index\.js/.test(extension)) {
-    sources.push('runSemanticChecks');
+  const sources = [];
+  const named = extension.match(/import\s*\{([^}]*)\}\s*from\s*'\.\/engine'/);
+  if (named) {
+    for (const name of named[1].split(',').map(n => n.trim()).filter(Boolean)) {
+      if (/Validator$|Checks$/.test(name)) sources.push(name);
+    }
+  }
+  for (const m of extension.matchAll(/engine\.(\w*Checks)\(/g)) {
+    if (!sources.includes(m[1])) sources.push(m[1]);
   }
 
   if (!sources.length) {
@@ -372,7 +453,10 @@ function auditDiagnosticCoverage() {
 // suite passed on the author's machine and failed in CI.
 //──────────────────────────────────────────────────────────
 function auditEnginePortability() {
-  const engineModules = ['src/parser/accurateValidator.ts', 'src/parser/documentChecks.ts'];
+  const engineDir = 'packages/validator/src';
+  const engineModules = exists(engineDir)
+    ? fs.readdirSync(path.join(ROOT, engineDir)).filter(f => f.endsWith('.ts')).map(f => `${engineDir}/${f}`)
+    : [];
   const coupled = engineModules.filter(m => exists(m) && /from 'vscode'/.test(read(m)));
 
   if (coupled.length) {

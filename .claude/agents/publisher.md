@@ -137,10 +137,11 @@ git push origin v$NEW_VERSION
 1. ✅ Runs `npm ci` (clean install)
 2. ✅ Runs `npm test` (all tests must pass)
 3. ✅ Runs `npm run build` (TypeScript compilation)
-4. ✅ Runs `vsce package` (create VSIX)
-5. ✅ Runs `vsce publish -p $VSCE_PAT` (publish to marketplace)
-6. ✅ Uploads VSIX to GitHub Release
-7. ✅ Creates release notes from tag message
+4. ✅ Runs `npx --no-install vsce package` (the pinned local vsce; creates the VSIX)
+5. ✅ Runs `node scripts/verify-vsix.js` on that VSIX (entries + executes `activate()`)
+6. ✅ Runs `npx --no-install vsce publish --packagePath <that VSIX>` (token from `VSCE_PAT`)
+7. ✅ Uploads VSIX to GitHub Release
+8. ✅ Creates release notes from tag message
 
 **Expected Duration:** 5-10 minutes
 
@@ -155,23 +156,24 @@ git push origin v$NEW_VERSION
 - Emergency hotfix
 
 **Prerequisites:**
-- Personal Access Token (PAT) from Azure DevOps
-- `vsce` installed globally: `npm install -g @vscode/vsce`
+- Personal Access Token (PAT) from Azure DevOps, exported as `VSCE_PAT`
+- Node 22 (`.nvmrc`). vsce is the pinned devDependency (`@vscode/vsce` 4.0.0) —
+  never install it globally; a global vsce is a different version from the one
+  CI and the audit use.
 
 **Commands:**
 ```bash
-# 1. Build and test locally
-npm run rebuild
-# Expected: Clean build, all tests passing, VSIX created
+# 1. Clean install, test, build, package with the pinned local vsce
+npm ci
+npm test
+rm -f build/*.vsix && npm run package          # node_modules/.bin/vsce package --out build/
 
-# 2. Login to vsce (one-time, or when PAT expires)
-vsce login jpantsjoha
-# Paste PAT when prompted
+# 2. Verify the exact VSIX you will publish: expected contents only, engine ships
+#    once, and the packaged activate() runs
+node scripts/verify-vsix.js build/pinescript-v6-extension-X.Y.Z.vsix
 
-# 3. Publish
-vsce publish
-# Or publish specific VSIX:
-vsce publish --packagePath build/pinescript-v6-extension-X.Y.Z.vsix
+# 3. Publish THAT file, and only that file (token from VSCE_PAT)
+npx --no-install vsce publish --packagePath build/pinescript-v6-extension-X.Y.Z.vsix
 
 # 4. Verify on marketplace (within 5-10 minutes)
 # https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension
@@ -447,7 +449,7 @@ pinescript-vscode-extension/
 
 ```bash
 # 1. Fix bug in code
-vim src/parser/accurateValidator.ts
+vim packages/validator/src/accurateValidator.ts
 
 # 2. Run tests locally
 npm test

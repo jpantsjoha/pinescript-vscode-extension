@@ -31,7 +31,7 @@ test runner (`node --test`).
 | File | What it proves |
 |---|---|
 | `benchmark.test.js` | Fixtures in `test/fixtures/valid.pine` / `invalid.pine` validate as expected |
-| `engine-parity.test.js` | The extension's local validator copies (`src/parser/`) haven't drifted from the `pinescript-v6-validator` npm package |
+| `engine-parity.test.js` | One engine: no copy of a `packages/validator` module in `src/` or `v6/`, nothing imports around `src/engine.ts`, the build bundles the LOCAL engine build, and `dist/engine` is byte-identical to it |
 | `examples.test.js` | Files under `examples/` stay valid; negative fixtures stay invalid |
 | `false-positive-regression.test.js` | Previously reported false positives stay fixed |
 | `golden-corpus.test.js` | Known-good Pine v6 files (`test/fixtures/corpus/`) validate CLEAN — any error here is a false positive by definition |
@@ -74,8 +74,8 @@ until the fix lands).
 ## Adding new tests
 
 ### For a new Pine Script function
-1. Add to `v6/parameter-requirements.ts` (manual overrides) if the function is
-   high-priority — never edit `v6/parameter-requirements-generated.ts` directly, a
+1. Add to `packages/validator/data/parameter-requirements.ts` (manual overrides) if the function is
+   high-priority — never edit `packages/validator/data/parameter-requirements-generated.ts` directly, a
    re-crawl overwrites it.
 2. Add a test case to `test/validation.test.js`.
 3. Add usage examples to `test/fixtures/valid.pine` and, if relevant,
@@ -102,7 +102,7 @@ confirm zero new diagnostics on the golden corpus.
 
 **False positive**
 - Review actual TradingView Pine Editor behaviour, then fix
-  `v6/parameter-requirements.ts` if the manual override is wrong. Add a regression
+  `packages/validator/data/parameter-requirements.ts` if the manual override is wrong. Add a regression
   test so it can't come back.
 
 **False negative (missed error)**

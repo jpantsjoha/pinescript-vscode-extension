@@ -10,9 +10,9 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
-const { REFERENCE_NAMES } = require('../dist/v6/reference-names.js');
-const { PINE_FUNCTIONS_MERGED } = require('../dist/v6/parameter-requirements-merged.js');
+const { AccurateValidator } = require('../dist/engine/src/accurateValidator.js');
+const { REFERENCE_NAMES } = require('../dist/engine/data/reference-names.js');
+const { PINE_FUNCTIONS_MERGED } = require('../dist/engine/data/parameter-requirements-merged.js');
 
 const IND = '//@version=6\nindicator("t")\n';
 const memberErrors = code => new AccurateValidator().validate(code)

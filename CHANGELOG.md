@@ -9,6 +9,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — one engine (#55)
+
+- The extension, IntelliSense, `validate-cli.js`, the MCP server and the tests now
+  load one engine: `packages/validator`, compiled locally and copied into
+  `dist/engine/` at build time. The copies in `src/parser/` (`accurateValidator.ts`,
+  `documentChecks.ts`) and the six duplicated `v6/` data files are deleted;
+  `src/engine.ts` is the single loader.
+- The VSIX ships the local engine build, not the published npm package, so it
+  carries the code that will be published to npm at the next release cut. The
+  extension no longer has a runtime dependency on `pinescript-v6-validator`.
+- `validate-cli.js` always runs the local engine build; `--local-engine` is
+  accepted and ignored.
+- `npm run watch` (`scripts/watch.js`) builds the engine first, runs `tsc -w` on
+  `packages/validator` and re-syncs `dist/engine/` after each error-free compile,
+  alongside the extension watcher. The sync follows tsc's end-of-cycle report
+  rather than a filesystem watcher, so it works the same on Linux, macOS and
+  Windows. Each sync copies into a staging directory and swaps it in
+  (`scripts/engine-sync.js`), so `dist/engine/` is always one complete build. A
+  failed swap restores the last good build (fault-injection test in
+  `test/engine-sync.test.js`), and a cycle with errors is not synced. CI runs
+  `scripts/watch-smoke.js` on Node 22 and 24.
+- CI runs `scripts/verify-vsix.js` after packaging. Before extracting, it rejects
+  absolute, `..` and backslash paths, and any entry that is not a regular file or
+  directory. It then checks the engine ships exactly once in any layout, and
+  executes the packaged `activate()`. Every entry must be on an expected-contents
+  list, so stray files (a diff, a log, an unused image) cannot ship. Ten unused
+  images (`icon.png`, `images/favicon/**`, two others) are now excluded from the
+  VSIX; the Marketplace icon and every image the README uses still ship.
+- `@vscode/vsce` is a pinned devDependency (4.0.0). CI, the release workflow and
+  the publish workflow package and publish with it instead of a global install, and
+  the publish and release workflows now run `verify-vsix` before publishing. The
+  audit asks vsce which files ship (`scripts/vsce-ls.js`), fails if a runtime
+  engine file would be excluded or a second engine copy would ship, fails if
+  package.json gains a `files` field, and fails if vsce's listing differs between
+  its npm and no-dependency modes.
+- `test/packaging-guards.test.js` proves the packaging guards fail on bad input: a
+  VSIX with an extra entry, a package.json `files` field, and a dependency only
+  vsce's npm mode would ship. The audit also requires the publish and release
+  workflows to run `verify-vsix` before they publish. `verify-vsix` stops before
+  extraction when the listing already failed. The publish workflow reads the vsce
+  token from `VSCE_PAT` rather than the command line. The release workflow passes
+  the tag version to its scripts through `env`.
+- **Development tooling now requires Node 22** (`.nvmrc`). CI runs on Node 22 and
+  24; Node 18 and 20 are end-of-life and vsce 4.0.0 requires Node 22. The
+  extension itself runs on VS Code's bundled runtime, so users are unaffected.
+- No diagnostic changes: identical output on every `.pine` file in the repo against
+  the 0.6.5 build, and all 111 regression-corpus cases (107 cases plus 4
+  suppression cases) pass through the CLI.
+- `test/engine-parity.test.js` now fails the build if a copy of an engine module
+  reappears in `src/` or `v6/`, if a source file imports around `src/engine.ts`, if
+  the build bundles the npm package, or if `dist/engine` differs from the local
+  engine build.
+
 ## [0.6.5] - 2026-09-25
 
 IntelliSense for the whole v6 reference, parameter-name completions, stricter checks

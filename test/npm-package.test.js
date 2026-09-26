@@ -156,25 +156,20 @@ describe('Published npm package', { skip: SKIP && 'SKIP_PACKAGE_TEST=1' }, () =>
       'a dependency points at a local path and would break `npm install` for users');
   });
 
-  test('the extension depends on a version of the engine that exists', () => {
-    // The extension bundles the engine into dist/engine at build time. A pin ahead of
-    // what is published produces a VSIX whose engine cannot be installed, which is
-    // only discovered at activation — on a user's machine.
+  test('the extension bundles the engine from this tree, not a published pin', () => {
+    // Issue #55: the VSIX ships dist/engine, copied from the LOCAL build of
+    // packages/validator — the same code this suite packs, which is what gets
+    // published to npm at the release cut. A runtime dependency on the published
+    // package would let a build ship last release's engine (npm 0.4.1 failed 27
+    // of 107 regression cases the local source passed).
     const root = JSON.parse(
       fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')
     );
-    const pin = (root.dependencies || {})[PACKAGE_NAME];
-    assert.ok(pin, 'the extension must depend on the engine explicitly');
-
-    const wanted = pin.replace(/^[\^~]/, '');
-    const [wantMajor, wantMinor] = wanted.split('.').map(Number);
-    const [haveMajor, haveMinor] = publishedManifest.version.split('.').map(Number);
-
-    assert.ok(
-      haveMajor > wantMajor || (haveMajor === wantMajor && haveMinor >= wantMinor),
-      `the extension pins ${pin} but the engine in this tree is ` +
-      `${publishedManifest.version} — publish the engine before the extension`
-    );
+    assert.ok(!(root.dependencies || {})[PACKAGE_NAME],
+      `${PACKAGE_NAME} must not be a runtime dependency of the extension; ` +
+      `the extension bundles the local build in dist/engine`);
+    assert.match(root.scripts.build, /cp -R packages\/validator\/dist\/\* dist\/engine\//,
+      'the extension build must bundle the local engine build into dist/engine');
   });
 
   test('the tarball carries no absolute path from this machine', () => {

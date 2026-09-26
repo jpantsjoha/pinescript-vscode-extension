@@ -22,17 +22,20 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20.x
+        node-version: 22.x
         cache: 'npm'
 
     - name: Get version from tag
       id: get_version
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
+    # Step outputs reach shell scripts through env, never ${{ }} inside `run:`,
+    # so a crafted tag name cannot inject shell.
     - name: Verify version matches package.json
+      env:
+        TAG_VERSION: ${{ steps.get_version.outputs.VERSION }}
       run: |
         PACKAGE_VERSION=$(node -p "require('./package.json').version")
-        TAG_VERSION="${{ steps.get_version.outputs.VERSION }}"
         if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
           echo "❌ Version mismatch: package.json=$PACKAGE_VERSION, tag=$TAG_VERSION"
           exit 1
@@ -51,19 +54,21 @@ jobs:
     - name: Build extension
       run: npm run build
 
-    - name: Install vsce
-      run: npm install -g @vscode/vsce
-
+    # vsce is the pinned devDependency installed by npm ci (never a global install).
     - name: Create build directory
       run: mkdir -p build
 
     - name: Package VSIX
       run: npm run package
 
+    - name: Verify packaged VSIX (entries + execute activate())
+      run: node scripts/verify-vsix.js build/pinescript-v6-extension-*.vsix
+
     - name: Extract changelog for version
       id: changelog
+      env:
+        VERSION: ${{ steps.get_version.outputs.VERSION }}
       run: |
-        VERSION="${{ steps.get_version.outputs.VERSION }}"
         # Extract changelog section for this version
         CHANGELOG=$(awk "/## \[${VERSION}\]/,/## \[/" CHANGELOG.md | sed '$d' | tail -n +2)
         if [ -z "$CHANGELOG" ]; then
@@ -86,7 +91,10 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Release Summary
+      env:
+        VERSION: ${{ steps.get_version.outputs.VERSION }}
+        REPO: ${{ github.repository }}
       run: |
-        echo "✅ Release v${{ steps.get_version.outputs.VERSION }} created successfully"
+        echo "✅ Release v${VERSION} created successfully"
         echo "📦 VSIX package uploaded to GitHub Releases"
-        echo "🔗 https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_version.outputs.VERSION }}"
+        echo "🔗 https://github.com/${REPO}/releases/tag/v${VERSION}"

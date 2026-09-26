@@ -18,14 +18,12 @@ import { createSignatureHelpProvider } from './signatureHelp';
 // deleted on 2026-09-23. scripts/audit.js fails the build if a diagnostic source
 // reaches extension.ts without also being covered by validate-cli.js and the
 // golden corpus.
-import { AccurateValidator } from './parser/accurateValidator';
-import { runDocumentChecks } from './parser/documentChecks';
-// Semantic checks come from the published engine rather than a local copy.
-// ADR-0001: a check is written once, in the engine. Two copies drift, and a
-// drifted rule means the editor and the agent disagree about the same file.
-// Resolved at runtime from dist/engine, which the build copies from the pinned
-// npm package. Same single source; avoids shipping node_modules in the VSIX.
-const engine = require('../engine/index.js');
+// Every diagnostic source (AccurateValidator, the whole-document checks and the
+// semantic checks) comes from ONE engine: packages/validator, compiled locally and
+// copied into dist/engine at build time. ADR-0001 / issue #55: a check is written
+// once. Two copies drift, and a drifted rule means the editor and the agent
+// disagree about the same file. See src/engine.ts for why this is a runtime load.
+import { engine, AccurateValidator, runDocumentChecks } from './engine';
 
 // getDeclaredNames scans the whole document; completion requests repeat on
 // every keystroke after `ns.`. Cache the result per document URI in a small
@@ -275,7 +273,7 @@ export function activate(context: vscode.ExtensionContext) {
       console.error('[Pine Validator] Semantic check error:', e);
     }
 
-    // Whole-document heuristic checks. Extracted to src/parser/documentChecks.ts so
+    // Whole-document heuristic checks (packages/validator/src/documentChecks.ts), so
     // they are testable and runnable from validate-cli.js — inline here they were
     // invisible to every test, and shipped 28 false alertcondition errors across the
     // TradingView-verified corpus.

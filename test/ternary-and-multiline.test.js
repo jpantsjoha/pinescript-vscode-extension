@@ -16,7 +16,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 
-const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
+const { AccurateValidator } = require('../dist/engine/src/accurateValidator.js');
 
 function errorsFor(source) {
   return new AccurateValidator().validate(source).filter(e => e.severity === 0);

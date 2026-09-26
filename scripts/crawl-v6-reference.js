@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
  * Re-crawl the TradingView Pine Script v6 reference and regenerate
- * v6/parameter-requirements-generated.ts (and its engine mirror).
+ * packages/validator/data/parameter-requirements-generated.ts, the engine's dataset
+ * (the single copy since issue #55).
  *
  *   node scripts/crawl-v6-reference.js                 # download the page, then parse
  *   node scripts/crawl-v6-reference.js --cached <file> # parse a saved page, no network
  *   node scripts/crawl-v6-reference.js --dry-run       # parse and print the diff, write nothing
- *   node scripts/crawl-v6-reference.js --cached <file> --names-only  # refresh v6/reference-names.ts only
+ *   node scripts/crawl-v6-reference.js --cached <file> --names-only  # refresh reference-names.ts only
  *
  * Needs `playwright` (dev dependency) and a Chromium build. Set CHROMIUM_PATH to use a
  * specific binary when Playwright's pinned one is not installed.
@@ -25,7 +26,7 @@
  *    thousands of valid calls. The rule stays the false-positive-safe one: the first
  *    parameter of each form is required unless labelled optional; the rest are
  *    optional. Maximum arity and parameter NAMES come from the syntax lines, which are
- *    reliable. Tighter required sets belong in v6/parameter-requirements.ts, verified
+ *    reliable. Tighter required sets belong in packages/validator/data/parameter-requirements.ts, verified
  *    by hand.
  */
 'use strict';
@@ -37,14 +38,12 @@ const cheerio = require('cheerio');
 const ROOT = path.resolve(__dirname, '..');
 const BASE_URL = 'https://www.tradingview.com/pine-script-reference/v6/';
 const OUTPUTS = [
-  path.join(ROOT, 'v6/parameter-requirements-generated.ts'),
   path.join(ROOT, 'packages/validator/data/parameter-requirements-generated.ts'),
 ];
 // Every documented constant and variable name (`session.ismarket`, `label.all`, ...).
 // The namespace-member check accepts anything listed here, so a name TradingView
 // documents is never reported as unknown (issue #37 review, 2026-09-24).
 const NAME_OUTPUTS = [
-  path.join(ROOT, 'v6/reference-names.ts'),
   path.join(ROOT, 'packages/validator/data/reference-names.ts'),
 ];
 
@@ -220,7 +219,7 @@ function emit(functions) {
     ` * Source: ${BASE_URL}`,
     ` * Functions: ${functions.length}`,
     ' * Generator: scripts/crawl-v6-reference.js — do not edit by hand; put corrections',
-    ' * in v6/parameter-requirements.ts, which overrides this file.',
+    ' * in parameter-requirements.ts, which overrides this file.',
     ' */',
     '',
     'export interface FunctionParameter {',
@@ -276,12 +275,12 @@ function loadPrevious() {
   const file = OUTPUTS[0];
   if (!fs.existsSync(file)) return {};
   // Load the compiled previous dataset if present, else parse names only.
-  const compiled = path.join(ROOT, 'dist/v6/parameter-requirements-generated.js');
+  const compiled = path.join(ROOT, 'dist/engine/data/parameter-requirements-generated.js');
   if (fs.existsSync(compiled)) return require(compiled).PINE_FUNCTIONS;
   // Without the prior dataset the continuity rule cannot run, and every form falls
   // back to "first parameter required": no false positive, but real-error detection
   // (e.g. matrix.get(m)) is lost. Say so rather than degrade silently.
-  console.warn('WARNING: dist/v6/parameter-requirements-generated.js not found — run `npm run build` first,');
+  console.warn('WARNING: dist/engine/data/parameter-requirements-generated.js not found — run `npm run build` first,');
   console.warn('         or prior required sets cannot be carried over.');
   return {};
 }

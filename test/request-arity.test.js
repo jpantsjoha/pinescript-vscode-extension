@@ -6,7 +6,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
+const { AccurateValidator } = require('../dist/engine/src/accurateValidator.js');
 
 const IND = '//@version=6\nindicator("t")\n';
 const errorsFor = (code, fn) =>

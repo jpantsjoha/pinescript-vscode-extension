@@ -2,7 +2,7 @@
  * IntelliSense coverage gate (issue #36).
  *
  * The completion/signature/hover providers must be backed by the FULL v6
- * reference (v6/parameter-requirements-merged.ts, 475 functions), not the
+ * reference (packages/validator/data/parameter-requirements-merged.ts, 475 functions), not the
  * ~205-entry v6-manual hand list. The providers import 'vscode', which does
  * not exist under `node --test`, so the data-building logic lives in the
  * vscode-free src/intellisenseData.ts and is tested here against dist output.
@@ -20,7 +20,7 @@ const {
   getHoverData,
   getNamespaces,
 } = require('../dist/src/intellisenseData.js');
-const { PINE_FUNCTIONS_MERGED } = require('../dist/v6/parameter-requirements-merged.js');
+const { PINE_FUNCTIONS_MERGED } = require('../dist/engine/data/parameter-requirements-merged.js');
 
 const REF_KEYS = Object.keys(PINE_FUNCTIONS_MERGED);
 
@@ -203,7 +203,7 @@ test('a comparison before a paren is not read as a generic call', () => {
 
 // ── Issue #45: constants and built-in variables after a namespace ──
 
-const { REFERENCE_NAMES } = require('../dist/v6/reference-names.js');
+const { REFERENCE_NAMES } = require('../dist/engine/data/reference-names.js');
 
 /** Namespaces of every documented constant/variable (everything up to the last dot). */
 const CONSTANT_NAMESPACES = [...new Set([...REFERENCE_NAMES].map(fqn => fqn.slice(0, fqn.lastIndexOf('.'))))];
@@ -262,7 +262,7 @@ test('hover on a constant or variable shows its kind (#45)', () => {
 
 // ── PR #46 review: shadowing, chart.point kind, hover parity, constant docs ──
 
-const { NAMESPACE_CONSTANTS } = require('../dist/v6/pine-constants-complete.js');
+const { NAMESPACE_CONSTANTS } = require('../dist/engine/data/pine-constants-complete.js');
 const {
   getDeclaredNames,
 } = require('../dist/src/intellisenseData.js');

@@ -17,13 +17,12 @@ const fs = require('fs');
 const path = require('path');
 
 // The same three diagnostic sources the VS Code extension runs, loaded from the
-// same build output, so an MCP client and the editor never disagree about a file:
-// AccurateValidator, the whole-document checks, and the engine's semantic checks
-// (S1-S10, from dist/engine — the copy the VSIX ships). Semantic findings honour
-// `// pine-ignore` directives exactly as the editor does.
-const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
-const { runDocumentChecks } = require('../dist/src/parser/documentChecks.js');
+// same single engine, so an MCP client and the editor never disagree about a file:
+// AccurateValidator, the whole-document checks, and the semantic checks (S1-S10).
+// dist/engine is the local build of packages/validator that the VSIX ships.
+// Semantic findings honour `// pine-ignore` directives exactly as the editor does.
 const engine = require('../dist/engine/index.js');
+const { AccurateValidator, runDocumentChecks } = engine;
 
 function validatePineScript(code) {
   const semantic = engine.applySuppressions(

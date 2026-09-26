@@ -1,8 +1,21 @@
 # Project Status
 
-**Updated**: 2026-09-25
+**Updated**: 2026-09-26
 **Marketplace**: 0.6.5 · **Open VSX**: 0.6.5 (released 2026-09-25, tag `v0.6.5` on `166a268`)
-**Engine on npm**: `pinescript-v6-validator@0.4.1`, which lags the editor (see #54). The extension depends on `^0.4.1` for semantic checks only; its syntactic validator is bundled.
+**Engine on npm**: `pinescript-v6-validator@0.4.1`, which lags the editor (see #54). On `feat/55-single-engine` (PR #59) the extension, `validate-cli.js` and the MCP server no longer depend on the npm engine: they load `dist/engine`, the local build of `packages/validator`. The npm package matters only to external consumers such as pinescript-plugin.
+
+## 2026-09-26: tooling moves to Node 22 (PR #59, #55)
+
+**Operator decision (JP, 2026-09-25, release gate):** development tooling and CI run
+on maintained Node only. Node 18 and 20 are end-of-life
+(https://nodejs.org/en/about/previous-releases, fetched 2026-09-25), and the pinned
+`@vscode/vsce` 4.0.0 requires Node 22. CI tests on 22.x and 24.x, the tag workflows run
+on 22, and `.nvmrc` is `22`. The shipped extension runs on VS Code's bundled runtime,
+so users are unaffected.
+
+**At merge of PR #59:** branch protection's required checks must switch from
+`Test & Lint (18.x)` / `Test & Lint (20.x)` to `Test & Lint (22.x)` / `Test & Lint (24.x)`,
+or the PR cannot report its required checks. Owner: JP (repository settings).
 
 ## 2026-09-25: 0.6.5 released — accuracy and IntelliSense milestone closed
 
@@ -15,8 +28,10 @@ reported 0.6.5 about 6½ minutes later.
 
 **Gap found while reconciling:** the npm engine 0.4.1 fails 27 of 107 regression cases
 that 0.6.5 passes (`node -e` over `test/regression-corpus.js` against
-`node_modules/pinescript-v6-validator`). `validate-cli.js`, the MCP server and
-pinescript-plugin still show those false positives until 0.4.2 is published (#54).
+`node_modules/pinescript-v6-validator`). The external agent plugin, pinescript-plugin,
+shows those false positives until 0.4.2 is published (#54). With #55 (PR #59) the
+extension, `validate-cli.js` and the MCP server run the local engine and pass all 107
+through the CLI; on 0.6.5 main they already used the local syntactic copies.
 
 ## Where this stands
 
@@ -35,7 +50,7 @@ pinescript-plugin still show those false positives until 0.4.2 is published (#54
 
 | # | Group | Decision | Unblocks | Recommendation | Right | Wrong | Reversibility |
 |---|---|---|---|---|---|---|---|
-| 1 | DO NOW | Publish engine 0.4.2 (npm 2FA, #54) | CLI, MCP and pinescript-plugin users get the 0.6.5 fixes; #55 | Publish today | Every surface agrees about a file again | Agent users keep seeing 27 fixed false positives | cheap |
+| 1 | DO NOW | Publish engine 0.4.2 (npm 2FA, #54) | pinescript-plugin users get the 0.6.5 fixes | Publish today | Every surface agrees about a file again | Agent-plugin users keep seeing 27 fixed false positives | cheap |
 | 2 | SCHEDULE | Start 0.7.0 with #49 quick fixes | The next user-visible release | Yes, after #54 | One-click fixes for the four commonest diagnostics | A week on refactor work users do not see | cheap |
 | 3 | SCHEDULE | Confirm the six inferred fields in the operating profile | Profile moves from `seed` to `active` | 10 minutes | Gates bind to confirmed facts | Gates keep citing inferences | cheap |
 | 4 | DEFER | GitHub sensitive-data purge of old history | — | Park; revisit if the repo is audited | — | — | one-way |
@@ -44,12 +59,12 @@ pinescript-plugin still show those false positives until 0.4.2 is published (#54
 
 | Project | Relationship |
 |---|---|
-| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. Consumes `pinescript-v6-validator` from npm — the same engine this extension uses, so the two cannot disagree about a file. |
+| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. Consumes `pinescript-v6-validator` from npm, which is built from the same `packages/validator` source the extension bundles; the two agree once each release publishes the engine (#54 for 0.4.2). |
 
 ## What waits on whom
 
-- **JP**: #54 npm publish (2FA); decision board rows 2–4.
-- **Next session**: #49 quick fixes on `feat/49-quick-fixes`, then #55 once 0.4.2 is on npm.
+- **JP**: #54 npm publish (2FA); decision board rows 2–4; at the merge of PR #59, switch the required checks to `Test & Lint (22.x)` / `(24.x)`.
+- **Next session**: #49 quick fixes on `feat/49-quick-fixes`; #55 is built on `feat/55-single-engine` (PR #59) and does not wait on 0.4.2.
 
 ## Repository hygiene
 
