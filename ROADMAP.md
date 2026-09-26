@@ -66,8 +66,8 @@ inference. Git history keeps the old code.
 |---|---|---|
 | 0.6.3 – 0.6.5 | Accuracy and IntelliSense: false positives fixed, the full v6 reference in the editor, parameter-name completions | **shipped** 2026-09-25 |
 | engine 0.4.2 | External npm consumers (the pinescript-plugin agent plugin) get the 0.6.5 fixes; the extension, CLI and MCP server already run the local engine (#55) | **blocked** on operator npm 2FA (#54) |
-| 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the syntactic validator imported rather than copied (#55) | in progress: #55 built on `feat/55-single-engine` |
-| later | Types without an AST: narrow cast rule (#12); rename (#5) | #12 **in progress**: built on `feat/12-cast-rule`, PR #57 approved, not merged; #5 not started |
+| 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the syntactic validator imported rather than copied (#55) | #55 merged (PR #59); #49 done on branch `feat/49-quick-fixes` |
+| later | Types without an AST: narrow cast rule (#12); rename (#5) | #12 **merged** (PR #57); #5 not started |
 
 ## Not started — open issues
 
@@ -79,7 +79,7 @@ inference. Git history keeps the old code.
 - [#12](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/12) No error on an invalid cast (`int x = input.float(...)`). **In progress — built on `feat/12-cast-rule`, PR #57 approved, not merged:** a narrow declared-type vs direct `input.*()` return-type rule, no AST; general type inference stays out of scope.
 
 **Editor / IntelliSense**
-- [#49](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/49) Quick fixes: one-click corrections for common diagnostics
+- [#49](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/49) Quick fixes: **done** on `feat/49-quick-fixes` (five fixes, each re-validated through all three sources; S1 gets only the ignore action; ships with 0.7.0)
 - [#5](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/5) Variable refactor support wanted
 
 **Known limits, not scheduled**
@@ -91,9 +91,9 @@ inference. Git history keeps the old code.
 ## Next up (recommended order)
 
 1. #54 publish engine 0.4.2 — reaches external npm consumers (pinescript-plugin); the CLI and MCP server run the local engine and do not wait on it. Needs JP's npm 2FA, about 10 minutes.
-2. #49 quick fixes — the most visible user value left: one click for a misspelled constant, a wrong parameter name, a missing `ignore_invalid_symbol`, a repainting `request.security`.
-3. #55 one engine — built on `feat/55-single-engine`; merge after review. Removes the double-fix cost and the lag that #54 had to repair.
-4. #12 narrow cast rule.
+2. #49 quick fixes — done on `feat/49-quick-fixes`; merge, then ship in 0.7.0.
+3. #55 one engine — **merged** (PR #59).
+4. #12 narrow cast rule — **merged** (PR #57).
 
 ## Related
 

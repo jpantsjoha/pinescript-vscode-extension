@@ -74,6 +74,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrapped in or followed by another expression, and any call whose expression may
   continue on the next line. Return types come from the v6 reference; casting rules
   from the type-system docs.
+- Quick fixes (#49). The lightbulb offers one-click corrections for diagnostics the
+  extension already reports: a misspelled namespace constant (only when exactly one
+  documented member is within two edits), `shape=` renamed to `style=` on `plotshape`
+  when the value is a `shape.*` constant or a string (and to `char=` on `plotchar` when
+  the value is a string), `ignore_invalid_symbol=true` for S10 unless the flag is already
+  passed by name or position, `// pine-ignore: S<n>` for any semantic check, and
+  `//@version=6` when a script declares no version. S1 gets no rewrite: `expr[1]` with
+  `lookahead_on` is only right on a higher timeframe with a live expression, and the text
+  cannot prove either. Actions apply only to this extension's diagnostics (source `pine`),
+  and only when re-validating the current text still produces the same diagnostic; a
+  name the script may redeclare (`MyShape shape = ...`) gets no rewrite, and an existing
+  `// pine-ignore` that already covers the check is left alone. Each fix is tested by applying it
+  and re-validating through all three diagnostic sources. Diagnostics now carry
+  `source: 'pine'`, and semantic ones their check id (`S1`..`S10`) as the code.
 
 ## [0.6.5] - 2026-09-25
 
