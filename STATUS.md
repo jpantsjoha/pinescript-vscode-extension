@@ -1,7 +1,7 @@
 # Project Status
 
 **Updated**: 2026-09-26
-**Marketplace / Open VSX**: 0.6.5 live; **0.7.0 in release** (branch `release/0.7.0`)
+**Marketplace / Open VSX**: **0.7.0 live** (tag `v0.7.0` on `6d7f1f9`, released 2026-09-26)
 **Engine**: the extension, `validate-cli.js` and the MCP server run the local build of `packages/validator` (0.4.2 in this release). npm has 0.4.1 until 0.4.2 is published (#54), which only external consumers such as pinescript-plugin need.
 
 ## 2026-09-26: 0.7.0 — quick fixes, the invalid-cast rule, one engine
@@ -25,6 +25,13 @@ iCloud conflict copies that the old VSIX check would have shipped.
 end-of-life (JP, 2026-09-25); branch protection now requires `Test & Lint (22.x)` and
 `(24.x)` (switched 2026-09-26 at the merge of #59, on JP's instruction).
 
+**Released 2026-09-26.** PR #63 merged as `6d7f1f9` (tree identical to the reviewed
+`968ff5e`), tagged `v0.7.0`. The release workflow passed and created the GitHub Release
+with the VSIX. The publish workflow's first attempt failed in "Run tests" on a race
+between parallel test files (#64); nothing was published by it. The re-run of the failed
+job on the same tag passed every step, and both registries reported 0.7.0 about 4½
+minutes later.
+
 ## Where this stands
 
 Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
@@ -39,7 +46,7 @@ Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
 | Diagnostics vs 0.6.5 | 21 `.pine` files, 32 diagnostics, 0 new, 0 gone | `node scripts/diff-diagnostics.js --against v0.6.5` |
 | VSIX | 0.7.0: 36 files, 1.43 MB; `verify-vsix` PASS (activate, allowlist, one engine) | `npm run package`, `npm run verify:vsix` |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) | — |
-| Open issues | #54 #60 #61 #62 #5 #1 | `gh issue list` |
+| Open issues | #54 #60 #61 #62 #64 #5 #1 | `gh issue list` |
 
 The test strategy (nine layers, the gate matrix, independent review) is in
 [docs/guides/TESTING-GUIDE.md](./docs/guides/TESTING-GUIDE.md).
@@ -62,7 +69,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 ## What waits on whom
 
 - **JP**: engine 0.4.2 npm publish (2FA); decision board rows 2–4.
-- **Next session**: #61 (missed error with comments inside wrapped calls), #60, #62.
+- **Next session**: #64 (flaky test race that can fail a release), then #61, #60, #62.
 
 ## Repository hygiene
 

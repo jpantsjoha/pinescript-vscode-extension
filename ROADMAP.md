@@ -81,6 +81,7 @@ inference. Git history keeps the old code.
 ## Open issues
 
 **Engine and delivery**
+- [#64](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/64) Flaky `npm test`: the npm-package test rebuilds `packages/validator/dist` while parallel test files load it; it failed the first v0.7.0 publish attempt.
 - [#54](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/54) Publish engine 0.4.2. The npm 0.4.1 engine fails 27 of 107 regression cases the editor passes, so the external agent plugin (pinescript-plugin) still shows fixed false positives. The extension, `validate-cli.js` and the MCP server run the local engine build and do not wait on it.
 - [#62](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/62) Packaging-guard follow-ups from the #59 review (all low severity).
 
@@ -100,11 +101,12 @@ inference. Git history keeps the old code.
 
 ## Next up (recommended order)
 
-1. #54 publish engine 0.4.2 at the 0.7.0 cut, so pinescript-plugin gets the same fixes. Needs JP's npm 2FA, about 10 minutes.
-2. #61 — a missed error on ordinary code (wrapped calls with comments are common).
-3. #60 — advice that cannot be followed.
-4. #62 — guard hardening.
-5. #5 — rename, the largest remaining editor feature.
+1. #54 publish engine 0.4.2, so pinescript-plugin gets the same fixes. Needs JP's npm 2FA, about 10 minutes.
+2. #64 — a release can fail at random until the test race is fixed.
+3. #61 — a missed error on ordinary code (wrapped calls with comments are common).
+4. #60 — advice that cannot be followed.
+5. #62 — guard hardening.
+6. #5 — rename, the largest remaining editor feature.
 
 ## Related
 
