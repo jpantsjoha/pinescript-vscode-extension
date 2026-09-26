@@ -1,149 +1,127 @@
 # Testing Guide: Pine Script v6 Extension
 
-How to run, read and extend the test suite. See also `docs/adr/ADR-002-TEST-STRATEGY.md`
-for why the suite is shaped this way, and `CLAUDE.md`'s "Before you change validation
-logic" section for the commands to run before touching a validator.
+The test strategy, how to run it, and how to extend it. `docs/adr/ADR-002-TEST-STRATEGY.md`
+records why the suite is shaped this way; `CLAUDE.md` holds the Definition of Done per
+task type.
+
+**The rule every layer serves:** a false positive (a diagnostic on valid Pine) is worse than
+a missed error. Every check is proved in both directions: it fires on the real mistake
+and stays silent on valid code. A test that has never been seen to fail proves nothing,
+so every new test is run once against the unfixed code first.
 
 ---
 
-## Running the suite
+## Running it
+
+Tooling needs **Node 22** (`.nvmrc`); CI runs Node 22 and 24. The extension itself runs
+on VS Code's bundled runtime.
 
 ```bash
-npm test              # build + full suite (test/*.test.js) — the gate for any change
-npm run test:fast      # build + suite, skips the packaged-VSIX check (faster local loop)
-npm run test:validation  # test/validation.test.js only
-npm run test:benchmark   # test/benchmark.test.js only
-npm run test:regression  # test/regression-corpus.test.js only
-npm run test:package     # test/npm-package.test.js only (packs and installs the tarball)
-npm run audit          # harness, packaging, version and diagnostic-coverage checks
+npm test               # build + every test/*.test.js — the gate for any change
+npm run test:fast      # the same, skipping the packed-tarball test (faster local loop)
+npm run test:regression   # the regression corpus only
+npm run test:package      # the packed-and-installed npm tarball only
+npm run test:watch        # watch-mode smoke test (scripts/watch-smoke.js)
+npm run audit          # harness, packaging, version and diagnostic-source checks
+npm run typecheck      # engine + extension, no emit
+npm run package && npm run verify:vsix -- build/<file>.vsix   # the shipped artefact
+node validate-cli.js <file.pine>   # one file, all three diagnostic sources
 ```
 
-Do not hard-code a test count in docs or commit messages — it drifts every time a
-file is added. Say "the full suite" or "run `npm test`" instead.
+Do not hard-code a test count in docs or commit messages; it drifts with every new file.
 
 ---
 
-## The test suite
+## The layers
 
-Every file under `test/*.test.js` runs as part of `npm test`, via Node's built-in
-test runner (`node --test`).
+Diagnostics come from three sources, all in the one engine (`packages/validator`, built
+into `dist/engine` and loaded only through `src/engine.ts`): `AccurateValidator`
+(signatures, arity, namespaces, the #12 cast rule), `documentChecks` (whole-document
+heuristics) and the semantic checks S1-S3, S5-S10. Every layer below runs all three
+unless it says otherwise.
 
-| File | What it proves |
-|---|---|
-| `benchmark.test.js` | Fixtures in `test/fixtures/valid.pine` / `invalid.pine` validate as expected |
-| `engine-parity.test.js` | One engine: no copy of a `packages/validator` module in `src/` or `v6/`, nothing imports around `src/engine.ts`, the build bundles the LOCAL engine build, and `dist/engine` is byte-identical to it |
-| `examples.test.js` | Files under `examples/` stay valid; negative fixtures stay invalid |
-| `false-positive-regression.test.js` | Previously reported false positives stay fixed |
-| `golden-corpus.test.js` | Known-good Pine v6 files (`test/fixtures/corpus/`) validate CLEAN — any error here is a false positive by definition |
-| `npm-package.test.js` | The packed-and-installed npm tarball behaves like the source tree, not just `dist/` |
-| `regression-corpus.test.js` | The shared regression corpus (`test/regression-corpus.js`), run against the local build |
-| `regression-extended.test.js` | Extended regression cases beyond the core corpus |
-| `regression-namespace-functions.test.js` | Namespace-function validation regressions |
-| `request-arity.test.js` | `request.security` / `request.security_lower_tf` arity and signature overrides |
-| `semantic-checks.test.js` | Engine semantic checks S1-S3, S5-S10 (paired: must flag AND must not false-positive) |
-| `suppression.test.js` | The check registry and `// pine-ignore` suppression comments |
-| `ternary-and-multiline.test.js` | Ternary operators and multi-line statements |
-| `validation.test.js` | Parameter-requirements data integrity (manual vs. generated, no duplicates) |
+| # | Layer | Files | What it proves |
+|---|---|---|---|
+| 1 | Reference data | `validation.test.js`, `reference-names.test.js`, `request-arity.test.js` | The v6 signature data is consistent (manual overrides beat the crawl, overloads kept, no duplicates) and the namespace member list is complete |
+| 2 | Rules, both ways | `semantic-checks.test.js`, `cast-rule.test.js`, `suppression.test.js`, `ternary-and-multiline.test.js`, `wrapped-statement-location.test.js`, `benchmark.test.js` | Each check fires on its mistake and is silent on the valid neighbour; `// pine-ignore` suppresses only semantic checks and only the named id |
+| 3 | Regression corpus | `regression-corpus.js` (data), `regression-corpus.test.js`, `false-positive-regression.test.js`, `regression-extended.test.js`, `regression-namespace-functions.test.js` | Every defect ever shipped stays fixed. A case marked correct fails on **any** error or warning, not just errors |
+| 4 | Golden corpus | `golden-corpus.test.js`, fixtures in `test/fixtures/corpus/` | Scripts that compile on TradingView produce zero errors; committed fixtures also produce zero warnings and zero semantic findings; validation stays inside the 100 ms budget |
+| 5 | IntelliSense | `intellisense-coverage.test.js`, `named-parameter-*.test.js`, `declared-names-cache.test.js` | All 475 reference functions complete as functions, with hover and every overload in signature help; parameter-name and value completions, wrapped-call context and the per-document cache |
+| 6 | Quick fixes | `quick-fixes.test.js`, `code-actions-provider.test.js` | Every fix is applied and the result re-validated: the target diagnostic is gone and nothing new appears. Negative cases prove no fix is offered for stale, foreign or ambiguous diagnostics or for names the script may redeclare |
+| 7 | One engine | `engine-parity.test.js`, `engine-sync.test.js` | No copy of an engine module in `src/` or `v6/`; nothing loads around `src/engine.ts`; `dist/engine` is byte-identical to the local engine build; the watch-mode sync keeps the last good build when a swap fails |
+| 8 | Shipped artefacts | `packaging-guards.test.js`, `npm-package.test.js`, `scripts/verify-vsix.js`, `scripts/audit.js` | The VSIX contains exactly the expected files, the engine once, no unsafe archive entries, and its packaged `activate()` runs; the npm tarball behaves like the source tree and runs the whole regression corpus |
+| 9 | Real scripts | `examples.test.js` | Files under `examples/` (gitignored, local only) stay free of errors |
 
-`test/v0.4.0-self-test.js` runs separately in CI (`node test/v0.4.0-self-test.js`,
-see `.github/workflows/ci.yml`) as a language-coverage self-check, not part of
-`npm test`.
+`test/v0.4.0-self-test.js` (language coverage) and `scripts/watch-smoke.js` (watch mode on
+a fresh copy of the project) run as separate CI steps.
 
 ---
 
-## Test fixtures
+## Gates, and where each runs
 
-### Valid code (`test/fixtures/valid.pine`)
-Real Pine Script v6 code that must **not** trigger validation errors. Covers
-indicator/strategy declarations, input functions, plot/alert/ta functions, array
-operations, and edge cases that have previously been misflagged.
+| Gate | Local | CI (`ci.yml`) | Tag workflows (`publish.yml`, `release.yml`) |
+|---|---|---|---|
+| `npm test` | every change | Node 22 and 24 | before packaging |
+| `npm run audit`, typecheck | every change | Node 22 and 24 | — |
+| Self-test, watch smoke | before a harness change | Node 22 and 24 | — |
+| Package + `verify-vsix` | before a release | package job | before any publish; the audit fails if a workflow publishes before verifying |
+| Diagnostics diff on every `.pine` file against the previous release | before a release | — | — |
+| Independent review of the exact candidate | every PR | — | — |
 
-### Invalid code (`test/fixtures/invalid.pine`)
-Pine Script v6 code with intentional errors the validator must catch: missing
-required parameters, too many parameters, wrong parameter names, undefined
-variables.
+Branch protection on `main` requires Test & Lint (22.x and 24.x), PR Validation, Quality
+Gates and Package Extension.
 
-### Golden corpus (`test/fixtures/corpus/`)
-Real scripts that compile and run on TradingView. Any error the validator reports
-against them is a false positive by definition. When a user reports one, add their
-reduced script here **before** fixing it (`golden-corpus.test.js` will then fail
-until the fix lands).
-
----
-
-## Adding new tests
-
-### For a new Pine Script function
-1. Add to `packages/validator/data/parameter-requirements.ts` (manual overrides) if the function is
-   high-priority — never edit `packages/validator/data/parameter-requirements-generated.ts` directly, a
-   re-crawl overwrites it.
-2. Add a test case to `test/validation.test.js`.
-3. Add usage examples to `test/fixtures/valid.pine` and, if relevant,
-   `test/fixtures/invalid.pine`.
-
-### For a false-positive fix
-Follow `CLAUDE.md`'s Definition of Done: add the reduced case to the golden corpus
-**before** the fix, then add a paired "must still flag" test so a real error in the
-same shape doesn't silently stop being caught.
-
-### For a new validation rule
-Add paired tests in both directions, verify against the official v6 reference, and
-confirm zero new diagnostics on the golden corpus.
+**Independent review.** The author never approves their own work. Every PR is reviewed
+by a different model on the exact head commit (the `pr-review` skill: a non-Claude lane
+first, an Opus subagent as the named fallback), a changed candidate gets a delta review,
+and the verdict is recorded on the PR. A review never replaces the local gate.
 
 ---
 
-## Debugging a failing test
+## Adding a test
 
-**Test fails after a documentation update**
-- TradingView may have changed parameter requirements, the parser may have
-  misread the HTML, or a function may have been deprecated/renamed.
-- Check https://www.tradingview.com/pine-script-reference/v6/, compare manual vs.
-  generated requirements, and add a manual override if the auto-parse is wrong.
+**A false-positive fix.** Add the reduced script to `test/regression-corpus.js` with
+`expect: null` (or to the golden corpus if it is a whole script) **before** fixing it, and
+watch it fail. Add a paired case with the same shape that must still flag. Then fix.
 
-**False positive**
-- Review actual TradingView Pine Editor behaviour, then fix
-  `packages/validator/data/parameter-requirements.ts` if the manual override is wrong. Add a regression
-  test so it can't come back.
+**A new validation rule.** Verify it against the official v6 reference and the release
+notes and cite them in the code. Add must-flag and must-stay-silent cases, including
+wrapped lines, CRLF, comments and strings. Confirm zero new diagnostics on every `.pine`
+file.
 
-**False negative (missed error)**
-- Add the case to `test/fixtures/invalid.pine`, confirm it should be caught, then
-  fix the validator logic and add an assertion.
+**A new built-in function.** Add it to `MODERN_V6_FUNCTIONS` in
+`packages/validator/data/parameter-requirements.ts` with its release date, never to the
+generated file, and add a test that calls it.
+
+**A new quick fix.** Put the edit logic in `src/quickFixData.ts` (no `vscode` import), test
+it by applying the edit and re-validating, and add a case where it must not be offered.
+
+**A packaging change.** Run `npm run package`, then `verify-vsix` on the output. If the
+VSIX should contain a new file, add it to the allowlist in `scripts/verify-vsix.js` with a
+reason.
 
 ---
 
-## Re-parsing TradingView docs
+## When a test fails
+
+- **Golden or regression corpus error on correct code:** a false positive. Fix the rule,
+  not the test.
+- **A must-flag case goes silent:** a missed error; check whether a new silence condition
+  is too broad.
+- **Reference data test:** TradingView may have changed a signature. Check the
+  [v6 reference](https://www.tradingview.com/pine-script-reference/v6/) and the
+  [release notes](https://www.tradingview.com/pine-script-docs/release-notes/), then put
+  the correction in `parameter-requirements.ts`.
+- **`verify-vsix` or packaging guard:** read its listing; an unexpected entry usually
+  means a stray local file or an iCloud conflict copy (`name 2.js`). Package from a clean
+  checkout.
+
+## Refreshing the reference data
 
 ```bash
-node v6/scripts/parse-main-page.js       # re-scrape the v6 reference
-node v6/scripts/merge-requirements.js    # regenerate the merged requirements file
-npm test                                 # confirm no regressions
+npm run crawl   # re-crawl the v6 reference into packages/validator/data/
+npm test        # then review every narrowed entry by hand
 ```
-
-This is real, working tooling — not the same as the wider quarterly-sync automation
-described in `docs/adr/ADR-003-TRADINGVIEW-SYNC-STRATEGY.md`, most of which was
-never built (see that ADR's 2026-09-23 status note).
-
----
-
-## Continuous integration
-
-`.github/workflows/ci.yml` runs on every push to `main`/`develop` and every PR to
-`main`: typecheck, `npm run audit`, `npm run build`, `npm test`,
-`node test/v0.4.0-self-test.js`, a build-artifact check, and a second `tsc --noEmit`
-pass. A separate job packages the VSIX and verifies it was created; a security job
-runs `npm audit`. Read the workflow file directly for the exact steps — it changes
-more often than this guide should try to mirror.
-
----
-
-## Test maintenance
-
-| Frequency | Task |
-|---|---|
-| Every commit | `npm test` |
-| Before release | Full suite + `npm run audit` + manual QA on real user code |
-| After a doc/data update | Re-run `v6/scripts/parse-main-page.js` and `merge-requirements.js`, then `npm test` |
-| Ongoing | Add community-reported edge cases to the golden corpus as they arrive |
 
 ---
 

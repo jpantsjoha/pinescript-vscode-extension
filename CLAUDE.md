@@ -113,7 +113,9 @@ executes the packaged `activate()`.
 Consequence: `AccurateValidator` has no AST, so it cannot do type inference.
 Type inference is out of scope until an AST path is rebuilt from scratch — do not
 attempt type-system work inside the regex validator, and do not add a fifth
-validator.
+validator. The one exception is the #12 rule (0.7.0): a declaration's written type is
+checked against the documented return type of a single direct `input.*()` call, with no
+inference. Do not widen it into general type checking.
 
 ## Data layer
 
