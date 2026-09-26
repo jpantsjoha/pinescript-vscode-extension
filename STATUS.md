@@ -32,11 +32,11 @@ Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
 | Signal | State | Command |
 |---|---|---|
 | Tests | 796 · 796 pass · 0 skip · 0 fail (26 files) | `npm test` |
-| Audit | 29 pass · 0 warn · 0 fail | `npm run audit` |
+| Audit | 29 pass · 0 warn · 0 fail (in the repo, 1 warn until the v0.7.0 tag exists) | `npm run audit` |
 | Self-test, watch smoke, typecheck | pass | `node test/v0.4.0-self-test.js`, `npm run test:watch`, `npx tsc --noEmit` |
 | Regression corpus | 131 cases + 4 suppression cases; correct-code cases fail on warnings too | `test/regression-corpus.js` |
 | Golden corpus | 4 committed fixtures, 0 errors, 0 warnings | `node --test test/golden-corpus.test.js` |
-| Diagnostics vs 0.6.5 | 21 `.pine` files, 32 diagnostics, 0 new, 0 gone | release gate script |
+| Diagnostics vs 0.6.5 | 21 `.pine` files, 32 diagnostics, 0 new, 0 gone | `node scripts/diff-diagnostics.js --against v0.6.5` |
 | VSIX | 0.7.0: 36 files, 1.43 MB; `verify-vsix` PASS (activate, allowlist, one engine) | `npm run package`, `npm run verify:vsix` |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) | — |
 | Open issues | #54 #60 #61 #62 #5 #1 | `gh issue list` |

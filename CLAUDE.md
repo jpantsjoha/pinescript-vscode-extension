@@ -41,7 +41,7 @@ run it before claiming completion.
 | Add a validation rule | Paired tests both directions · rule verified against the official v6 reference **and** release notes · zero new diagnostics on the golden corpus |
 | Add v6 API | Added to `MODERN_V6_FUNCTIONS` (never the generated file) with its release date · a test exercising it |
 | Change packaging | `vsce package` succeeds · VSIX **extracted and the packaged code executed** · entry point resolves |
-| Release | Version consistent in package.json / CHANGELOG / README / git tag · audit green · VSIX smoke-tested |
+| Release | Version consistent in package.json / CHANGELOG / README / git tag · audit green · `node scripts/diff-diagnostics.js --against <previous tag>` reviewed line by line · VSIX built from the tag and `verify-vsix` PASS |
 | Harness change | `npm run audit` green · hook pipe-tested on every branch · agents/skills carry frontmatter |
 
 ## Diagnostics come from MORE THAN ONE place

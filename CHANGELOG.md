@@ -102,9 +102,9 @@ behind every surface.
 - **Development tooling now requires Node 22** (`.nvmrc`). CI runs on Node 22 and
   24; Node 18 and 20 are end-of-life and vsce 4.0.0 requires Node 22. The
   extension itself runs on VS Code's bundled runtime, so users are unaffected.
-- No diagnostic changes: identical output on every `.pine` file in the repo against
-  the 0.6.5 build, and all 111 regression-corpus cases (107 cases plus 4
-  suppression cases) pass through the CLI.
+- No diagnostic changes from the engine move: identical output on every `.pine` file
+  in the repo against the 0.6.5 build, and every regression-corpus case passes
+  through the CLI.
 - `test/engine-parity.test.js` now fails the build if a copy of an engine module
   reappears in `src/` or `v6/`, if a source file imports around `src/engine.ts`, if
   the build bundles the npm package, or if `dist/engine` differs from the local

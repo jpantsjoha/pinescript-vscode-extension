@@ -23,9 +23,10 @@ npm run test:regression   # the regression corpus only
 npm run test:package      # the packed-and-installed npm tarball only
 npm run test:watch        # watch-mode smoke test (scripts/watch-smoke.js)
 npm run audit          # harness, packaging, version and diagnostic-source checks
-npm run typecheck      # engine + extension, no emit
+npm run typecheck      # builds the engine's declarations, then checks the extension (no emit)
 npm run package && npm run verify:vsix -- build/<file>.vsix   # the shipped artefact
 node validate-cli.js <file.pine>   # one file, all three diagnostic sources
+node scripts/diff-diagnostics.js --against v0.6.5   # every .pine file vs a previous release
 ```
 
 Do not hard-code a test count in docs or commit messages; it drifts with every new file.
@@ -65,7 +66,8 @@ a fresh copy of the project) run as separate CI steps.
 | `npm run audit`, typecheck | every change | Node 22 and 24 | — |
 | Self-test, watch smoke | before a harness change | Node 22 and 24 | — |
 | Package + `verify-vsix` | before a release | package job | before any publish; the audit fails if a workflow publishes before verifying |
-| Diagnostics diff on every `.pine` file against the previous release | before a release | — | — |
+| PR Validation: breaking-change check on validator files, full suite, self-test, build | — | `pr-check.yml` on every PR (Node 22) | — |
+| `scripts/diff-diagnostics.js --against <previous tag>`: every `.pine` file, each new or lost diagnostic listed and justified | before a release | — | — |
 | Independent review of the exact candidate | every PR | — | — |
 
 Branch protection on `main` requires Test & Lint (22.x and 24.x), PR Validation, Quality
