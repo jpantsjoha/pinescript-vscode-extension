@@ -53,9 +53,12 @@ parsed as code), #15 (UDT `.new()`).
 
 Deleted on 2026-09-23 (operator instruction: repair what is useful, prune the rest).
 The AST validator crashed on valid input and was never wired into the editor. The
-consequence is a ceiling: no type inference. Series/simple/const mismatches, invalid
-casts (#12) and control-flow structure stay out of scope until an AST path is rebuilt
-from scratch. Git history keeps the old code.
+consequence is a ceiling: no type inference. Series/simple/const mismatches, general
+invalid casts and control-flow structure stay out of scope until an AST path is rebuilt
+from scratch. The one exception is the narrow #12 rule: a declaration typed `int`,
+`float`, `bool`, `color` or `string` whose whole right-hand side is a single direct
+`input.*()` call is checked against that function's documented return type, with no
+inference. Git history keeps the old code.
 
 ## Milestones
 
@@ -64,7 +67,7 @@ from scratch. Git history keeps the old code.
 | 0.6.3 – 0.6.5 | Accuracy and IntelliSense: false positives fixed, the full v6 reference in the editor, parameter-name completions | **shipped** 2026-09-25 |
 | engine 0.4.2 | External npm consumers (the pinescript-plugin agent plugin) get the 0.6.5 fixes; the extension, CLI and MCP server already run the local engine (#55) | **blocked** on operator npm 2FA (#54) |
 | 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the syntactic validator imported rather than copied (#55) | in progress: #55 built on `feat/55-single-engine` |
-| later | Types without an AST: narrow cast rule (#12); rename (#5) | not started |
+| later | Types without an AST: narrow cast rule (#12); rename (#5) | #12 **in progress**: built on `feat/12-cast-rule`, PR #57 approved, not merged; #5 not started |
 
 ## Not started — open issues
 
@@ -73,7 +76,7 @@ from scratch. Git history keeps the old code.
 - [#55](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/55) One engine: import `AccurateValidator`, `documentChecks` and the v6 data from the package instead of copying them into `src/parser/` and `v6/`. **Built** on `feat/55-single-engine` (PR pending review): the copies are deleted, everything loads `dist/engine` (the local package build), and the extension no longer depends on the npm engine at runtime.
 
 **Validator**
-- [#12](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/12) No error on an invalid cast (`int x = input.float(...)`). Needs types; a narrow declared-type vs `input.*` return-type rule is possible without an AST.
+- [#12](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/12) No error on an invalid cast (`int x = input.float(...)`). **In progress — built on `feat/12-cast-rule`, PR #57 approved, not merged:** a narrow declared-type vs direct `input.*()` return-type rule, no AST; general type inference stays out of scope.
 
 **Editor / IntelliSense**
 - [#49](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/49) Quick fixes: one-click corrections for common diagnostics

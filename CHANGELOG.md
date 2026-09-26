@@ -62,6 +62,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the build bundles the npm package, or if `dist/engine` differs from the local
   engine build.
 
+### Added
+
+- **Invalid cast from an input (#12).** `int factor = input.float(0.7, "Factor")` is now
+  an error, as on TradingView: `Cannot assign "input.float" (float) to a variable declared
+  "int"`. The rule is narrow: it judges only a declaration typed `int`, `float`, `bool`,
+  `color` or `string` whose whole right-hand side is one `input.*()` call (wrapped calls
+  and comma-separated declarations included). `float x = input.int(...)` stays silent
+  (Pine casts int to float), as do UDT and enum types, bare `input()`, `input.enum()`,
+  `const` declarations, one-line `=>` bodies, fields inside a `type` block, any call
+  wrapped in or followed by another expression, and any call whose expression may
+  continue on the next line. Return types come from the v6 reference; casting rules
+  from the type-system docs.
+
 ## [0.6.5] - 2026-09-25
 
 IntelliSense for the whole v6 reference, parameter-name completions, stricter checks

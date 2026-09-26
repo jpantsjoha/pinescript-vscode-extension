@@ -141,6 +141,9 @@ export class AccurateValidator {
       stmtStart = stmtEnd + 1;
     }
 
+    // Issue #12: declared type vs a direct input.*() call on the right-hand side.
+    this.checkInputDeclarationTypes(cleanedLines);
+
     // Second pass: validate function calls and undefined references
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -1335,6 +1338,151 @@ export class AccurateValidator {
         );
       }
     }
+  }
+
+  /**
+   * Issue #12 — a declared type that cannot hold what a DIRECT `input.*()` call
+   * returns: `int factor = input.float(0.7, "Factor")` fails to compile on
+   * TradingView (float cannot be assigned to int) but was silent here.
+   *
+   * Deliberately narrow (no AST, no type inference). A false positive is worse
+   * than a miss, so every doubt resolves to silence. Fires only when ALL hold:
+   *   - a depth-0 statement segment (`statementSegments`: `int x = input.float(1), int y = 2`
+   *     judges each declaration on its own) reads `[var|varip] [simple|series] <T> <name> =`
+   *     where <T> is one of the five value keywords int/float/bool/color/string.
+   *     UDTs, enums and generics such as `array<int>` are never judged. The only
+   *     qualifier keywords Pine lets a script write are const/simple/series
+   *     (`input` is inherited, never written);
+   *   - the declaration is not `const`: the fixes the message offers (input.int(),
+   *     int(), math.round()) still return an "input" value, which cannot initialise
+   *     a const variable, so const declarations are skipped (a missed error, by design);
+   *   - the whole segment right-hand side is one `input.<fn>(...)` call: nothing
+   *     after the closing paren but whitespace or a comment (strings and comments
+   *     are already blanked in `cleanedLines`). A ternary, arithmetic, any operator,
+   *     or a wrapping call such as `math.round(input.float(1))` keeps it silent;
+   *   - for the LAST segment only, the next significant line does not continue the
+   *     expression: a balanced call closes the bracket-based join, yet Pine lets an
+   *     expression carry on after it (`bool b = input.string("On")` / `  == "On"`).
+   *     Continuation is decided by indentation alone, per
+   *     https://www.tradingview.com/pine-script-docs/language/script-structure/#line-wrapping
+   *     ("each wrapped line after the first can use any indentation length except
+   *     multiples of four, because Pine uses four-space or tab indentations to define
+   *     local code blocks"). A next line at the same or a lesser multiple-of-four
+   *     indent is a new statement (`[a, b] = ...`, a `-y` return), so the rule still
+   *     judges the declaration; a next line indented deeper, or at an indent that is
+   *     not a multiple of four, may be a continuation and keeps the last segment
+   *     silent. Earlier segments ended at a depth-0 comma and are always judged;
+   *   - <fn> has a verified return type below (bare `input()` and `input.enum()`
+   *     are skipped: their type depends on the argument);
+   *   - the statement has no `=>`: a one-line function body such as
+   *     `f() => int x = input.float(1), x` is not judged (a missed error, by design),
+   *     and neither is a field inside a `type` block.
+   * Wrapped calls are judged on the joined statement (`wrappedStatementEnd`).
+   *
+   * Return types: official v6 reference, https://www.tradingview.com/pine-script-reference/v6/
+   * (syntax lines as crawled into data/parameter-requirements-generated.ts on
+   * 2026-09-23; corroborated by https://www.tradingview.com/pine-script-docs/concepts/inputs/):
+   *   #fun_input.int → input int          #fun_input.float → input float
+   *   #fun_input.bool → input bool        #fun_input.color → input color
+   *   #fun_input.string → input string    #fun_input.text_area → input string
+   *   #fun_input.timeframe → input string #fun_input.session → input string
+   *   #fun_input.symbol → input string    #fun_input.source → series float
+   *   #fun_input.price → input float      #fun_input.time → input int
+   *
+   * Casting: https://www.tradingview.com/pine-script-docs/language/type-system/#type-casting
+   * "The automatic type-casting process can cast 'int' values to the 'float' type
+   * when necessary" and "There is no automatic rule to cast 'float' to 'int'"; other
+   * conversions need int()/float()/bool()/color()/string(), and "Pine Script does not
+   * automatically convert other types to the 'bool' type". So int→float is the ONLY
+   * mismatch that stays silent; every other one is a compile error.
+   */
+  private checkInputDeclarationTypes(cleanedLines: string[]): void {
+    const INPUT_RETURN_TYPES: Record<string, string> = {
+      int: 'int', float: 'float', bool: 'bool', color: 'color',
+      string: 'string', text_area: 'string', timeframe: 'string',
+      session: 'string', symbol: 'string', source: 'float',
+      price: 'float', time: 'int',
+    };
+    const DECL = /^\s*(?:(?:var|varip)\s+)?(?:(const|simple|series)\s+)?(int|float|bool|color|string)\s+[A-Za-z_]\w*\s*=\s*(input\.([A-Za-z_]\w*))\s*\(/;
+    // Indentation width with a tab counted as four spaces (a tab opens a block like four spaces).
+    const indentOf = (s: string) =>
+      (/^[ \t]*/.exec(s) as RegExpExecArray)[0].replace(/\t/g, '    ').length;
+    let inTypeBlock = false;
+    let start = 0;
+    while (start < cleanedLines.length) {
+      const end = this.wrappedStatementEnd(cleanedLines, start);
+      const first = cleanedLines[start];
+      // A column-0 statement opens or closes a `type` block; indented lines
+      // after `type Name` are field declarations and are never judged.
+      if (/^\S/.test(first)) {
+        inTypeBlock = /^(?:export\s+)?type\s+[A-Za-z_]/.test(first);
+      }
+      const joined = end === start ? first : cleanedLines.slice(start, end + 1).join(' ');
+      if (!inTypeBlock && /\binput\.\w/.test(joined) && !joined.includes('=>')) {
+        let next = end + 1;
+        while (next < cleanedLines.length && cleanedLines[next].trim() === '') next++;
+        const nextLine = next < cleanedLines.length ? cleanedLines[next] : '';
+        const nextIndent = indentOf(nextLine);
+        const mayContinue = nextLine !== '' &&
+          (nextIndent > indentOf(first) || nextIndent % 4 !== 0);
+        const segments = this.statementSegments(joined);
+        let offset = 0;
+        segments.forEach((segment, idx) => {
+          if (idx < segments.length - 1 || !mayContinue) {
+            this.checkInputDeclarationSegment(segment, offset, start, cleanedLines, DECL, INPUT_RETURN_TYPES);
+          }
+          offset += segment.length + 1; // the depth-0 comma (no `=>` here)
+        });
+      }
+      start = end + 1;
+    }
+  }
+
+  /** One statement segment of the #12 rule; `offset` is its start in the joined statement. */
+  private checkInputDeclarationSegment(
+    segment: string,
+    offset: number,
+    start: number,
+    cleanedLines: string[],
+    DECL: RegExp,
+    INPUT_RETURN_TYPES: Record<string, string>
+  ): void {
+    const m = DECL.exec(segment);
+    if (!m || m[1] === 'const') return;
+    const declared = m[2];
+    const returned = INPUT_RETURN_TYPES[m[4]];
+    if (!returned || declared === returned || (declared === 'float' && returned === 'int')) return;
+    // Balance-scan from the call's `(` to its matching `)`: the call must be the
+    // entire right-hand side of the segment.
+    let depth = 0;
+    let close = -1;
+    for (let k = m[0].length - 1; k < segment.length; k++) {
+      const ch = segment[k];
+      if (ch === '(' || ch === '[') depth++;
+      else if (ch === ')' || ch === ']') {
+        depth--;
+        if (depth === 0) { close = k; break; }
+      }
+    }
+    if (close === -1 || segment.slice(close + 1).trim() !== '') return;
+    // Map the token's offset in the joined statement (lines joined by one space)
+    // back to its physical line and column.
+    let pos = offset + m[0].indexOf(m[3]);
+    let line = start;
+    while (pos > cleanedLines[line].length) {
+      pos -= cleanedLines[line].length + 1;
+      line++;
+    }
+    this.addError(
+      line + 1,
+      pos,
+      m[3].length,
+      `Cannot assign "${m[3]}" (${returned}) to a variable declared "${declared}". ` +
+      (declared === 'int' && returned === 'float'
+        ? 'Pine never casts float to int automatically: declare it "float", use input.int(), or wrap the call in int() or math.round().'
+        : `Declare the variable "${returned}" or use the input function that returns ${declared}.`),
+      Severity.Error
+    );
   }
 
   private addError(

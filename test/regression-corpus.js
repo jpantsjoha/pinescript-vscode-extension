@@ -1037,6 +1037,191 @@ const CASES = [
     found: '2026-09-25',
     why: 'Paired with the positional case: the fix must not silence the real mistake.',
   },
+  //────────────────────────────────────────────────────────
+  // #12 invalid cast — a declared type that cannot hold a direct input.*() result
+  // Pine casts int→float automatically and nothing else
+  // (pine-script-docs/language/type-system/#type-casting).
+  //────────────────────────────────────────────────────────
+  {
+    name: '#12: int declared from input.float is a compile error',
+    code: IND + 'int factor = input.float(0.7, "Factor")\nplot(factor)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why: 'Issue #12, a user report: TradingView rejects assigning float to int, but the ' +
+      'extension showed nothing. The script only failed once pasted into TradingView.',
+  },
+  {
+    name: '#12: int declared from input.source (series float) is a compile error',
+    code: IND + 'int s = input.source(close)\nplot(s)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why: 'input.source returns series float per the v6 reference; the same float-to-int ' +
+      'mismatch as the reported case, through a different input function.',
+  },
+  {
+    name: '#12: a WRAPPED input.float call into int is still flagged',
+    code: IND + 'int factor = input.float(0.7,\n     "Factor",\n     minval=0.1)\nplot(factor)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why: 'Input calls with many options are normally wrapped; a check that only reads one ' +
+      'physical line would miss most real cases (the #42 lesson).',
+  },
+  {
+    name: '#12: var int declared from input.float is flagged',
+    code: IND + 'var int x = input.float(1.0)\nplot(x)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why: 'The var/varip keyword changes persistence, not the type; the mismatch is the same.',
+  },
+  {
+    name: '#12: bool declared from input.int is flagged',
+    code: IND + 'bool b = input.int(1)\nplot(b ? 1 : 0)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why: 'The type-system docs state Pine does not convert other types to bool automatically; ' +
+      'bool() is required.',
+  },
+  {
+    name: '#12: float declared from input.int is correct (int casts to float)',
+    code: IND + 'float f = input.int(1)\nplot(f)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'int→float is the one documented automatic cast. Flagging it would put a squiggle ' +
+      'on the most common correct pattern the rule could touch.',
+  },
+  {
+    name: '#12: int declared from input.int is correct',
+    code: IND + 'int i = input.int(1)\nplot(i)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Matching types must stay silent; the baseline for the rule.',
+  },
+  {
+    name: '#12: float declared from input.source is correct',
+    code: IND + 'float s = input.source(close)\nplot(s)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'input.source returns series float; a float declaration holds it.',
+  },
+  {
+    name: '#12: an untyped declaration from input.float is correct',
+    code: IND + 'x = input.float(1)\nplot(x)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'With no declared type the variable takes the call\'s type; there is nothing to mismatch.',
+  },
+  {
+    name: '#12: int from math.round(input.float()) is correct',
+    code: IND + 'int n = math.round(input.float(1.5))\nplot(n)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'The input call is wrapped, so the right-hand side is not the input call; the rule ' +
+      'must read only a DIRECT call and never guess what a wrapper returns.',
+  },
+  {
+    name: '#12: string from input.timeframe is correct',
+    code: IND + 'string t = input.timeframe("D")\nplot(close)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'input.timeframe returns input string per the v6 reference.',
+  },
+  {
+    name: '#12: color from input.color is correct',
+    code: IND + 'color c = input.color(color.red)\nplot(close, color=c)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Matching types for the color input; the rule must not treat color specially.',
+  },
+  {
+    name: '#12: an invalid cast inside a COMMENT is not code',
+    code: IND + '// int x = input.float(1)\nplot(close)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Commented-out code is text; comments are blanked before the rule reads the line.',
+  },
+  {
+    name: '#12: an invalid cast inside a STRING is not code',
+    code: IND + 's = "int x = input.float(1)"\nplot(close)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'String contents are blanked first, so example code in a tooltip cannot fire the rule.',
+  },
+  {
+    name: '#12: a UDT field declaration is never judged by the cast rule',
+    code: IND + 'type Cfg\n    int x = input.float(1)\n\nc = Cfg.new()\nplot(c.x)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Field defaults follow their own rules the regex validator cannot verify, so lines ' +
+      'inside a type block are skipped rather than guessed at (stay silent when unsure).',
+  },
+  {
+    name: '#12: an input call followed by an operator is not judged',
+    code: IND + 'int x = input.float(1) > 0 ? 1 : 2\nplot(x)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'The declared type holds the ternary result (int), not the input call; the rule ' +
+      'reads only right-hand sides that are the call and nothing else.',
+  },
+  {
+    name: '#12: a comparison continued on the NEXT line is correct',
+    code: IND + 'bool enabled = input.string("On")\n  == "On"\nplot(enabled ? close : na)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Review blocker on PR #57: the call closes its brackets, so the bracket-based join ' +
+      'ended there and the rule reported string-to-bool, an ERROR on valid wrapped code.',
+  },
+  {
+    name: '#12: a ternary continued on the next lines is correct',
+    code: IND + 'int n = input.bool(true)\n  ? 1\n  : 0\nplot(n)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Same blocker, ternary form: the declared int holds the ternary result, not the bool input.',
+  },
+  {
+    name: '#12: arithmetic continued on the next line is correct',
+    code: IND + 'float x = input.string("2") == "2"\n  ? 1.5\n  : 2.5\nplot(x)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Same blocker with the operator on the first line and the branches wrapped below.',
+  },
+  {
+    name: '#12: `and` continued on the next line is correct',
+    code: IND + 'bool b = input.string("x") == "x"\n  and close > open\nplot(b ? 1 : 0)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Same blocker, logical form: a wrapped `and` continues the expression.',
+  },
+  {
+    name: '#12: comma-separated declarations flag the bad segment',
+    code: IND + 'int x = input.float(1), int y = 2\nplot(x + y)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why: 'Review condition on PR #57: text after the first segment made the whole statement ' +
+      'look like more than the call, so a real cast error on one line was missed.',
+  },
+  {
+    name: '#12: comma-separated declarations with a valid cast stay silent',
+    code: IND + 'float a = input.int(1), int b = 2\nplot(a + b)\n',
+    expect: null,
+    found: '2026-09-25',
+    why: 'Paired with the flagged segment case: int to float in the first segment is legal.',
+  },
+  {
+    name: '#12: a global tuple on the next line does not hide the cast error',
+    code: IND + 'int factor = input.float(0.7)\n[a, b] = [1, 2]\nplot(factor + a + b)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why: 'Delta review of PR #57: a line starting with `[` was read as a continuation, so a ' +
+      'column-0 tuple declaration silenced the #12 repro. Only a deeper indent continues a line.',
+  },
+  {
+    name: '#12: a continued last segment does not hide an earlier segment',
+    code: IND + 'int x = input.float(1), bool enabled = input.string("On")\n  == "On"\nplot(enabled ? x : na)\n',
+    expect: 'error',
+    found: '2026-09-25',
+    why: 'Delta review of PR #57: continuation suppression applied to the whole statement, so ' +
+      'a wrapped final segment hid the completed float-to-int error before the comma.',
+  },
 ];
 
 /**
