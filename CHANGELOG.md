@@ -25,10 +25,10 @@ behind every surface.
   `int factor = input.float(0.7)` is flagged; `float x = input.int(1)` stays valid.
 - **One engine.** The editor, the command-line checker and the MCP server run exactly
   the same validator build, and the next npm engine release carries the same code.
-- **A smaller, verified package:** 32 files instead of 58, and every release is checked
-  file by file before it is published.
-- No diagnostic changes on valid code: every `.pine` file in the repository and all 111
-  regression cases give the same result as 0.6.5, apart from the new cast error.
+- **A smaller, verified package:** 36 files and 1.4 MB instead of 58 files and 2.7 MB,
+  and every release is checked file by file before it is published.
+- No change on existing scripts: all 21 `.pine` files in the repository give exactly the
+  same diagnostics as 0.6.5 (32 diagnostics, none new, none gone).
 
 ### ✨ Added
 
