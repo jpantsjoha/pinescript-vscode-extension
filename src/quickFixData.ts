@@ -6,8 +6,8 @@
 // action: each one is offered only when the diagnostic it answers is present and
 // the edit is unambiguous. When in doubt, return nothing.
 //
-// Reference data comes through this ONE import line (quickFixReference.ts wraps
-// v6/), so a later move of v6/ is a one-file change.
+// Reference data comes through this ONE import line (quickFixReference.ts takes
+// it from src/engine.ts, the single engine loader).
 import { REFERENCE_NAMES, builtinHasParameter } from './quickFixReference';
 import { currentDiagnostics, CurrentDiagnostic } from './diagnosticSources';
 

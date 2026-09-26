@@ -1,7 +1,6 @@
-// Reference data the quick fixes read (issue #49), gathered in one module so a
-// later move of v6/ (#55) is a change here only.
-import { REFERENCE_NAMES } from '../v6/reference-names';
-import { PINE_FUNCTIONS_MERGED } from '../v6/parameter-requirements-merged';
+// Reference data the quick fixes read (issue #49), taken from the engine through
+// src/engine.ts, the single loader.
+import { REFERENCE_NAMES, PINE_FUNCTIONS_MERGED } from './engine';
 
 export { REFERENCE_NAMES };
 

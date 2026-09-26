@@ -11,8 +11,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 
-const { AccurateValidator } = require('../dist/src/parser/accurateValidator.js');
-const { runDocumentChecks } = require('../dist/src/parser/documentChecks.js');
+const { AccurateValidator } = require('../dist/engine/src/accurateValidator.js');
+const { runDocumentChecks } = require('../dist/engine/src/documentChecks.js');
 const {
   runSemanticChecks,
   extractSuppressions,

@@ -2,10 +2,8 @@
 // quick-fix module can re-validate the CURRENT text before acting on a diagnostic
 // (issue #49). extension.ts runs the same three with the same suppression rule and
 // the same range arithmetic; if a source moves (#55), this file moves with it.
-import { AccurateValidator } from './parser/accurateValidator';
-import { runDocumentChecks } from './parser/documentChecks';
-// Same engine the extension loads: dist/engine, copied from the pinned package.
-const engine = require('../engine/index.js');
+// Loaded through src/engine.ts, the single loader, exactly as extension.ts does.
+import { engine, AccurateValidator, runDocumentChecks } from './engine';
 
 export interface CurrentDiagnostic {
   range: { start: { line: number; character: number }; end: { line: number; character: number } };
