@@ -43,12 +43,18 @@ const { CASES, SUPPRESSION_CASES } = require('./regression-corpus.js');
 const PACKAGE_DIR = path.join(__dirname, '..', 'packages', 'validator');
 const PACKAGE_NAME = 'pinescript-v6-validator';
 const SKIP = process.env.SKIP_PACKAGE_TEST === '1';
+// The repo's own compiler, so the copy builds exactly as `npm run build` does.
+const TSC = require.resolve('typescript/bin/tsc');
+const { expectedFiles, tarballFiles, compare } = require('../packages/validator/scripts/check-pack.js');
 
 let workspace = null;
 /** The module object, obtained by name from the installed package. */
 let installed = null;
 /** package.json as it exists INSIDE the tarball. */
 let publishedManifest = null;
+/** The packed tarball, and the isolated copy it was built from. */
+let tarball = null;
+let packageCopy = null;
 
 function run(command, args, cwd) {
   return execFileSync(command, args, {
@@ -62,13 +68,30 @@ describe('Published npm package', { skip: SKIP && 'SKIP_PACKAGE_TEST=1' }, () =>
   before(() => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'pine-pkg-'));
 
-    // Build first. Packing a stale dist/ is precisely the drift this suite exists
-    // to catch, and it would produce a confusing pass rather than a useful failure.
-    run('npm', ['run', 'build'], PACKAGE_DIR);
+    // Build and pack an isolated COPY of packages/validator, never the shared tree
+    // (#64). node --test runs test files in parallel processes; rebuilding the shared
+    // dist/ here once rewrote parameter-requirements-generated.js while another file
+    // was loading it, and failed a release. `npm test` has already built the shared
+    // dist/; this suite writes nothing under packages/validator/.
+    //
+    // Building the copy fresh, rather than copying dist/, still means a stale or
+    // hand-edited dist/ cannot produce a confusing pass.
+    const copy = path.join(workspace, 'validator');
+    fs.cpSync(PACKAGE_DIR, copy, {
+      recursive: true,
+      filter: src => {
+        const rel = path.relative(PACKAGE_DIR, src).split(path.sep)[0];
+        return rel !== 'dist' && rel !== 'node_modules';
+      },
+    });
+    run(process.execPath, [TSC, '-p', copy], workspace);
+    packageCopy = copy;
 
-    const packed = run('npm', ['pack', '--pack-destination', workspace], PACKAGE_DIR)
+    // `npm pack` runs the package's prepack guard (scripts/check-pack.js), so a dist
+    // carrying anything beyond the expected set fails here, before install (#67).
+    const packed = run('npm', ['pack', '--pack-destination', workspace], copy)
       .trim().split('\n').pop().trim();
-    const tarball = path.join(workspace, packed);
+    tarball = path.join(workspace, packed);
 
     fs.writeFileSync(
       path.join(workspace, 'package.json'),
@@ -109,6 +132,20 @@ describe('Published npm package', { skip: SKIP && 'SKIP_PACKAGE_TEST=1' }, () =>
     ]) {
       assert.ok(name in installed, `the published package must export ${name}`);
     }
+  });
+
+  test('the tarball holds exactly the expected files, nothing more (#67)', () => {
+    // npm 0.4.2 shipped 47 files where 25 were intended: 22 iCloud conflict copies
+    // such as `dist/src/accurateValidator 2.js`, a stale validator. `files: ["dist"]`
+    // packs whatever sits in dist/, so the list itself has to be checked.
+    const { expected, problems } = expectedFiles(packageCopy);
+    const actual = tarballFiles(tarball);
+    const result = compare(expected, actual, problems);
+    assert.deepStrictEqual(
+      { extra: result.extra, missing: result.missing, problems: result.problems },
+      { extra: [], missing: [], problems: [] },
+      `packed ${actual.length} files, expected ${expected.length}`);
+    assert.deepStrictEqual(actual, expected);
   });
 
   test('ships type declarations alongside the entry point', () => {
