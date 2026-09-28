@@ -68,11 +68,12 @@ jobs:
     - name: Publish to Open VSX
       env:
         OVSX_PAT: ${{ secrets.OVSX_PAT }}
-      run: npx --yes ovsx publish "pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix" -p "$OVSX_PAT"
+      # ovsx 1.2.0 supports Node 22 and reads OVSX_PAT from the environment.
+      run: npx --yes ovsx@1.2.0 publish "pinescript-v6-extension-${GITHUB_REF_NAME#v}.vsix"
 
     - name: Upload VSIX to release
       uses: softprops/action-gh-release@v1
       with:
-        files: '*.vsix'
+        files: 'pinescript-v6-extension-*.vsix'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

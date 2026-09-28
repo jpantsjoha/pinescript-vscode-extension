@@ -25,20 +25,28 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const VERIFY = path.join(ROOT, 'scripts/verify-vsix.js');
 const VSCE_LS = path.join(ROOT, 'scripts/vsce-ls.js');
+const DIFF_DIAGNOSTICS = path.join(ROOT, 'scripts/diff-diagnostics.js');
 const PACK_GUARD_PATH = path.join(ROOT, 'packages', 'validator', 'scripts', 'check-pack.js');
 const PACK_GUARD = require(PACK_GUARD_PATH);
-const { findPackageScriptPublishCallers } = require('../scripts/audit.js');
+const { listFiles, PackageManager } = require('@vscode/vsce');
+const {
+  auditWorkflowVsixOrder,
+  findPackageScriptPublishCallers,
+} = require('../scripts/audit.js');
 
 const tmp = prefix => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
 const hasCli = cmd => spawnSync(cmd, ['-v'], { stdio: 'ignore' }).status === 0 ||
   spawnSync(cmd, ['-h'], { stdio: 'ignore' }).status === 0;
-const run = (script, args) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
+const run = (script, args, options = {}) => spawnSync(process.execPath, [script, ...args], {
+  encoding: 'utf8',
+  ...options,
+});
 
 /** A VSIX listing that satisfies every required-file and allowlist rule. */
-function buildVsix(dir, extraEntries) {
-  const tsJs = d => fs.readdirSync(path.join(ROOT, d)).filter(f => f.endsWith('.ts') && !f.endsWith('.d.ts'))
+function buildVsix(dir, extraEntries, root = ROOT) {
+  const tsJs = d => fs.readdirSync(path.join(root, d)).filter(f => f.endsWith('.ts') && !f.endsWith('.d.ts'))
     .map(f => f.replace(/\.ts$/, '.js'));
-  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const files = [
     'extension.vsixmanifest', '[Content_Types].xml', 'extension/package.json',
     `extension/${manifest.main.replace(/^\.\//, '')}`, 'extension/dist/engine/index.js',
@@ -75,6 +83,86 @@ test('verify-vsix: an extra entry fails the expected-contents check before extra
     const good = run(VERIFY, [buildVsix(dir, [])]);
     assert.doesNotMatch(good.stdout + good.stderr, /unexpected file|not extracted/);
     assert.match(good.stdout, /entries; \d+ required runtime files checked/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('verify-vsix: an iCloud conflict-copy build is rejected before extraction', (t) => {
+  if (!hasCli('zip') || !hasCli('unzip')) {
+    assert.ok(!process.env.CI, 'zip/unzip are missing in CI — the VSIX guard would go untested');
+    t.skip('zip/unzip not installed');
+    return;
+  }
+  const dir = tmp('vsix-conflict-');
+  try {
+    const bad = run(VERIFY, [buildVsix(dir, ['extension/dist/src/extension 2.js'])]);
+    assert.strictEqual(bad.status, 1, bad.stdout + bad.stderr);
+    assert.match(bad.stderr, /unexpected file in VSIX .*extension\/dist\/src\/extension 2\.js/);
+    assert.match(bad.stderr, /not extracted/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('verify-vsix: a conflict-copy TypeScript source cannot whitelist its compiled JavaScript', (t) => {
+  if (!hasCli('zip') || !hasCli('unzip')) {
+    assert.ok(!process.env.CI, 'zip/unzip are missing in CI — the VSIX guard would go untested');
+    t.skip('zip/unzip not installed');
+    return;
+  }
+  const dir = tmp('vsix-source-conflict-');
+  try {
+    for (const rel of ['scripts', 'src', 'v6', 'packages/validator/src', 'packages/validator/data']) {
+      fs.mkdirSync(path.join(dir, rel), { recursive: true });
+    }
+    fs.copyFileSync(VERIFY, path.join(dir, 'scripts/verify-vsix.js'));
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ main: './dist/src/extension.js' }));
+    fs.writeFileSync(path.join(dir, 'src/extension.ts'), '');
+    fs.writeFileSync(path.join(dir, 'src/extension 2.ts'), '');
+
+    const bad = run(path.join(dir, 'scripts/verify-vsix.js'), [
+      buildVsix(dir, ['extension/dist/src/extension 2.js'], dir),
+    ]);
+    assert.strictEqual(bad.status, 1, bad.stdout + bad.stderr);
+    assert.match(bad.stderr, /unexpected file in VSIX .*extension\/dist\/src\/extension 2\.js/);
+    assert.match(bad.stderr, /not extracted/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('verify-vsix: extraction failure still removes its temporary directory', (t) => {
+  if (!hasCli('zip') || !hasCli('unzip')) {
+    assert.ok(!process.env.CI, 'zip/unzip are missing in CI — the VSIX guard would go untested');
+    t.skip('zip/unzip not installed');
+    return;
+  }
+  const dir = tmp('vsix-extract-failure-');
+  try {
+    const scratch = path.join(dir, 'tmp');
+    const bin = path.join(dir, 'bin');
+    fs.mkdirSync(scratch);
+    fs.mkdirSync(bin);
+    const realUnzip = spawnSync('which', ['unzip'], { encoding: 'utf8' }).stdout.trim();
+    const injectedUnzip = path.join(bin, 'unzip');
+    fs.writeFileSync(injectedUnzip,
+      `#!/bin/sh\nif [ "$1" = "-q" ]; then exit 42; fi\nexec "${realUnzip}" "$@"\n`);
+    fs.chmodSync(injectedUnzip, 0o755);
+
+    const failed = run(VERIFY, [buildVsix(dir, [])], {
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+        TMPDIR: scratch,
+      },
+    });
+    assert.notStrictEqual(failed.status, 0, failed.stdout + failed.stderr);
+    assert.deepStrictEqual(
+      fs.readdirSync(scratch).filter(name => name.startsWith('verify-vsix-')),
+      [],
+      'the extraction temp directory leaked after unzip failed'
+    );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -126,6 +214,27 @@ test('vsce-ls --compare-npm: a dependency only the Npm mode would ship is a dive
     assert.deepStrictEqual([good.onlyNone, good.onlyNpm], [[], []], JSON.stringify(good));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('vsce-ls --compare-npm: UUID fallback reports the real package file count', async () => {
+  const outer = tmp('npm-uuid-count-');
+  const dir = path.join(outer, '0f8fad5b-d9cb-469f-a165-70867728950e', 'repo');
+  try {
+    fs.mkdirSync(path.join(dir, 'dist'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+      name: 'uuid-count-fixture', version: '1.0.0', publisher: 'fixture', engines: { vscode: '^1.88.0' },
+    }));
+    fs.writeFileSync(path.join(dir, '.vscodeignore'), '*.md\n');
+    fs.writeFileSync(path.join(dir, 'dist/index.js'), '');
+
+    const expected = await listFiles({ cwd: fs.realpathSync(dir), packageManager: PackageManager.None });
+    const compared = JSON.parse(run(VSCE_LS, ['--compare-npm', dir]).stdout);
+    assert.deepStrictEqual([compared.onlyNone, compared.onlyNpm], [[], []], JSON.stringify(compared));
+    assert.strictEqual(compared.none, expected.length, JSON.stringify({ compared, expected }));
+    assert.strictEqual(compared.npm, expected.length, JSON.stringify({ compared, expected }));
+  } finally {
+    fs.rmSync(outer, { recursive: true, force: true });
   }
 });
 
@@ -181,4 +290,108 @@ test('engine publish audit finds npm publish in any package manifest script', ()
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('publish workflow audit uses executable steps, rejects bypasses, and binds one VSIX', () => {
+  const good = `
+jobs:
+  publish:
+    steps:
+      - run: node scripts/verify-vsix.js build/extension-*.vsix
+      - run: npx --no-install vsce publish --packagePath build/extension-*.vsix
+      - run: npx --yes ovsx@1.2.0 publish build/extension-*.vsix
+`;
+  assert.deepStrictEqual(auditWorkflowVsixOrder(good, ['vsce publish', 'ovsx publish']), []);
+
+  const commentOnly = `
+jobs:
+  publish:
+    steps:
+      # node scripts/verify-vsix.js build/extension-*.vsix
+      - run: npx --no-install vsce publish --packagePath build/extension-*.vsix
+`;
+  assert.match(auditWorkflowVsixOrder(commentOnly, ['vsce publish']).join('\n'), /no executable verify-vsix step/);
+
+  const continueOnError = good.replace(
+    '- run: node scripts/verify-vsix.js build/extension-*.vsix',
+    '- run: node scripts/verify-vsix.js build/extension-*.vsix\n        continue-on-error: true'
+  );
+  assert.match(auditWorkflowVsixOrder(continueOnError, ['vsce publish']).join('\n'), /continue-on-error/);
+
+  const swallowed = good.replace(
+    'node scripts/verify-vsix.js build/extension-*.vsix',
+    'node scripts/verify-vsix.js build/extension-*.vsix || true'
+  );
+  assert.match(auditWorkflowVsixOrder(swallowed, ['vsce publish']).join('\n'), /\|\| true/);
+
+  const multilineSwallowed = `
+jobs:
+  publish:
+    steps:
+      - run: |
+          node scripts/verify-vsix.js build/extension-*.vsix ||
+            true
+      - run: npx --no-install vsce publish --packagePath build/extension-*.vsix
+`;
+  assert.match(auditWorkflowVsixOrder(multilineSwallowed, ['vsce publish']).join('\n'), /\|\| true/);
+
+  const mismatch = good.replace(
+    '--packagePath build/extension-*.vsix',
+    '--packagePath build/different-*.vsix'
+  );
+  assert.match(auditWorkflowVsixOrder(mismatch, ['vsce publish']).join('\n'), /different VSIX/);
+
+  const secondPublish = good.replace(
+    'npx --no-install vsce publish --packagePath build/extension-*.vsix',
+    'npx --no-install vsce publish --packagePath build/extension-*.vsix\n' +
+      '          npx --no-install vsce publish --packagePath build/unverified-*.vsix'
+  ).replace(
+    '- run: npx --no-install vsce publish --packagePath build/extension-*.vsix',
+    '- run: |\n          npx --no-install vsce publish --packagePath build/extension-*.vsix'
+  );
+  assert.match(auditWorkflowVsixOrder(secondPublish, ['vsce publish']).join('\n'), /different VSIX/);
+
+  const skipped = good.replace(
+    '- run: node scripts/verify-vsix.js build/extension-*.vsix',
+    '- if: ${{ false }}\n        run: node scripts/verify-vsix.js build/extension-*.vsix'
+  );
+  assert.match(auditWorkflowVsixOrder(skipped, ['vsce publish']).join('\n'), /conditional and may be skipped/);
+
+  const wrongOrder = good.replace(
+    '      - run: node scripts/verify-vsix.js build/extension-*.vsix\n' +
+      '      - run: npx --no-install vsce publish --packagePath build/extension-*.vsix',
+    '      - run: npx --no-install vsce publish --packagePath build/extension-*.vsix\n' +
+      '      - run: node scripts/verify-vsix.js build/extension-*.vsix'
+  );
+  assert.match(auditWorkflowVsixOrder(wrongOrder, ['vsce publish']).join('\n'), /before verify-vsix/);
+});
+
+test('repository tag workflows verify the exact VSIX they publish or upload', () => {
+  const publish = fs.readFileSync(path.join(ROOT, '.github/workflows/publish.yml'), 'utf8');
+  const release = fs.readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8');
+  assert.deepStrictEqual(auditWorkflowVsixOrder(publish, ['vsce publish', 'ovsx publish']), []);
+  assert.deepStrictEqual(auditWorkflowVsixOrder(release, ['action-gh-release']), []);
+});
+
+test('publish workflow pins ovsx and keeps OVSX_PAT off the command line', () => {
+  const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/publish.yml'), 'utf8');
+  assert.match(workflow, /npx --yes ovsx@1\.2\.0 publish/);
+  assert.match(workflow, /env:\n\s+OVSX_PAT: \$\{\{ secrets\.OVSX_PAT \}\}/);
+  assert.doesNotMatch(workflow, /ovsx[^\n]*\s(?:-p|--pat)(?:\s|=)/);
+});
+
+test('diff-diagnostics reserves exit 2 for usage errors', () => {
+  const missing = run(DIFF_DIAGNOSTICS, []);
+  assert.strictEqual(missing.status, 2, missing.stdout + missing.stderr);
+  assert.match(missing.stderr, /usage:/);
+
+  const optionLike = run(DIFF_DIAGNOSTICS, ['--against', '--not-a-ref']);
+  assert.strictEqual(optionLike.status, 2, optionLike.stdout + optionLike.stderr);
+  assert.match(optionLike.stderr, /must not start with '-'/);
+});
+
+test('diff-diagnostics exits 3 with a clear message when git archive fails', () => {
+  const failed = run(DIFF_DIAGNOSTICS, ['--against', 'refs/heads/issue-62-ref-does-not-exist']);
+  assert.strictEqual(failed.status, 3, failed.stdout + failed.stderr);
+  assert.match(failed.stderr, /diff-diagnostics: git archive failed/);
 });

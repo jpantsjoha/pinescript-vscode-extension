@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A comment or blank line inside a wrapped call no longer hides a later misspelled
   constant such as `color.purplee` (#61).
 
+### Release tooling
+
+- Packaging audits now parse workflow steps, require a blocking `verify-vsix` step
+  before publication, and bind verification and publication to the same VSIX.
+  VSIX guards reject sync-conflict source/build copies and always clean extraction
+  directories; UUID-path comparisons report the real package count.
+- Open VSX publishing pins `ovsx` 1.2.0 and supplies `OVSX_PAT` through the
+  environment. Diagnostic diffs now reserve exit 1 for reviewed differences, 2
+  for usage errors and 3 for failed tools (#62).
+
 ### Engine 0.4.3 (npm `pinescript-v6-validator`)
 
 - Publishes from tag-triggered CI with npm provenance, never from a local working
