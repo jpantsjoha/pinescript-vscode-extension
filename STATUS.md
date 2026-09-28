@@ -58,6 +58,20 @@ parallel test files through shared `packages/validator/dist`.
 or granular token with publish rights to `pinescript-v6-validator`), then push
 `engine-v0.4.3`. Do not publish the engine locally.
 
+## 2026-09-28: backlog cleared — #67 #64 #61 #60 #62 merged
+
+| PR | Issue | Merge |
+|---|---|---|
+| #70 | #67 engine publishes from CI on `engine-v*` tags with provenance and an exact 25-file guard; #64 isolated package test | `a11f908` |
+| #71 | #61 a comment or blank line inside a wrapped call no longer hides a later misspelling | `ca3b978` |
+| #72 | #60 S1 no longer advises a `lookahead` that `request.security_lower_tf` lacks | `52c6eed` |
+| #73 | #62 workflow audit parses steps (verify before Marketplace, Open VSX and GitHub release), conflict-copy rejection, pinned `ovsx`, distinct `diff-diagnostics` exit codes | `e787950` |
+
+Written by Codex sol-xhigh in worktrees outside iCloud; reviewed by Gemini (agy) on
+each exact head, with delta reviews after every change; CI 6/6 before each merge.
+Main `e787950`, clean export under Node 22: `npm test` 833/833, audit 36/0/0,
+engine `npm pack --dry-run` exactly 25 files. PR #68 closed as superseded by #70.
+
 ## Where this stands
 
 Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
@@ -73,7 +87,7 @@ Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
 | VSIX | 0.7.0: 36 files, 1.43 MB; `verify-vsix` PASS (activate, allowlist, one engine) | `npm run package`, `npm run verify:vsix` |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) | — |
 | Fixed on main, unreleased | #61 (PR #71, `ca3b978`): a comment or blank line inside a wrapped call no longer hides a later misspelled constant; #60 (PR #72, `52c6eed`): S1 is silent on `request.security_lower_tf()` | Regression-corpus cases both ways; `npm test` green on main |
-| Open issues | #67 #64 (fixed on this branch) #62 #5 #1 | `gh issue list` |
+| Open issues | #5 #1 (feature requests, not scheduled) | `gh issue list` |
 
 The test strategy (nine layers, the gate matrix, independent review) is in
 [docs/guides/TESTING-GUIDE.md](./docs/guides/TESTING-GUIDE.md).
@@ -95,8 +109,8 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 ## What waits on whom
 
-- **JP**: after this merges, add the `NPM_TOKEN` repo secret and push tag `engine-v0.4.3`; the workflow publishes and verifies. Then bump pinescript-plugin to `^0.4.3`.
-- **Next session**: #62 (packaging-guard follow-ups); #61 and #60 are fixed on main.
+- **JP**: add the `NPM_TOKEN` repo secret and push tag `engine-v0.4.3` on `main` (#70 merged as `a11f908`); `publish-engine.yml` publishes and verifies. Then bump pinescript-plugin to `^0.4.3`. Decide when to release 0.7.1 (#61, #60 unreleased on main).
+- **Next session**: release 0.7.1 if JP calls it; otherwise #5 (rename) needs a scoping session.
 
 ## Repository hygiene
 
