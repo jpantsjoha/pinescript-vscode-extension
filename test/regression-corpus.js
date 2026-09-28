@@ -1279,6 +1279,28 @@ const CASES = [
       'Without an intervening comment, the join already keeps the named argument inside the ' +
       'call; preserving that behavior proves the fix does not widen declaration collection.',
   },
+
+  //────────────────────────────────────────────────────────
+  // #60 — S1 does not apply HTF lookahead advice to lower-timeframe requests
+  //────────────────────────────────────────────────────────
+  {
+    name: '#60: request.security_lower_tf has no actionable S1 lookahead fix',
+    code: IND + 'values = request.security_lower_tf(syminfo.tickerid, "1", close)\nplot(array.size(values))\n',
+    expect: null,
+    found: '2026-09-28',
+    why:
+      'request.security_lower_tf has no lookahead argument, so S1 advised a fix the author ' +
+      'could not apply and produced a false warning on a valid lower-timeframe request.',
+  },
+  {
+    name: '#60: request.security without an offset still produces S1',
+    code: IND + 'd = request.security(syminfo.tickerid, "D", close)\nplot(d)\n',
+    expect: 'S1',
+    found: '2026-09-28',
+    why:
+      'Paired guard for #60: narrowing S1 away from request.security_lower_tf must not ' +
+      'silence the repainting warning on an undecided higher-timeframe request.security call.',
+  },
 ];
 
 /**

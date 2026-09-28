@@ -59,7 +59,8 @@ Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
 | Diagnostics vs 0.6.5 | 21 `.pine` files, 32 diagnostics, 0 new, 0 gone | `node scripts/diff-diagnostics.js --against v0.6.5` |
 | VSIX | 0.7.0: 36 files, 1.43 MB; `verify-vsix` PASS (activate, allowlist, one engine) | `npm run package`, `npm run verify:vsix` |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) | — |
-| Open issues | #67 #64 #60 #61 #62 #5 #1 | `gh issue list` |
+| Branch fix | #60 fixed on `fix/60-s1-lower-tf-advice` (PR #72): `request.security_lower_tf()` is silent while repainting `request.security()` still produces S1 | Paired #60 cases at the end of `test/regression-corpus.js` |
+| Open issues | #67 #64 #60 (fixed on PR #72) #61 #62 #5 #1 | `gh issue list` |
 
 The test strategy (nine layers, the gate matrix, independent review) is in
 [docs/guides/TESTING-GUIDE.md](./docs/guides/TESTING-GUIDE.md).
@@ -82,7 +83,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 ## What waits on whom
 
 - **JP**: decision board rows 1–4; bump pinescript-plugin to `^0.4.2` now (behaviour correct) or wait for a clean 0.4.3.
-- **Next session**: the #67 design session (engine publish via CI), then #64, #61, #60, #62.
+- **Next session**: the #67 design session (engine publish via CI), then #64, #61 and #62; #60 is fixed on PR #72.
 
 ## Repository hygiene
 

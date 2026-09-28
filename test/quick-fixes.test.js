@@ -221,7 +221,6 @@ test('S1: only "Ignore S1", never a rewrite, never preferred (review blockers on
     'lower timeframe': `${HEAD}low = request.security(syminfo.tickerid, "1", close)\nplot(low)\n`,
     'pre-offset alias': `${HEAD}settled = close[1]\ndaily = request.security(syminfo.tickerid, "D", settled)\nplot(daily)\n`,
     '3-arg ta.vwap tuple': `${HEAD}[v, upper, lower] = request.security(\n\t syminfo.tickerid, "D",\n\t ta.vwap(close, timeframe.change("D"), 2.0))\nplot(v)\n`,
-    'lower_tf': `${HEAD}arr = request.security_lower_tf(syminfo.tickerid, "1", close)\nplot(array.size(arr))\n`,
   };
   for (const [name, src] of Object.entries(cases)) {
     const { diags, fixes } = fixesFor(src);
@@ -231,6 +230,13 @@ test('S1: only "Ignore S1", never a rewrite, never preferred (review blockers on
     assert.deepStrictEqual(forS1.map(f => f.title), ['Ignore S1 on this line'], name);
     assert.strictEqual(forS1[0].isPreferred, false, `${name}: ignore is never preferred`);
   }
+});
+
+test('S1: request.security_lower_tf has no warning or quick fix', () => {
+  const src = `${HEAD}arr = request.security_lower_tf(syminfo.tickerid, "1", close)\nplot(array.size(arr))\n`;
+  const { diags, fixes } = fixesFor(src);
+  assert.ok(!diags.some(byCheck('S1')), 'security_lower_tf has no user-fixable S1 pattern');
+  assert.deepStrictEqual(fixes.filter(f => diags[f.diagnosticIndex]?.code === 'S1'), []);
 });
 
 test('S1: the ignore action silences it and adds nothing', () => {
