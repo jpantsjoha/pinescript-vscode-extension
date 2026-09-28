@@ -2,7 +2,7 @@
 
 **Updated**: 2026-09-28
 **Marketplace / Open VSX**: **0.7.0 live** (tag `v0.7.0` on `6d7f1f9`, released 2026-09-26)
-**Engine**: `pinescript-v6-validator@0.4.2` remains on npm. Clean 0.4.3 and the #64 test-race fix are built on branch `feat/67-ci-engine-publish`; publication waits for merge, the `NPM_TOKEN` repository secret, and operator tag `engine-v0.4.3`.
+**Engine**: `pinescript-v6-validator@0.4.2` remains on npm. Clean 0.4.3 is merged (#70) and publish run `36447823922` first stopped at its preflight (no `NPM_TOKEN`); after the secret was added (2026-09-28) the re-run passed every gate (tests, exact 25-file pack, corpus against the tarball) and npm refused the upload with EOTP — the token does not bypass 2FA. Nothing is published yet.
 
 ## 2026-09-26: 0.7.0 — quick fixes, the invalid-cast rule, one engine
 
@@ -45,18 +45,32 @@ provenance), which removes the class instead of guarding each call site. Lesson 
 nothing that ships is packed from the iCloud tree, and every artefact's file list is
 audited before go-live.
 
-## 2026-09-28: engine 0.4.3 CI publish path built (#67, #64)
+## 2026-09-28: engine 0.4.3 CI publish path (#67, #64; merged as PR #70)
 
-Branch `feat/67-ci-engine-publish` replaces the deferred local-publish design with a
+PR #70 (merged `a11f908`) replaces the deferred local-publish design with a
 tag-only GitHub Actions workflow. It builds on Node 22, enforces the derived 25-file
 package list, installs the exact tarball and runs all 135 regression cases, publishes
 that tarball with npm provenance, and verifies the public package after publication.
 The npm-package test now builds an isolated validator copy and no longer races other
 parallel test files through shared `packages/validator/dist`.
 
-**Operator action after merge:** add repository secret `NPM_TOKEN` (an npm automation
-or granular token with publish rights to `pinescript-v6-validator`), then push
+**Operator action (now):** replace the `NPM_TOKEN` secret with an npm token that bypasses 2FA
+(or configure npm Trusted Publishing), then re-run publish run `36447823922` on the pushed tag
 `engine-v0.4.3`. Do not publish the engine locally.
+
+## 2026-09-28: backlog cleared — #67 #64 #61 #60 #62 merged
+
+| PR | Issue | Merge |
+|---|---|---|
+| #70 | #67 engine publishes from CI on `engine-v*` tags with provenance and an exact 25-file guard; #64 isolated package test | `a11f908` |
+| #71 | #61 a comment or blank line inside a wrapped call no longer hides a later misspelling | `ca3b978` |
+| #72 | #60 S1 no longer advises a `lookahead` that `request.security_lower_tf` lacks | `52c6eed` |
+| #73 | #62 workflow audit parses steps (verify before Marketplace, Open VSX and GitHub release), conflict-copy rejection, pinned `ovsx`, distinct `diff-diagnostics` exit codes | `e787950` |
+
+Built in worktrees outside iCloud; each exact head independently reviewed, with a
+delta review after every change; CI 6/6 before each merge.
+Main `e787950`, clean export under Node 22: `npm test` 833/833, audit 36/0/0,
+engine `npm pack --dry-run` exactly 25 files. PR #68 closed as superseded by #70.
 
 ## Where this stands
 
@@ -72,8 +86,8 @@ Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
 | Diagnostics vs 0.6.5 | 21 `.pine` files, 32 diagnostics, 0 new, 0 gone | `node scripts/diff-diagnostics.js --against v0.6.5` |
 | VSIX | 0.7.0: 36 files, 1.43 MB; `verify-vsix` PASS (activate, allowlist, one engine) | `npm run package`, `npm run verify:vsix` |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) | — |
-| Fixed on main, unreleased | #61 (PR #71, `ca3b978`): a comment or blank line inside a wrapped call no longer hides a later misspelled constant; #60 (PR #72, `52c6eed`): S1 is silent on `request.security_lower_tf()` | Regression-corpus cases both ways; `npm test` green on main |
-| Open issues | #67 #64 (fixed on this branch) #62 #5 #1 | `gh issue list` |
+| Fixed on main, unreleased | #61 (PR #71, `ca3b978`): a comment or blank line inside a wrapped call no longer hides a later misspelled constant; #60 (PR #72, `52c6eed`): S1 is silent on `request.security_lower_tf()`; #62 (PR #73, `e787950`): release-workflow audit parses steps, pinned `ovsx`, conflict-copy rejection | Regression-corpus cases both ways; `npm test` green on main |
+| Open issues | #5 #1 (feature requests, not scheduled) | `gh issue list` |
 
 The test strategy (nine layers, the gate matrix, independent review) is in
 [docs/guides/TESTING-GUIDE.md](./docs/guides/TESTING-GUIDE.md).
@@ -82,7 +96,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 | # | Group | Decision | Unblocks | Recommendation | Right | Wrong | Reversibility |
 |---|---|---|---|---|---|---|---|
-| 1 | OPERATOR | After `feat/67-ci-engine-publish` merges, add `NPM_TOKEN` with engine publish rights and push `engine-v0.4.3` | Clean engine 0.4.3 publication; pinescript-plugin bump | Use the tag workflow only | One CI-built, provenance-backed package | Local publication can repeat #67 | cheap |
+| 1 | OPERATOR | Give CI an npm credential that can publish: a granular token with bypass-2FA in `NPM_TOKEN`, or npm Trusted Publishing for `publish-engine.yml` | Clean engine 0.4.3; pinescript-plugin bump | Trusted Publishing (no long-lived token) | Engine 0.4.3 ships from CI with provenance | Agent users stay on 0.4.2 with 22 stray files | cheap |
 | 2 | SCHEDULE | Upgrade the Codex CLI (0.146.0 installed, 0.158.0 current): `npm i -g @openai/codex@latest` | Codex's default model; sol-xhigh (`gpt-5.6-sol`) already works and reviewed four rounds on 2026-09-28 | Upgrade | Every Codex model available as a lane | Default-model calls keep failing with "requires a newer version" | cheap |
 | 3 | SCHEDULE | Confirm the six inferred fields in the operating profile | Profile moves from `seed` to `active` | 10 minutes | Gates bind to confirmed facts | Gates keep citing inferences | cheap |
 | 4 | DEFER | GitHub sensitive-data purge of old history | — | Park; revisit if the repo is audited | — | — | one-way |
@@ -95,8 +109,8 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 ## What waits on whom
 
-- **JP**: after this merges, add the `NPM_TOKEN` repo secret and push tag `engine-v0.4.3`; the workflow publishes and verifies. Then bump pinescript-plugin to `^0.4.3`.
-- **Next session**: #62 (packaging-guard follow-ups); #61 and #60 are fixed on main.
+- **JP**: tag `engine-v0.4.3` pushed on `a11f908`; publish run `36447823922` first stopped at its preflight (no `NPM_TOKEN`); after the secret was added (2026-09-28) the re-run passed every gate (tests, exact 25-file pack, corpus against the tarball) and npm refused the upload with EOTP — the token does not bypass 2FA. Nothing published; npm is still 0.4.2. Next: a bypass-2FA token (update `npm_pat` in `.env`; the secret is reloaded from it) or Trusted Publishing, then `gh run rerun 36447823922`. Afterwards bump pinescript-plugin to `^0.4.3`; decide when to release 0.7.1 (#61, #60, #62 unreleased on main).
+- **Next session**: release 0.7.1 if JP calls it; otherwise #5 (rename) needs a scoping session.
 
 ## Repository hygiene
 
