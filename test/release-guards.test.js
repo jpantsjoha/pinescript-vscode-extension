@@ -12,7 +12,12 @@
  *   - a previous release that cannot be downloaded fails the inspection;
  *   - verify-published refuses a missing or mismatched --pre, fails on every channel
  *     it cannot download, and prints any --skip-channel waiver;
- *   - an iCloud location behind a symlink alias is still refused.
+ *   - an iCloud location behind a symlink alias is still refused;
+ *   - only a complete PASS record binds; --publish needs the exact origin/main tip and
+ *     a record of its tree; the public registry is pinned with CLI precedence and a
+ *     publishConfig redirect is refused; an ambiguous release (two VSIX assets) fails;
+ *     literal files entries it cannot model are refused; archive names are compared in
+ *     canonical form; --help runs nothing.
  */
 'use strict';
 
@@ -30,6 +35,13 @@ const { attachPrevious } = require('../scripts/inspect-artefacts.js');
 const verifyPublished = require('../scripts/verify-published.js');
 
 const tmp = prefix => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
+const HEX = c => c.repeat(64);
+
+/** A complete PASS inspection record: one VSIX, one engine tarball, hashes, runs ok. */
+const passArtefacts = () => [
+  { kind: 'vsix', name: 'x.vsix', sha256: HEX('a'), files: { 'extension/package.json': { size: 2, sha256: HEX('b') } }, failures: [], run: { ok: true } },
+  { kind: 'npm', name: 'x.tgz', sha256: HEX('c'), files: { 'package.json': { size: 2, sha256: HEX('d') } }, failures: [], run: { ok: true } },
+];
 
 //────────────────────────────────────────────────────────
 // Archive builders (no tar/zip binaries involved in creating them)
@@ -150,7 +162,7 @@ describe('check-pack: exact multiset, modelled configuration only', () => {
       extends: './base.json', include: ['src'], compilerOptions: { outDir: 'dist', declarationDir: 'types' },
     }));
     const { problems } = checkPack.expectedFiles(dir);
-    for (const needle of ['"extends"', 'declarationDir', 'include "src"', 'files pattern "dist/**/*.js"', 'update the expected set']) {
+    for (const needle of ['"extends"', 'declarationDir', 'include "src"', 'files entry "dist/**/*.js"', 'update the expected set']) {
       assert.ok(problems.some(p => p.includes(needle)), `expected a problem mentioning ${needle}:\n${problems.join('\n')}`);
     }
   });
@@ -254,9 +266,9 @@ describe('verify-published: bound to the pre-release record, fails closed per ch
       },
     };
   };
-  const record = (dir, rec) => {
-    const file = path.join(dir, 'inspection.json');
-    fs.writeFileSync(file, JSON.stringify({ meta: {}, artefacts: [], record: rec }));
+  const record = (dir, rec, artefacts = passArtefacts()) => {
+    const file = path.join(dir, `inspection-${Math.random().toString(36).slice(2)}.json`);
+    fs.writeFileSync(file, JSON.stringify({ meta: {}, artefacts, record: rec }));
     return file;
   };
   const goodRecord = { sha: 'c0ffee', tree: 'tree-A', extensionVersion: '9.9.9', engineVersion: '8.8.8' };
@@ -282,7 +294,7 @@ describe('verify-published: bound to the pre-release record, fails closed per ch
     r = offlineDeps();
     const bare = record(dir, undefined);
     assert.strictEqual(await verifyPublished.run(['9.9.9', '--pre', bare], r.deps), 2);
-    assert.match(r.out.join('\n'), /carries no candidate record/);
+    assert.match(r.out.join('\n'), /not a complete PASS inspection: record\.sha is missing/);
   });
 
   test('every channel that cannot be downloaded is a mismatch; exit 1', async () => {
@@ -346,5 +358,260 @@ describe('iCloud refusal sees through symlinks', () => {
     fs.symlinkSync(real, alias);
     assert.throws(() => A.refuseICloud(path.join(alias, 'report')), /inside iCloud/);
     assert.strictEqual(A.refuseICloud(path.join(dir, 'fine', 'report')), path.join(dir, 'fine', 'report'));
+  });
+});
+
+//────────────────────────────────────────────────────────
+// Review round 2 (delta review of 29e130c)
+//────────────────────────────────────────────────────────
+
+const policy = require('../scripts/lib/publish-policy.js');
+const { fetchPrevious } = require('../scripts/inspect-artefacts.js');
+const { spawnSync } = require('node:child_process');
+
+describe('only a complete PASS inspection binds (verify-published and publish-engine)', () => {
+  const full = () => ({ meta: {}, artefacts: passArtefacts(), record: { sha: 'c0ffee', tree: 'tree-A', extensionVersion: '9.9.9', engineVersion: '8.8.8' } });
+
+  test('a complete PASS record binds', () => {
+    assert.deepStrictEqual(policy.checkPreRecord(full(), ['vsix', 'npm']), []);
+  });
+
+  test('a record whose inspection FAILED is refused', () => {
+    const pre = full();
+    pre.artefacts[1].failures = ['previous release not compared — download failed: HTTP 503'];
+    assert.match(policy.checkPreRecord(pre, ['vsix']).join('\n'), /the inspection FAILED for x\.tgz/);
+  });
+
+  test('a record whose artefact did not run successfully is refused', () => {
+    const pre = full();
+    pre.artefacts[0].run = { ok: false };
+    assert.match(policy.checkPreRecord(pre, ['vsix']).join('\n'), /vsix artefact was not run successfully/);
+    delete pre.artefacts[0].run;
+    assert.match(policy.checkPreRecord(pre, ['vsix']).join('\n'), /vsix artefact was not run successfully/);
+  });
+
+  test('a record missing the artefact, its hash or its file hashes is refused', () => {
+    let pre = full();
+    pre.artefacts = pre.artefacts.filter(a => a.kind !== 'npm');
+    assert.match(policy.checkPreRecord(pre, ['npm']).join('\n'), /0 npm artefact\(s\); exactly one is required/);
+    pre = full();
+    pre.artefacts.push({ ...pre.artefacts[0] });
+    assert.match(policy.checkPreRecord(pre, ['vsix']).join('\n'), /2 vsix artefact\(s\)/);
+    pre = full();
+    delete pre.artefacts[0].sha256;
+    pre.artefacts[0].files['extension/package.json'].sha256 = '';
+    const all = policy.checkPreRecord(pre, ['vsix']).join('\n');
+    assert.match(all, /no archive SHA-256/);
+    assert.match(all, /files without a SHA-256/);
+    pre = full();
+    delete pre.record.tree;
+    assert.match(policy.checkPreRecord(pre, []).join('\n'), /record\.tree is missing/);
+  });
+
+  test('verify-published refuses a FAILED record before any download', async () => {
+    const dir = tmp('guards-failrec-');
+    const pre = full();
+    pre.artefacts[0].failures = ['run failed: activate() threw'];
+    const file = path.join(dir, 'inspection.json');
+    fs.writeFileSync(file, JSON.stringify(pre));
+    const out = [];
+    const boom = () => { throw new Error('must not be called'); };
+    const code = await verifyPublished.run(['9.9.9', '--pre', file], {
+      fetch: boom, sh: boom, exportRef: boom, inspect: boom, treeOf: () => 'tree-A', log: s => out.push(s), err: s => out.push(s),
+    });
+    assert.strictEqual(code, 2);
+    assert.match(out.join('\n'), /is not a complete PASS inspection: the inspection FAILED for x\.vsix/);
+  });
+
+  test('publish-engine binding: stale tree, other version or other tarball refused; FAIL record refused', () => {
+    const bind = { tree: 'tree-A', version: '8.8.8', sha256: HEX('c') };
+    assert.deepStrictEqual(policy.checkPreForPublish(full(), bind), []);
+    assert.match(policy.checkPreForPublish(full(), { ...bind, tree: 'tree-MAIN' }).join('\n'),
+      /record tree tree-A is not the tree being published tree-MAIN/);
+    assert.match(policy.checkPreForPublish(full(), { ...bind, version: '8.8.9' }).join('\n'), /record engine 8\.8\.8 is not 8\.8\.9/);
+    assert.match(policy.checkPreForPublish(full(), { ...bind, sha256: HEX('e') }).join('\n'), /record tarball sha256/);
+    const failed = full();
+    failed.artefacts[1].failures = ['x'];
+    assert.match(policy.checkPreForPublish(failed, bind).join('\n'), /the inspection FAILED/);
+  });
+
+  test('publish-engine CLI exits 1 with the reasons on a stale record', () => {
+    const dir = tmp('guards-cli-');
+    const file = path.join(dir, 'inspection.json');
+    fs.writeFileSync(file, JSON.stringify(full()));
+    const script = path.join(__dirname, '..', 'scripts', 'lib', 'publish-policy.js');
+    const ok = spawnSync(process.execPath, [script, 'pre', file, 'tree-A', '8.8.8', HEX('c')], { encoding: 'utf8' });
+    assert.strictEqual(ok.status, 0, ok.stdout);
+    const stale = spawnSync(process.execPath, [script, 'pre', file, 'tree-NEWER', '8.8.8', HEX('c')], { encoding: 'utf8' });
+    assert.strictEqual(stale.status, 1);
+    assert.match(stale.stdout, /is not the tree being published tree-NEWER/);
+  });
+});
+
+describe('--publish runs only on the exact origin/main tip', () => {
+  test('HEAD equal to the fetched tip passes; an older ancestor is refused', () => {
+    assert.deepStrictEqual(policy.checkTip('abc', 'abc'), []);
+    assert.match(policy.checkTip('old', 'new').join('\n'), /is not the current origin\/main tip new/);
+    assert.match(policy.checkTip('', 'new').join('\n'), /cannot resolve/);
+  });
+});
+
+describe('the public registry is pinned with CLI precedence', () => {
+  test('a publishConfig registry pointing elsewhere is refused; the public one is allowed', () => {
+    assert.deepStrictEqual(policy.checkPublishConfig({}), []);
+    assert.deepStrictEqual(policy.checkPublishConfig({ publishConfig: { registry: 'https://registry.npmjs.org' } }), []);
+    assert.match(policy.checkPublishConfig({ publishConfig: { registry: 'https://evil.example/' } }).join('\n'),
+      /publishConfig\.registry is https:\/\/evil\.example\//);
+    assert.match(policy.checkPublishConfig({ publishConfig: { '@scope:registry': 'https://evil.example/' } }).join('\n'),
+      /publishConfig\.@scope:registry/);
+  });
+
+  test('the real engine manifest does not redirect publishing', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'packages', 'validator', 'package.json'), 'utf8'));
+    assert.deepStrictEqual(policy.checkPublishConfig(manifest), []);
+  });
+
+  test('registry reads drop inherited npm config and carry --registry on the command line', () => {
+    process.env.npm_config_registry_probe = 'x';
+    process.env.NPM_CONFIG_REGISTRY = 'https://evil.example/';
+    try {
+      const env = A.npmEnv();
+      assert.ok(!('npm_config_registry_probe' in env) && !('NPM_CONFIG_REGISTRY' in env));
+      assert.strictEqual(env.npm_config_registry, policy.REGISTRY);
+    } finally {
+      delete process.env.npm_config_registry_probe;
+      delete process.env.NPM_CONFIG_REGISTRY;
+    }
+    assert.deepStrictEqual(A.REGISTRY_ARGS, ['--registry', 'https://registry.npmjs.org/']);
+    const calls = [];
+    const dir = tmp('guards-reg-');
+    fetchPrevious('npm', { prevEngine: '1.0.0' }, dir, (cmd, args, opts) => { calls.push({ cmd, args, opts }); return 'x.tgz\n'; });
+    assert.ok(calls[0].args.join(' ').includes('--registry https://registry.npmjs.org/'), calls[0].args.join(' '));
+    assert.strictEqual(calls[0].opts.env.npm_config_registry, policy.REGISTRY);
+  });
+
+  test('publish-engine.sh passes --registry on every registry command', () => {
+    const text = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'publish-engine.sh'), 'utf8');
+    const lines = text.split('\n').filter(l => /npm (ci|pack|view|publish)\b/.test(l) && !/^\s*#/.test(l) && /\(cd /.test(l));
+    assert.ok(lines.length >= 4, lines.join('\n'));
+    for (const l of lines) assert.match(l, /--registry "\$REG"/, l);
+    assert.match(text, /publish-policy\.js" publish-config/);
+  });
+});
+
+describe('an ambiguous release (more than one VSIX asset) fails', () => {
+  test('singleAsset refuses zero or several', () => {
+    const dir = tmp('guards-assets-');
+    assert.throws(() => A.singleAsset(dir, '.vsix', 'r'), /0 \.vsix asset/);
+    fs.writeFileSync(path.join(dir, 'a-1.0.0.vsix'), 'x');
+    assert.strictEqual(A.singleAsset(dir, '.vsix', 'r'), path.join(dir, 'a-1.0.0.vsix'));
+    fs.writeFileSync(path.join(dir, 'a-0.9.0.vsix'), 'y');
+    assert.throws(() => A.singleAsset(dir, '.vsix', 'r'), /2 \.vsix asset\(s\) \(a-0\.9\.0\.vsix, a-1\.0\.0\.vsix\)/);
+  });
+
+  test('inspect-artefacts: two VSIX assets on the previous release is a FAIL', () => {
+    const dir = tmp('guards-prev2-');
+    const prev = fetchPrevious('vsix', { prevTag: 'v1.0.0' }, dir, (cmd, args) => {
+      const d = args[args.indexOf('-D') + 1];
+      fs.writeFileSync(path.join(d, 'x-1.0.0.vsix'), '1');
+      fs.writeFileSync(path.join(d, 'x-old.vsix'), '2');
+      return '';
+    });
+    assert.match(prev.error, /2 \.vsix asset\(s\)/);
+    const r = attachPrevious({ kind: 'vsix', files: {}, size: 1, failures: [], flags: [], previous: null }, prev);
+    assert.ok(r.failures.some(f => /previous release not compared — .*2 \.vsix asset/.test(f)), r.failures.join('\n'));
+  });
+
+  test('verify-published: two VSIX assets on the GitHub release is a mismatch', async () => {
+    const dir = tmp('guards-gh2-');
+    const pre = path.join(dir, 'inspection.json');
+    fs.writeFileSync(pre, JSON.stringify({ meta: {}, artefacts: passArtefacts(), record: { sha: 'c', tree: 'tree-A', extensionVersion: '9.9.9', engineVersion: '8.8.8' } }));
+    const out = [];
+    const code = await verifyPublished.run(['9.9.9', '--pre', pre, '--skip-channel', 'openvsx', '--skip-channel', 'marketplace',
+      '--out-dir', path.join(dir, 'r')], {
+      fetch: () => { throw new Error('no'); },
+      sh: (cmd, args) => {
+        const d = args[args.indexOf('-D') + 1];
+        fs.writeFileSync(path.join(d, 'x-9.9.9.vsix'), '1');
+        fs.writeFileSync(path.join(d, 'x-9.9.9-old.vsix'), '2');
+        return '';
+      },
+      exportRef: () => ({ sha: 'c', tree: 'tree-A', dir }),
+      inspect: () => { throw new Error('an ambiguous asset must not be inspected'); },
+      treeOf: () => 'tree-A', log: s => out.push(s), err: s => out.push(s),
+    });
+    assert.strictEqual(code, 1, out.join('\n'));
+    assert.match(out.join('\n'), /GitHub release v9\.9\.9: no VSIX downloaded \(release assets: 2 \.vsix asset\(s\)/);
+  });
+});
+
+describe('check-pack: literal files entries it cannot model', () => {
+  test('files: ["dist", "docs"] is refused with the configuration message, not "rebuild"', () => {
+    const dir = tmp('guards-files-');
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'x', version: '1.0.0', files: ['dist', 'docs', 'README.md'] }));
+    fs.writeFileSync(path.join(dir, 'tsconfig.json'), JSON.stringify({ include: ['src/**/*.ts'], compilerOptions: { outDir: 'dist' } }));
+    const { problems } = checkPack.expectedFiles(dir);
+    assert.ok(problems.some(p => p.includes('files entry "docs" is not modelled')), problems.join('\n'));
+    assert.ok(!problems.some(p => p.includes('"dist"') || p.includes('"README.md"')), problems.join('\n'));
+    const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'packages', 'validator', 'scripts', 'check-pack.js'), dir],
+      { encoding: 'utf8', env: { PATH: '' } });
+    assert.strictEqual(r.status, 1);
+    assert.match(r.stderr, /the expected set cannot be derived/);
+    assert.match(r.stderr, /update the expected set/);
+    assert.doesNotMatch(r.stderr, /Rebuild/);
+  });
+});
+
+describe('archive names are compared in canonical form', () => {
+  test('dist/./index.js and dist//index.js are non-canonical duplicates of dist/index.js', () => {
+    const all = unsafeEntries(['package/dist/index.js', 'package/dist/./index.js', 'package/dist//index.js'], ['-', '-', '-']).join('\n');
+    assert.match(all, /non-canonical archive entry[^\n]*dist\/\.\/index\.js/);
+    assert.match(all, /non-canonical archive entry[^\n]*dist\/\/index\.js/);
+    assert.match(all, /duplicate archive entry[^\n]*dist\/\.\/index\.js/);
+    assert.match(all, /duplicate archive entry[^\n]*dist\/\/index\.js/);
+  });
+
+  test('a tarball using ./ to smuggle a second copy is refused before extraction', () => {
+    const dir = tmp('guards-canon-');
+    const tgz = makeTgz(path.join(dir, 'c.tgz'), [
+      { name: 'package/package.json', data: '{}' },
+      { name: 'package/dist/index.js', data: '1' },
+      { name: 'package/dist/./index.js', data: '2' },
+    ]);
+    const unpacked = A.contents('npm', tgz);
+    assert.strictEqual(unpacked.files, null);
+    assert.ok(unpacked.failures.some(f => /duplicate archive entry/.test(f)));
+  });
+});
+
+describe('--help does nothing but print usage', () => {
+  // PATH is emptied: any git, npm, tar or network tool the script tried to run would fail.
+  const scripts = [
+    ['scripts/inspect-artefacts.js', /usage: node scripts\/inspect-artefacts\.js/],
+    ['packages/validator/scripts/check-pack.js', /usage: node scripts\/check-pack\.js/],
+    ['scripts/verify-vsix.js', /usage: node scripts\/verify-vsix\.js/],
+    ['scripts/verify-published.js', /usage: verify-published\.js/],
+    ['scripts/engine-tarball-smoke.js', /usage: node scripts\/engine-tarball-smoke\.js/],
+    ['scripts/lib/publish-policy.js', /usage: publish-policy\.js/],
+  ];
+  for (const [script, usage] of scripts) {
+    for (const flag of ['--help', '-h']) {
+      test(`${script} ${flag}`, () => {
+        const cwd = tmp('guards-help-');
+        const r = spawnSync(process.execPath, [path.join(__dirname, '..', script), flag], { cwd, encoding: 'utf8', env: { PATH: '' } });
+        assert.strictEqual(r.status, 0, r.stderr);
+        assert.match(r.stdout, usage);
+        assert.deepStrictEqual(fs.readdirSync(cwd), [], 'help must not write anything');
+      });
+    }
+  }
+
+  test('scripts/publish-engine.sh --help (bash builtins only, nothing on PATH)', () => {
+    const cwd = tmp('guards-help-sh-');
+    const r = spawnSync('/bin/bash', [path.join(__dirname, '..', 'scripts', 'publish-engine.sh'), '--help'],
+      { cwd, encoding: 'utf8', env: { PATH: '/nonexistent' } });
+    assert.strictEqual(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Release sequence: merge -> git fetch/);
+    assert.deepStrictEqual(fs.readdirSync(cwd), []);
   });
 });

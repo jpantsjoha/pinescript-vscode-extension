@@ -28,6 +28,7 @@ const path = require('path');
 const REPO = path.join(__dirname, '..', '..');
 const { expectedFiles, compare: compareEngine } = require('../../packages/validator/scripts/check-pack.js');
 const { checkListing, unsafeEntries, zipListing } = require('../verify-vsix.js');
+const { REGISTRY } = require('./publish-policy');
 
 const ICLOUD = 'Mobile Documents';
 const SIZE_FLAG = 0.10;
@@ -65,6 +66,31 @@ function tempDir(prefix) {
 
 function sh(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 28, ...opts });
+}
+
+/**
+ * Environment for registry reads: inherited npm_config_* removed, the public registry
+ * set. Callers also pass `--registry` (REGISTRY_ARGS) on the command line, which
+ * outranks any .npmrc, environment or publishConfig value.
+ */
+function npmEnv() {
+  const env = { ...process.env };
+  for (const k of Object.keys(env)) if (/^npm_config_/i.test(k)) delete env[k];
+  env.npm_config_registry = REGISTRY;
+  return env;
+}
+const REGISTRY_ARGS = ['--registry', REGISTRY];
+
+/**
+ * The one file with extension `ext` in `dir` (a release download). Zero or several is
+ * an error: an extra or obsolete asset must never be silently ignored.
+ */
+function singleAsset(dir, ext, label) {
+  const found = fs.readdirSync(dir).filter(n => n.endsWith(ext)).sort();
+  if (found.length !== 1) {
+    throw new Error(`${label}: ${found.length} ${ext} asset(s)${found.length ? ` (${found.join(', ')})` : ''}; exactly one is required`);
+  }
+  return path.join(dir, found[0]);
 }
 
 /** `git archive <ref>` of this repository into a fresh directory. */
@@ -282,6 +308,6 @@ function toJson(records, meta) {
 }
 
 module.exports = {
-  REPO, canonical, refuseICloud, tempDir, sh, exportRef, sha256, listArchive, contents, hygiene,
+  REPO, REGISTRY, REGISTRY_ARGS, npmEnv, singleAsset, canonical, refuseICloud, tempDir, sh, exportRef, sha256, listArchive, contents, hygiene,
   inspect, describe, comparePrevious, markdown, toJson, fmtBytes,
 };

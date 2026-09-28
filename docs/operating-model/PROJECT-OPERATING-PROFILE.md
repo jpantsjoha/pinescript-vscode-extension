@@ -274,9 +274,17 @@ substitute a weaker gate silently.
   council lane, or a second agent), per "the writer never approves its own work"
   (`/Users/jp/.claude/CLAUDE.md`). R3 additionally requires JP's explicit sign-off before
   marketplace or npm publish (`.claude/agents/publisher.md`).
-- Exact candidate binding: git commit SHA on the PR branch. No automated tree-digest or
-  SHA-binding tool exists in this repo (verified: nothing under `scripts/` performs this);
-  binding today is manual — the reviewer is pointed at `git diff <base>..<candidate>`.
+- Exact candidate binding: git commit SHA on the PR branch for code review (the reviewer
+  is pointed at `git diff <base>..<candidate>`). Release artefacts are bound
+  automatically (#67, 2026-09-28): `scripts/inspect-artefacts.js` writes an
+  `inspection.json` record carrying the candidate commit, its git tree SHA, both
+  versions and per-file SHA-256 of every artefact; only a complete PASS record binds.
+  `scripts/publish-engine.sh --publish --pre <record>` requires HEAD to be the freshly
+  fetched `origin/main` tip, the record's tree to equal that tip's tree and its engine
+  tarball SHA-256 to equal the tarball just packed; `scripts/verify-published.js --pre
+  <record>` requires the record's tree to equal the released tag's (engine-only: the
+  record's commit, else `origin/main`, else HEAD). The tree, not the commit, is bound,
+  so a squash merge of the inspected PR keeps the binding.
 - PASS: admissible only when no conditions remain.
 - Conditional/amendment: blocking until fixed and re-reviewed.
 - REJECT/BLOCKING: halt.
@@ -313,13 +321,15 @@ substitute a weaker gate silently.
 - Authorized delivery destination: VS Code Marketplace, extension id
   `jpantsjoha.pinescript-v6-extension`, via `.github/workflows/publish.yml` (trigger: push
   of tag `v*.*.*`; uses the `VSCE_PAT` repo secret) and GitHub Releases via
-  `.github/workflows/release.yml` (same tag trigger). npm registry for the engine package
-  `pinescript-v6-validator` — no automated publish workflow found for it (verified:
-  `grep -rn "npm publish" .github/ packages/validator/package.json scripts/` returns
-  nothing); inferred — source: `packages/validator/package.json` is at 0.4.0 on main
-  (2026-09-23) while `npm view pinescript-v6-validator version` still returns 0.3.0,
-  implying a manual `npm publish` from `packages/validator/` is the current path; confirm:
-  JP.
+  `.github/workflows/release.yml` (same tag trigger). npm registry (`https://registry.npmjs.org/`, pinned on every
+  registry command) for the engine package `pinescript-v6-validator` — published only
+  by `scripts/publish-engine.sh --publish --pre <inspection.json>`, run by JP (npm 2FA)
+  on the `origin/main` tip, from a clean `git archive` export with npm configuration
+  isolated from the checkout (#67, 2026-09-28). No workflow publishes the engine; a
+  manual `npm publish` from the working tree is not an authorised path (npm 0.4.2 was
+  published that way and shipped 22 iCloud conflict copies). `packages/validator`'s
+  `prepack` runs `scripts/check-pack.js`, so a direct `npm pack`/`npm publish` refuses
+  any file list other than the derived 25 files.
 - Pre-delivery gates: `.github/workflows/ci.yml` (typecheck, `npm run audit`, build,
   `npm test`, self-test, artifact verification, packaging, quality-gates, and a
   non-blocking `npm audit` security job) runs on push to `main`/`develop` and on PRs into

@@ -135,20 +135,31 @@ git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z
 `v*.*.*`. It is not a dry run.
 
 **Engine (npm), when `packages/validator` was bumped.** Never `npm publish` from the
-working tree — 0.4.2 shipped 22 iCloud conflict copies that way (#67).
+working tree — 0.4.2 shipped 22 iCloud conflict copies that way (#67). The engine is
+published from the merged `main`, in this order, and the script enforces it:
+
+1. merge the release PR;
+2. `git fetch origin && git checkout origin/main` (detached is fine);
+3. `node scripts/inspect-artefacts.js --out-dir /tmp/inspect-X.Y.Z` on that tip — a
+   pre-merge inspection binds only if the squash merge produced the identical tree;
+4. `scripts/publish-engine.sh --publish --pre /tmp/inspect-X.Y.Z/inspection.json`.
 
 ```bash
 scripts/publish-engine.sh                                             # dry run
 scripts/publish-engine.sh --publish --pre /tmp/inspect-X.Y.Z/inspection.json   # npm 2FA prompt
 ```
 
-The script refuses a dirty tree, a HEAD not on `origin/main`, and any project-level
-`.npmrc` (in the checkout or the commit). It packs from a `git archive` export under
+The script refuses a dirty tree, any project-level `.npmrc` (in the checkout or the
+commit) and a `publishConfig` registry other than npmjs.org; a dry run needs HEAD on
+`origin/main` (or `--candidate`), and `--publish` needs HEAD to be exactly the freshly
+fetched `origin/main` tip. It packs from a `git archive` export under
 `$TMPDIR`, runs every npm command with the user's `~/.npmrc` as the only config file
-and the public registry pinned, prints every file, the count (25 for 0.4.3) and the
+and `--registry https://registry.npmjs.org/` on every registry command (a CLI flag
+outranks `publishConfig` and the environment), prints every file, the count (25 for 0.4.3) and the
 SHA-256, and runs the regression corpus against the tarball installed by name.
-`--publish` requires `--pre`: the record must be for this tree (a squash merge keeps
-the tree) and its engine tarball SHA-256 must equal the one just packed; the tarball is
+`--publish` requires `--pre`: the record must be a complete PASS inspection (no
+failures, every artefact run, hashes present) of this tree, and its engine tarball
+SHA-256 must equal the one just packed; the tarball is
 re-hashed immediately before `npm publish <that tarball>`. `packages/validator`'s
 `prepack` runs `scripts/check-pack.js`, so even a manual `npm pack` or `npm publish`
 refuses a dist with anything beyond the expected files, or any file twice.
@@ -159,8 +170,11 @@ refuses a dist with anything beyond the expected files, or any file twice.
 node scripts/verify-published.js X.Y.Z --engine A.B.C --pre /tmp/inspect-X.Y.Z/inspection.json
 ```
 
-`--pre` is required, and refused unless its versions are the ones being verified and
-its tree is the tree of the tag. `verify-published` downloads what went live — the
+`--pre` is required, and refused unless it is a complete PASS inspection, its versions
+are the ones being verified and its tree is the tree of the tag (engine-only: of the
+record's commit, else `origin/main`, else HEAD — a pre-squash commit may be absent from
+a fresh clone; its tree is not). A release with more than one VSIX asset fails as
+ambiguous. `verify-published` downloads what went live — the
 GitHub release VSIX, the Open VSX file, the Marketplace VSIX (after confirming the
 version through extensionquery) and npm's tarball — validates each listing before
 extracting it, re-runs the same inspection against an export of the tag, and compares

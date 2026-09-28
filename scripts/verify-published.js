@@ -8,9 +8,11 @@
  *   node scripts/verify-published.js --engine <engine-version> --pre <inspection.json>
  *
  * `--pre` is required: the inspection.json written by scripts/inspect-artefacts.js.
- * It is refused unless its versions equal the ones being verified and its tree SHA
- * equals the tree of --ref (default: tag v<ext-version>, or the record's own commit
- * for engine-only). The tree, not the commit, binds it: a squash merge changes the
+ * It is refused unless it records a complete PASS inspection (no failures, one
+ * artefact per kind verified, hashes present, run ok), its versions equal the ones
+ * being verified, and its tree SHA equals the tree of --ref (default: tag
+ * v<ext-version>; engine-only, the first of the record's commit, origin/main, HEAD
+ * whose tree matches). The tree, not the commit, binds it: a squash merge changes the
  * commit and keeps the tree.
  *
  * Downloads every published copy — the GitHub release VSIX, the Open VSX file
@@ -35,6 +37,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const A = require('./lib/artefacts');
+const { checkPreRecord } = require('./lib/publish-policy');
 
 const EXT = { publisher: 'jpantsjoha', name: 'pinescript-v6-extension' };
 const CHANNELS = ['github', 'openvsx', 'marketplace', 'npm'];
@@ -72,27 +75,35 @@ function bindPre(prePath, { extVersion, engineVersion, ref }, treeOf) {
   } catch (e) {
     return { refused: `cannot read the pre-release record ${prePath}: ${e.message}` };
   }
-  const rec = pre.record || {};
-  if (!rec.sha || !rec.tree || !rec.extensionVersion || !rec.engineVersion) {
-    return { refused: `${prePath} carries no candidate record (sha, tree, versions); re-run scripts/inspect-artefacts.js` };
-  }
+  // Only a complete PASS inspection binds: a record whose inspection failed, lacks an
+  // artefact being verified, or lacks hashes or a successful run is refused.
+  const kinds = [...(extVersion ? ['vsix'] : []), ...(engineVersion ? ['npm'] : [])];
+  const problems = checkPreRecord(pre, kinds);
+  if (problems.length) return { refused: `${prePath} is not a complete PASS inspection: ${problems.join('; ')}` };
+  const rec = pre.record;
   if (extVersion && rec.extensionVersion !== extVersion) {
     return { refused: `the record inspected extension ${rec.extensionVersion}, not ${extVersion}` };
   }
   if (engineVersion && rec.engineVersion !== engineVersion) {
     return { refused: `the record inspected engine ${rec.engineVersion}, not ${engineVersion}` };
   }
-  const bindRef = ref || (extVersion ? `v${extVersion}` : rec.sha);
-  let tree;
-  try {
-    tree = treeOf(bindRef);
-  } catch (e) {
-    return { refused: `cannot resolve ${bindRef}: ${String(e.stderr || e.message).trim().split('\n')[0]}` };
+  // The ref whose tree must equal the record's: --ref, else the release tag; for an
+  // engine-only check (no tag) the record's own commit, else origin/main, else HEAD —
+  // the pre-squash commit may not exist in a fresh clone, the tree does.
+  const candidates = ref ? [ref] : extVersion ? [`v${extVersion}`] : [rec.sha, 'origin/main', 'HEAD'];
+  const seen = [];
+  for (const candidate of candidates) {
+    let tree;
+    try {
+      tree = treeOf(candidate);
+    } catch (e) {
+      seen.push(`${candidate}: cannot resolve`);
+      continue;
+    }
+    if (tree === rec.tree) return { pre, ref: candidate };
+    seen.push(`${candidate}: tree ${tree}`);
   }
-  if (tree !== rec.tree) {
-    return { refused: `the record's tree ${rec.tree} (commit ${rec.sha}) is not the tree of ${bindRef} (${tree})` };
-  }
-  return { pre, ref: bindRef };
+  return { refused: `the record's tree ${rec.tree} (commit ${rec.sha}) is not the tree of ${candidates.join(' / ')} (${seen.join('; ')})` };
 }
 
 const realDeps = () => ({
@@ -115,12 +126,18 @@ async function download(fetchFn, url, file) {
   return file;
 }
 
+const USAGE = 'usage: verify-published.js <ext-version> [--engine <v>] --pre <inspection.json> [--ref <ref>] [--skip-channel <name>]... [--out-dir <dir>]';
+
 async function run(argv = process.argv.slice(2), deps = realDeps()) {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    deps.log(USAGE);
+    return 0;
+  }
   const extVersion = argv[0] && !argv[0].startsWith('--') ? argv[0] : null;
   const engineVersion = arg(argv, '--engine');
   const skip = args(argv, '--skip-channel');
   if (!extVersion && !engineVersion) {
-    deps.err('usage: verify-published.js <ext-version> [--engine <v>] --pre <inspection.json> [--ref <ref>] [--skip-channel <name>]');
+    deps.err(USAGE);
     return 2;
   }
   const badSkip = skip.filter(c => !CHANNELS.includes(c));
@@ -153,9 +170,7 @@ async function run(argv = process.argv.slice(2), deps = realDeps()) {
         const d = path.join(work, 'github');
         fs.mkdirSync(d);
         deps.sh('gh', ['release', 'download', `v${extVersion}`, '-p', '*.vsix', '-D', d], { cwd: A.REPO });
-        const f = fs.readdirSync(d).find(n => n.endsWith('.vsix'));
-        if (!f) throw new Error('no .vsix asset');
-        channels.push({ label: `GitHub release v${extVersion}`, file: path.join(d, f) });
+        channels.push({ label: `GitHub release v${extVersion}`, file: A.singleAsset(d, '.vsix', 'release assets') });
       } catch (e) {
         mismatches.push(`GitHub release v${extVersion}: no VSIX downloaded (${String(e.stderr || e.message).trim().split('\n')[0]})`);
       }
@@ -208,7 +223,7 @@ async function run(argv = process.argv.slice(2), deps = realDeps()) {
     try {
       const d = path.join(work, 'npm');
       fs.mkdirSync(d);
-      const name = deps.sh('npm', ['pack', `pinescript-v6-validator@${engineVersion}`, '--pack-destination', d], { cwd: d })
+      const name = deps.sh('npm', ['pack', `pinescript-v6-validator@${engineVersion}`, '--pack-destination', d, ...A.REGISTRY_ARGS], { cwd: d, env: A.npmEnv() })
         .trim().split('\n').pop().trim();
       deps.err(`verify-published: inspecting npm pinescript-v6-validator@${engineVersion}…`);
       records.push(deps.inspect({ kind: 'npm', file: path.join(d, name), root, label: `npm pinescript-v6-validator@${engineVersion}` }));

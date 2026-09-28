@@ -50,10 +50,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default; `--publish --pre <inspection.json>` publishes the tarball whose SHA-256
   matches the inspection, with npm config isolated from the checkout).
 - **Fail closed everywhere**: archives are validated before extraction (traversal,
-  absolute paths, symlinks, duplicate entries); file lists compare as multisets; a
-  previous release that cannot be downloaded fails the inspection (`--first-release`
-  is the only waiver); `check-pack` refuses build configuration it does not model.
-  `test/release-guards.test.js` proves each one offline.
+  absolute paths, symlinks, duplicate or non-canonical entries); file lists compare as
+  multisets; a previous release that cannot be downloaded, or a release with more than
+  one VSIX asset, fails (`--first-release` is the only waiver for the former); only a
+  complete PASS inspection record binds; `--publish` runs only on the fetched
+  `origin/main` tip with a record of its tree; the public npm registry is pinned with
+  `--registry` on every registry command and a `publishConfig` redirect is refused;
+  `check-pack` refuses build configuration it does not model; every script's `--help`
+  prints usage and runs nothing. `test/release-guards.test.js` proves each one offline
+  (48 tests).
 - The Definition of Done "Release" row, the release runbook and the publisher agent
   require all four; `npm run audit` fails if any of them stops naming them.
 

@@ -27,8 +27,11 @@ function smoke(tarball, corpus = path.join(__dirname, '..', 'test', 'regression-
   try {
     fs.writeFileSync(path.join(workspace, 'package.json'),
       JSON.stringify({ name: 'consumer', version: '1.0.0', private: true }));
-    execFileSync('npm', ['install', path.resolve(tarball), '--no-audit', '--no-fund', '--ignore-scripts'],
-      { cwd: workspace, stdio: ['ignore', 'pipe', 'pipe'] });
+    // The tarball has no dependencies; the registry is pinned anyway so nothing ambient is used.
+    const env = { ...process.env };
+    for (const k of Object.keys(env)) if (/^npm_config_/i.test(k)) delete env[k];
+    execFileSync('npm', ['install', path.resolve(tarball), '--no-audit', '--no-fund', '--ignore-scripts',
+      '--registry', 'https://registry.npmjs.org/'], { cwd: workspace, env, stdio: ['ignore', 'pipe', 'pipe'] });
     const engine = require(require.resolve(PACKAGE_NAME, { paths: [workspace] }));
     const failures = [];
     const cases = [...CASES, ...SUPPRESSION_CASES];
@@ -53,6 +56,10 @@ function smoke(tarball, corpus = path.join(__dirname, '..', 'test', 'regression-
 module.exports = { smoke };
 
 if (require.main === module) {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log('usage: node scripts/engine-tarball-smoke.js <engine.tgz> [--corpus <file>]');
+    process.exit(0);
+  }
   const tarball = process.argv[2];
   if (!tarball || !fs.existsSync(tarball)) {
     console.error(`engine-tarball-smoke: no tarball at ${tarball || '(none given)'}`);

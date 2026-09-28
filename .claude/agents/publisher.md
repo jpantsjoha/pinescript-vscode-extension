@@ -96,7 +96,9 @@ node scripts/inspect-artefacts.js --out-dir /tmp/inspect-X.Y.Z
 # 2. Answer the "Pre-go-live reflection" (RELEASE-RUNBOOK) in the release PR; the
 #    independent reviewer checks it. Then merge and tag (publish.yml ships the VSIX).
 
-# 3. Engine, only when packages/validator was bumped — never npm publish from the tree
+# 3. Engine, only when packages/validator was bumped — never npm publish from the tree.
+#    After merge: git fetch origin && git checkout origin/main, re-run step 1 there,
+#    then publish from that exact tip (the script refuses anything else).
 scripts/publish-engine.sh                                            # dry run
 scripts/publish-engine.sh --publish --pre /tmp/inspect-X.Y.Z/inspection.json
 #    npm 2FA prompt; refuses unless the record is for this tree and its tarball

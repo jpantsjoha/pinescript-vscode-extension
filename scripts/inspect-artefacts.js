@@ -77,17 +77,16 @@ function fetchPrevious(kind, { prevTag, prevEngine }, dir, sh = A.sh) {
       const d = path.join(dir, 'prev-vsix');
       fs.mkdirSync(d, { recursive: true });
       sh('gh', ['release', 'download', prevTag, '-p', '*.vsix', '-D', d, '--clobber'], { cwd: A.REPO });
-      const f = fs.readdirSync(d).find(n => n.endsWith('.vsix'));
-      return f ? { file: path.join(d, f), source: `GitHub release ${prevTag}` } : { error: `no VSIX on release ${prevTag}` };
+      return { file: A.singleAsset(d, '.vsix', `GitHub release ${prevTag}`), source: `GitHub release ${prevTag}` };
     }
     if (!prevEngine) return { error: 'no previous engine version found (pass --prev-engine, or --first-release)' };
     const d = path.join(dir, 'prev-npm');
     fs.mkdirSync(d, { recursive: true });
-    const name = sh('npm', ['pack', `pinescript-v6-validator@${prevEngine}`, '--pack-destination', d], { cwd: d })
+    const name = sh('npm', ['pack', `pinescript-v6-validator@${prevEngine}`, '--pack-destination', d, ...A.REGISTRY_ARGS], { cwd: d, env: A.npmEnv() })
       .trim().split('\n').pop().trim();
     return { file: path.join(d, name), source: `npm pinescript-v6-validator@${prevEngine}` };
   } catch (e) {
-    return { error: `download failed: ${String(e.stderr || e.message).trim().split('\n')[0]}` };
+    return { error: `download failed: ${String(e.stderr || e.message).trim().split('\n').pop()}` };
   }
 }
 
@@ -126,7 +125,7 @@ function main(argv = process.argv.slice(2)) {
   }
   // The registry is required: whether this engine version is already published, and
   // which version came before it. Offline is a FAIL, not a quieter report.
-  const versions = JSON.parse(A.sh('npm', ['view', 'pinescript-v6-validator', 'versions', '--json']));
+  const versions = JSON.parse(A.sh('npm', ['view', 'pinescript-v6-validator', 'versions', '--json', ...A.REGISTRY_ARGS], { env: A.npmEnv() }));
   const enginePublished = versions.includes(engineVersion);
   const prevEngine = arg(argv, '--prev-engine') || versions.filter(v => v !== engineVersion).pop();
 
@@ -172,7 +171,16 @@ function main(argv = process.argv.slice(2)) {
 
 module.exports = { fetchPrevious, attachPrevious, main };
 
+const USAGE = `usage: node scripts/inspect-artefacts.js [--ref <commit>] [--prev-tag vX.Y.Z]
+       [--prev-engine X.Y.Z] [--out-dir <dir>] [--first-release] [--keep]
+Builds every release artefact from a clean export of --ref (default HEAD), inspects it,
+compares it with the previous published release and writes inspection.md/.json.`;
+
 if (require.main === module) {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log(USAGE);
+    process.exit(0);
+  }
   try {
     process.exit(main());
   } catch (e) {

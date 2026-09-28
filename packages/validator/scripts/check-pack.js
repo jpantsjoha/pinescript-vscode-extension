@@ -91,11 +91,19 @@ function expectedFiles(pkgDir) {
     'rootDirs', 'allowJs', 'checkJs', 'resolveJsonModule', 'tsBuildInfoFile', 'incremental'].filter(k => opts[k]);
   const unsupportedIncludes = (tsconfig.include || []).filter(p =>
     !/\.tsx?$/.test(p) || (/[*?]/.test(p) && !/^([\w.-]+\/)*(\*\*\/)?\*\.tsx?$/.test(p.replace(/^\.\//, ''))));
-  const unsupportedFiles = (manifest.files || []).filter(e => /[*?![\]{}]/.test(e));
+  // `files` may name the compiler output directory (or paths inside it) and the files
+  // npm always packs. Anything else — docs/, assets, a directory of JSON — would ship
+  // files this derivation cannot predict.
+  const alwaysPacked = /^(package\.json|(readme|license|licence)(\.[^./]+)?)$/i;
+  const unsupportedFiles = (manifest.files || []).filter(e => {
+    const p = e.replace(/^\.\//, '').replace(/\/+$/, '');
+    if (/[*?![\]{}]/.test(p)) return true;
+    return !(p === outDir || p.startsWith(outDir + '/') || alwaysPacked.test(p));
+  });
   for (const k of unsupportedTs) problems.push(`tsconfig "${k}" is not modelled`);
   for (const k of unsupportedOpts) problems.push(`compilerOptions.${k} is not modelled`);
   for (const p of unsupportedIncludes) problems.push(`tsconfig include "${p}" is not modelled (use dir/**/*.ts or a .ts file)`);
-  for (const e of unsupportedFiles) problems.push(`package.json files pattern "${e}" is not modelled`);
+  for (const e of unsupportedFiles) problems.push(`package.json files entry "${e}" is not modelled (only the outDir, README, LICENSE)`);
   if (problems.length) {
     problems.push('update the expected set in packages/validator/scripts/check-pack.js before changing the build');
   }
@@ -199,10 +207,21 @@ function report(label, expected, actual, result) {
 }
 
 function main(argv) {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log('usage: node scripts/check-pack.js [package-dir] | --tarball <file.tgz>\n' +
+      'Fails unless the packed file list is exactly the set derived from tsconfig and files.');
+    return 0;
+  }
   const t = argv.indexOf('--tarball');
   const pkgArg = argv.filter((a, i) => !a.startsWith('--') && i !== t + 1)[0];
   const pkgDir = path.resolve(pkgArg || process.cwd());
   const { expected, problems } = expectedFiles(pkgDir);
+  if (problems.length) {
+    // A configuration or source problem: the expected set itself cannot be trusted,
+    // so nothing is packed and no "rebuild" advice is given.
+    console.error(`check-pack: FAIL — the expected set cannot be derived\n  ${problems.join('\n  ')}`);
+    return 1;
+  }
   let actual;
   let label;
   if (t !== -1) {

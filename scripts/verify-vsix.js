@@ -48,9 +48,13 @@ function unsafeEntries(entries, modes) {
       out.push(`unsafe archive entry (absolute, traversal, backslash, or not a regular file/directory): ${JSON.stringify(e)}`);
     }
   });
+  // Names are compared in canonical form, and a name not already canonical is refused:
+  // `dist/./index.js` or `dist//index.js` is the same file as `dist/index.js`.
   const seen = new Set();
   for (const e of entries) {
-    const key = e.replace(/\/+$/, '');
+    const bare = e.replace(/\/+$/, '');
+    const key = path.posix.normalize(bare);
+    if (key !== bare) out.push(`non-canonical archive entry (./, // or similar): ${JSON.stringify(e)}`);
     if (seen.has(key)) out.push(`duplicate archive entry: ${JSON.stringify(e)}`);
     seen.add(key);
   }
@@ -139,6 +143,11 @@ function checkListing(vsix, ROOT) {
 module.exports = { checkListing, unsafeEntries, zipListing };
 
 if (require.main === module) {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log('usage: node scripts/verify-vsix.js <file.vsix> [--root <source-tree>]\n' +
+      'Checks the VSIX listing before extracting it, then runs the packaged activate().');
+    process.exit(0);
+  }
   // --root <dir>: the source tree the VSIX was built from (default: this repo), so a
   // published VSIX can be checked against the export of its own tag.
   const rootAt = process.argv.indexOf('--root');
