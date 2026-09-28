@@ -75,7 +75,7 @@ inference. Git history keeps the old code.
 | 0.6.3 – 0.6.5 | Accuracy and IntelliSense: false positives fixed, the full v6 reference in the editor, parameter-name completions | **shipped** 2026-09-25 |
 | 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the invalid-cast rule (#12), one engine (#55) | **shipped** 2026-09-26 |
 | engine 0.4.2 | The npm engine catches up with 0.7.0, for external consumers (the pinescript-plugin agent plugin) | **shipped** 2026-09-28 (#54); contains 22 duplicate files (#67) |
-| engine 0.4.3 | A clean 25-file package, tag-only CI publishing with provenance, and the #64 test-race fix | **merged** (#70, `a11f908`); tag `engine-v0.4.3` pushed; publish run 36447823922 passed every gate but npm refused the upload (EOTP: the token lacks bypass-2FA) — waits on a bypass-2FA token or Trusted Publishing |
+| engine 0.4.3 | A clean 25-file package, tag-only CI publishing with provenance, and the #64 test-race fix | **merged** (#70, `a11f908`); tag `engine-v0.4.3` pushed on `a11f908`; publish run `36447823922` first stopped at its preflight (no `NPM_TOKEN`); after the secret was added (2026-09-28) the re-run passed every gate (tests, exact 25-file pack, corpus against the tarball) and npm refused the upload with EOTP — the token does not bypass 2FA. Nothing published; npm is still 0.4.2 |
 | 0.7.x | Precision: missed errors and misleading advice found during 0.7.0 (#61, #60), packaging-guard follow-ups (#62) | **merged** 2026-09-28 (#61 #60 #62), unreleased — ships as 0.7.1 when JP cuts it |
 | later | Rename refactoring (#5) | not started |
 
@@ -97,7 +97,7 @@ inference. Git history keeps the old code.
 
 ## Next up (recommended order)
 
-1. Add the `NPM_TOKEN` secret and re-run publish run 36447823922 for tag `engine-v0.4.3` (pushed; preflight stopped on the missing secret, nothing published).
+1. Give CI an npm credential that can publish (bypass-2FA token or Trusted Publishing), then re-run publish run 36447823922 for tag `engine-v0.4.3`.
 2. Release 0.7.1 (#61, #60 and the #62 tooling are on main, unreleased).
 3. #5 — rename, the largest remaining editor feature; needs a scoping session.
 
