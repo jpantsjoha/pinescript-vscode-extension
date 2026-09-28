@@ -88,6 +88,13 @@ the failure this catches is a `.vscodeignore` rule excluding something loaded at
 runtime, which builds and installs fine and dies on activation. Publish only that
 file: `npx --no-install vsce publish --packagePath <it>`.
 
+`vsce package` cannot run from a checkout whose path contains a UUID-like segment
+(for example `.../0f8fad5b-d9cb-469f-a165-70867728950e/repo`). Its npm dependency
+scan redacts that segment in command output, so vsce can no longer reconcile the
+package paths. Move or copy the checkout to a path without the UUID-like segment
+before packaging. GitHub-hosted CI and tag workflows use normal workspace paths,
+so this local-path limitation does not affect their packages.
+
 ### 5. Privacy check
 
 ```bash

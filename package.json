@@ -144,7 +144,8 @@
     "@vscode/vsce": "4.0.0",
     "cheerio": "^1.1.2",
     "playwright": "^1.48.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "yaml": "2.9.1"
   },
   "dependencies": {
     "glob": "^11.0.3"

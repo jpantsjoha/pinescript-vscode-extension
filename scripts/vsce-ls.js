@@ -14,7 +14,7 @@
  *    collected. With PackageManager.Npm the listing for this repo is identical
  *    (`.vscodeignore` excludes node_modules/** and the extension has no runtime
  *    engine dependency); `--compare-npm [root]` re-checks that against the real
-    node_modules, and
+ *    node_modules, and
  *    test/engine-parity.test.js plus scripts/verify-vsix.js enforce no npm engine.
  *  - Manifest validation: `vsce package` refuses a package.json `files` field
  *    alongside .vscodeignore; listFiles does not check. `--check-manifest [root]`
@@ -37,6 +37,10 @@ const UUID_SEGMENT = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 async function listBoth(cwd) {
   const none = await listFiles({ cwd, packageManager: PackageManager.None });
   const npm = await listFiles({ cwd, packageManager: PackageManager.Npm });
+  return compareListings(none, npm);
+}
+
+function compareListings(none, npm) {
   // Compare paths relative to the package root, whatever the checkout is called.
   const a = new Set(none), b = new Set(npm);
   return { none: none.length, npm: npm.length,
@@ -53,9 +57,11 @@ async function compareNpm(root = ROOT) {
   // such a segment, compare on a copy of the package skeleton (manifest, lockfile,
   // .vscodeignore, node_modules) in a temp directory without one. Copy-on-write
   // clones make that cheap where the filesystem supports them.
-  if (!UUID_SEGMENT.test(fs.realpathSync(root))) {
-    return process.stdout.write(JSON.stringify(await listBoth(fs.realpathSync(root))));
+  const realRoot = fs.realpathSync(root);
+  if (!UUID_SEGMENT.test(realRoot)) {
+    return process.stdout.write(JSON.stringify(await listBoth(realRoot)));
   }
+  const none = await listFiles({ cwd: realRoot, packageManager: PackageManager.None });
   // realpath: npm prints physical paths, so a symlinked tmpdir (macOS /var) would skew them.
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'vsce-ls-npm-')));
   if (UUID_SEGMENT.test(fs.realpathSync(dir))) throw new Error(`temp directory ${dir} also has a UUID-like segment`);
@@ -63,11 +69,22 @@ async function compareNpm(root = ROOT) {
     for (const f of ['package.json', 'package-lock.json', '.vscodeignore']) {
       if (fs.existsSync(path.join(root, f))) fs.copyFileSync(path.join(root, f), path.join(dir, f));
     }
+    // Preserve every real package path as an empty placeholder. Npm mode can then
+    // add dependency files without npm ever seeing the UUID-like checkout path,
+    // while the reported counts still describe the actual package rather than the
+    // three-file comparison skeleton.
+    for (const rel of none) {
+      const target = path.join(dir, rel);
+      if (fs.existsSync(target)) continue;
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, '');
+    }
     if (fs.existsSync(path.join(root, 'node_modules'))) {
       fs.cpSync(path.join(root, 'node_modules'), path.join(dir, 'node_modules'),
         { recursive: true, mode: fs.constants.COPYFILE_FICLONE, verbatimSymlinks: true });
     }
-    process.stdout.write(JSON.stringify(await listBoth(dir)));
+    const npm = await listFiles({ cwd: dir, packageManager: PackageManager.Npm });
+    process.stdout.write(JSON.stringify(compareListings(none, npm)));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

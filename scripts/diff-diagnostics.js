@@ -25,9 +25,24 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const refIndex = process.argv.indexOf('--against');
 const ref = refIndex > 0 ? process.argv[refIndex + 1] : null;
-if (!ref) {
+if (!ref || ref.startsWith('-')) {
+  if (ref && ref.startsWith('-')) {
+    console.error(`diff-diagnostics: --against value must not start with '-': ${ref}`);
+  }
   console.error('usage: node scripts/diff-diagnostics.js --against <git-ref>');
   process.exit(2);
+}
+
+class ToolFailure extends Error {}
+
+function runTool(label, command, args, options) {
+  try {
+    return execFileSync(command, args, options);
+  } catch (error) {
+    const status = error.status == null ? 'unknown' : error.status;
+    const detail = error.stderr && error.stderr.toString().trim().split('\n')[0];
+    throw new ToolFailure(`${label} failed (exit ${status})${detail ? `: ${detail}` : ''}`);
+  }
 }
 
 function loadSources(root) {
@@ -71,10 +86,11 @@ if (!fs.existsSync(path.join(ROOT, 'dist/engine/index.js'))) {
 
 const tmp = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'pine-diff-'));
 try {
-  const tar = execFileSync('git', ['archive', ref], { cwd: ROOT, maxBuffer: 1 << 30 });
-  execFileSync('tar', ['-x', '-C', tmp], { input: tar });
-  execFileSync('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: tmp, stdio: 'ignore' });
-  execFileSync('npm', ['run', 'build'], { cwd: tmp, stdio: 'ignore' });
+  const tar = runTool('git archive', 'git', ['archive', ref], { cwd: ROOT, maxBuffer: 1 << 30 });
+  runTool('tar extraction', 'tar', ['-x', '-C', tmp], { input: tar });
+  runTool('npm ci', 'npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'],
+    { cwd: tmp, stdio: 'ignore' });
+  runTool('build', 'npm', ['run', 'build'], { cwd: tmp, stdio: 'ignore' });
 
   const before = loadSources(tmp);
   const after = loadSources(ROOT);
@@ -90,6 +106,10 @@ try {
   }
   console.log(`diff-diagnostics vs ${ref}: files ${files.length} · diagnostics ${total} · new ${added} · gone ${gone}`);
   process.exitCode = added || gone ? 1 : 0;
+} catch (error) {
+  if (!(error instanceof ToolFailure)) throw error;
+  console.error(`diff-diagnostics: ${error.message}`);
+  process.exitCode = 3;
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

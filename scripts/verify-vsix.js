@@ -57,7 +57,9 @@ const unsafe = entries.filter((e, i) =>
 for (const e of unsafe) fail(`unsafe archive entry (absolute, traversal, backslash, or not a regular file/directory): ${JSON.stringify(e)}`);
 
 const has = p => entries.includes(`extension/${p}`);
-const modules = dir => fs.readdirSync(path.join(ROOT, dir)).filter(f => f.endsWith('.ts')).map(f => f.replace(/\.ts$/, '.js'));
+const isAllowlistedSource = file => file.endsWith('.ts') && !file.endsWith('.d.ts') && !/ \d+\.ts$/.test(file);
+const modules = dir => fs.readdirSync(path.join(ROOT, dir)).filter(isAllowlistedSource)
+  .map(f => f.replace(/\.ts$/, '.js'));
 
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const main = manifest.main.replace(/^\.\//, '');
@@ -102,7 +104,7 @@ const allowedPatterns = [
 // dist/src/*.js would also pass `extension 2.js`, the conflict copy a synced folder
 // (iCloud, Dropbox) leaves behind — seen in this repo's own working tree.
 const tsNames = dir => (fs.existsSync(path.join(ROOT, dir)) ? fs.readdirSync(path.join(ROOT, dir)) : [])
-  .filter(f => f.endsWith('.ts') && !f.endsWith('.d.ts')).map(f => f.replace(/\.ts$/, '.js'));
+  .filter(isAllowlistedSource).map(f => f.replace(/\.ts$/, '.js'));
 for (const f of tsNames('src')) allowedExact.add(`extension/dist/src/${f}`);
 for (const f of tsNames('v6')) allowedExact.add(`extension/dist/v6/${f}`);
 for (const p of required) allowedExact.add(`extension/${p}`);
@@ -120,7 +122,6 @@ console.log(`verify-vsix: ${entries.length} entries; ${required.length} required
 
 // ── 2. Execute the packaged entry point ──────────────────────────────────────
 const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'verify-vsix-')));
-execFileSync('unzip', ['-q', vsix, '-d', dir]);
 const extDir = path.join(dir, 'extension');
 
 const handlers = [];
@@ -157,6 +158,7 @@ Module._load = function (request) {
 };
 
 try {
+  execFileSync('unzip', ['-q', vsix, '-d', dir]);
   const ext = require(path.join(extDir, main));
   ext.activate({ subscriptions: [], extensionPath: extDir, globalState: { get() {}, update() {} }, workspaceState: { get() {}, update() {} } });
   if (!handlers.length) fail('activate() registered no onDidOpenTextDocument handler');
@@ -183,7 +185,7 @@ try {
   }
   console.log(`verify-vsix: activate() ok; valid → ${valid.length} diagnostics; color.purplee → ${typo.length} error(s)`);
 } catch (e) {
-  fail(`packaged extension failed to load or activate: ${e.stack || e.message}`);
+  fail(`packaged extension failed to extract, load or activate: ${e.stack || e.message}`);
 } finally {
   Module._load = originalLoad;
   fs.rmSync(dir, { recursive: true, force: true });

@@ -83,8 +83,7 @@ jobs:
       with:
         name: Pine Script v6 Professional - v${{ steps.get_version.outputs.VERSION }}
         body_path: /tmp/release-notes.md
-        files: |
-          build/*.vsix
+        files: build/pinescript-v6-extension-*.vsix
         draft: false
         prerelease: false
       env:
