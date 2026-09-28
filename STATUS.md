@@ -23,6 +23,15 @@ checked by the independent reviewer, `scripts/verify-published.js` after. Run ag
 what is live today it passes the 0.7.0 VSIX (GitHub release, Open VSX and Marketplace
 byte-identical, 36 files) and fails npm 0.4.2 on its 22 extra files.
 
+**Operator override recorded (JP, 2026-09-28):** "proceed with refinements" — given in
+answer to the seed-profile R3 gate raised on PR #68. Scope: it authorises the **engine
+0.4.3 npm publish only**, through `scripts/publish-engine.sh --publish --pre
+<inspection.json>` on the `origin/main` tip after #68 merges, with the pre-release
+inspection and `verify-published` as the runbook requires. It does **not** activate the
+operating profile, does not confirm any of its inferred fields, and is not reusable for
+a later or different R2/R3 change. Decision-board row 3 (confirm the six inferred
+profile fields) stays open for JP.
+
 ## 2026-09-26: 0.7.0 — quick fixes, the invalid-cast rule, one engine
 
 Three PRs, built in parallel worktrees and each reviewed independently on its exact
@@ -88,7 +97,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 ## What waits on whom
 
-- **JP**: review and merge the #67 PR (fixes #64 too). Publishing the engine is R3; the operating profile is still `seed`, which the operating manual says blocks R2/R3 until it is `active` — so row 3 (confirm the profile) or an explicit JP override recorded here comes first; then decision board row 1 (inspect, then publish 0.4.3 with `scripts/publish-engine.sh --publish --pre …`, then `verify-published`), row 1b (pinescript-plugin to `^0.4.3`, separate repo), rows 2–4.
+- **JP**: review and merge the #67 PR (fixes #64 too). Publishing the engine is R3 and the operating profile is still `seed`; the 0.4.3 engine publish is covered by JP's override recorded above (2026-09-28), which does not activate the profile. Then decision board row 1 (inspect, then publish 0.4.3 with `scripts/publish-engine.sh --publish --pre …`, then `verify-published`), row 1b (pinescript-plugin to `^0.4.3`, separate repo), rows 2–4.
 - **Next session**: #61, #60, #62.
 
 ## Repository hygiene

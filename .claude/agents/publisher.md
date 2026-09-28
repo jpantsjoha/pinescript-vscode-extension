@@ -115,67 +115,29 @@ and a guard before the next release.
 
 ## 🚀 Publishing Methods
 
-### Method 1: Automated Publishing (RECOMMENDED)
+### The release path (the only one)
 
-**When:** For all routine version updates
+There are exactly two release paths, both behind a reviewed PR — never a direct push
+to `main`, never `npm version` (it commits and tags on whatever branch you are on):
 
-**Process:**
-1. Update version in package.json
-2. Update CHANGELOG.md with changes
-3. Commit changes
-4. Create and push git tag
-5. GitHub Actions handles the rest
+1. **Extension (VSIX):** release branch → PR (version in package.json / CHANGELOG /
+   README, `inspect-artefacts` report and the pre-go-live reflection in the body) →
+   independent review → merge → tag `vX.Y.Z` on the merged commit → `publish.yml` and
+   `release.yml` build, verify and publish the VSIX → `verify-published --pre`.
+2. **Engine (npm), only when `packages/validator` was bumped:** after the merge,
+   `git fetch origin && git checkout origin/main` → `inspect-artefacts` on that tip →
+   `scripts/publish-engine.sh --publish --pre <inspection.json>` →
+   `verify-published --engine A.B.C --pre <inspection.json>`.
 
-**Commands:**
-```bash
-# 1. Bump version (choose one)
-npm version patch  # 0.4.0 -> 0.4.1 (bug fixes)
-npm version minor  # 0.4.0 -> 0.5.0 (new features)
-npm version major  # 0.4.0 -> 1.0.0 (breaking changes)
+The full sequence, with every command, is docs/guides/RELEASE-RUNBOOK.md; the section
+"Inspect, reflect, publish, verify" above is its summary.
 
-# 2. Update CHANGELOG.md manually with new section
-# Add: ## [X.Y.Z] - YYYY-MM-DD
-#      ### Added/Fixed/Changed
-#      - List of changes
-
-# 3. Commit version bump
-git add package.json CHANGELOG.md package-lock.json
-git commit -m "Bump version to X.Y.Z
-
-Changes:
-- Feature 1
-- Bug fix 2
-- Improvement 3
-
-- Your friendly neighbour JP, the Agentic AI-based Solution Orchestrator"
-
-# 4. Create git tag
-NEW_VERSION=$(node -p "require('./package.json').version")
-git tag -a v$NEW_VERSION -m "Release v$NEW_VERSION: Brief description
-
-Detailed changes from CHANGELOG
-
-- Your friendly neighbour JP, the Agentic AI-based Solution Orchestrator"
-
-# 5. Push commits and tag
-git push origin main
-git push origin v$NEW_VERSION
-
-# 6. Monitor GitHub Actions
-# https://github.com/jpantsjoha/pinescript-vscode-extension/actions
-```
-
-**What GitHub Actions Does:**
-1. ✅ Runs `npm ci` (clean install)
-2. ✅ Runs `npm test` (all tests must pass)
-3. ✅ Runs `npm run build` (TypeScript compilation)
-4. ✅ Runs `npx --no-install vsce package` (the pinned local vsce; creates the VSIX)
-5. ✅ Runs `node scripts/verify-vsix.js` on that VSIX (entries + executes `activate()`)
-6. ✅ Runs `npx --no-install vsce publish --packagePath <that VSIX>` (token from `VSCE_PAT`)
-7. ✅ Uploads VSIX to GitHub Release
-8. ✅ Creates release notes from tag message
-
-**Expected Duration:** 5-10 minutes
+**What the tag workflows do** (`publish.yml`, `release.yml`, on `v*.*.*`):
+1. `npm ci`, `npm test`, `npm run build`
+2. `npx --no-install vsce package` (the pinned local vsce)
+3. `node scripts/verify-vsix.js` on that VSIX (entries + executes `activate()`)
+4. `vsce publish --packagePath <that VSIX>` and `ovsx publish` (tokens from secrets)
+5. Upload the VSIX to the GitHub Release
 
 ---
 
@@ -396,10 +358,9 @@ https://github.com/jpantsjoha/pinescript-vscode-extension/issues
 ### "ERROR: Extension 'pinescript-v6-extension' already exists"
 **Cause:** Trying to publish same version twice
 **Fix:**
-1. Bump version: `npm version patch`
-2. Update CHANGELOG.md
-3. Commit and create new tag
-4. Push new version
+1. Bump the version on a release branch (package.json, CHANGELOG, README)
+2. Open a PR, get it reviewed and merged
+3. Tag the merged commit and push the tag
 
 ---
 
@@ -476,59 +437,11 @@ pinescript-vscode-extension/
 
 ## 🔄 Typical Publishing Workflow
 
-**Example: Publishing v0.4.1 (patch release)**
-
-```bash
-# 1. Fix bug in code
-vim packages/validator/src/accurateValidator.ts
-
-# 2. Run tests locally
-npm test
-# ✅ 0 failures
-
-# 3. Bump version
-npm version patch
-# Updates package.json: 0.4.0 → 0.4.1
-# Creates git commit
-# Creates git tag v0.4.1
-
-# 4. Update CHANGELOG.md
-vim CHANGELOG.md
-# Add:
-# ## [0.4.1] - 2025-10-06
-# ### Fixed
-# - Fixed validation false positive on arrow functions
-
-# 5. Amend commit to include CHANGELOG
-git add CHANGELOG.md
-git commit --amend --no-edit
-
-# 6. Delete and recreate tag (to include CHANGELOG in tagged commit)
-git tag -d v0.4.1
-git tag -a v0.4.1 -m "Release v0.4.1: Bug fix release
-
-Fixed:
-- Validation false positive on arrow functions
-
-- Your friendly neighbour JP, the Agentic AI-based Solution Orchestrator"
-
-# 7. Push everything
-git push origin main
-git push origin v0.4.1
-
-# 8. Monitor GitHub Actions
-# https://github.com/jpantsjoha/pinescript-vscode-extension/actions
-# Wait 5-10 minutes
-
-# 9. Verify on marketplace
-# https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension
-# Check version shows 0.4.1
-
-# 10. Test installation
-# Open VS Code → Extensions → Search "Pine Script v6" → Update/Install
-```
-
-**Total time:** 10-15 minutes (including CI/CD pipeline)
+Follow docs/guides/RELEASE-RUNBOOK.md end to end. In short: release branch and PR →
+`inspect-artefacts` report + reflection in the PR → independent review → merge → tag →
+tag workflows publish the VSIX → engine (if bumped) via `publish-engine.sh` from the
+`origin/main` tip → `verify-published --pre`. No step commits to or pushes `main`
+directly, and nothing is packed or published from the (iCloud) working tree.
 
 ---
 
@@ -598,7 +511,7 @@ Copy this for each release:
 - [ ] Local test: `npm run rebuild` successful
 - [ ] `node scripts/inspect-artefacts.js` PASS; report in the release PR; every FLAG answered
 - [ ] Pre-go-live reflection answered in the release PR and checked by the independent reviewer
-- [ ] Git commit created with version bump
+- [ ] Release PR (version bump, CHANGELOG, inspection report, reflection) reviewed and merged — no direct push to main
 - [ ] Git tag created: `git tag -a vX.Y.Z -m "..."`
 - [ ] Tag pushed: `git push origin vX.Y.Z`
 - [ ] GitHub Actions workflow triggered

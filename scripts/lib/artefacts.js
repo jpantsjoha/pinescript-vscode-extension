@@ -28,7 +28,7 @@ const path = require('path');
 const REPO = path.join(__dirname, '..', '..');
 const { expectedFiles, compare: compareEngine } = require('../../packages/validator/scripts/check-pack.js');
 const { checkListing, unsafeEntries, zipListing } = require('../verify-vsix.js');
-const { REGISTRY } = require('./publish-policy');
+const N = require('./npm');
 
 const ICLOUD = 'Mobile Documents';
 const SIZE_FLAG = 0.10;
@@ -68,18 +68,8 @@ function sh(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 28, ...opts });
 }
 
-/**
- * Environment for registry reads: inherited npm_config_* removed, the public registry
- * set. Callers also pass `--registry` (REGISTRY_ARGS) on the command line, which
- * outranks any .npmrc, environment or publishConfig value.
- */
-function npmEnv() {
-  const env = { ...process.env };
-  for (const k of Object.keys(env)) if (/^npm_config_/i.test(k)) delete env[k];
-  env.npm_config_registry = REGISTRY;
-  return env;
-}
-const REGISTRY_ARGS = ['--registry', REGISTRY];
+// npm is spawned only through scripts/lib/npm.js; re-exported here for callers.
+const { REGISTRY, npmEnv } = N;
 
 /**
  * The one file with extension `ext` in `dir` (a release download). Zero or several is
@@ -308,6 +298,6 @@ function toJson(records, meta) {
 }
 
 module.exports = {
-  REPO, REGISTRY, REGISTRY_ARGS, npmEnv, singleAsset, canonical, refuseICloud, tempDir, sh, exportRef, sha256, listArchive, contents, hygiene,
+  REPO, REGISTRY, npmEnv, singleAsset, canonical, refuseICloud, tempDir, sh, exportRef, sha256, listArchive, contents, hygiene,
   inspect, describe, comparePrevious, markdown, toJson, fmtBytes,
 };

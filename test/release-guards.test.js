@@ -385,9 +385,9 @@ describe('only a complete PASS inspection binds (verify-published and publish-en
   test('a record whose artefact did not run successfully is refused', () => {
     const pre = full();
     pre.artefacts[0].run = { ok: false };
-    assert.match(policy.checkPreRecord(pre, ['vsix']).join('\n'), /vsix artefact was not run successfully/);
+    assert.match(policy.checkPreRecord(pre, ['vsix']).join('\n'), /vsix artefact x\.vsix was not run successfully/);
     delete pre.artefacts[0].run;
-    assert.match(policy.checkPreRecord(pre, ['vsix']).join('\n'), /vsix artefact was not run successfully/);
+    assert.match(policy.checkPreRecord(pre, ['vsix']).join('\n'), /vsix artefact x\.vsix was not run successfully/);
   });
 
   test('a record missing the artefact, its hash or its file hashes is refused', () => {
@@ -471,7 +471,7 @@ describe('the public registry is pinned with CLI precedence', () => {
     assert.deepStrictEqual(policy.checkPublishConfig(manifest), []);
   });
 
-  test('registry reads drop inherited npm config and carry --registry on the command line', () => {
+  test('registry reads go through the npm helper (sanitised env, --registry pinned)', () => {
     process.env.npm_config_registry_probe = 'x';
     process.env.NPM_CONFIG_REGISTRY = 'https://evil.example/';
     try {
@@ -482,19 +482,20 @@ describe('the public registry is pinned with CLI precedence', () => {
       delete process.env.npm_config_registry_probe;
       delete process.env.NPM_CONFIG_REGISTRY;
     }
-    assert.deepStrictEqual(A.REGISTRY_ARGS, ['--registry', 'https://registry.npmjs.org/']);
+    // inspect-artefacts' previous-engine download uses the injected helper, not a raw spawn.
     const calls = [];
     const dir = tmp('guards-reg-');
-    fetchPrevious('npm', { prevEngine: '1.0.0' }, dir, (cmd, args, opts) => { calls.push({ cmd, args, opts }); return 'x.tgz\n'; });
-    assert.ok(calls[0].args.join(' ').includes('--registry https://registry.npmjs.org/'), calls[0].args.join(' '));
-    assert.strictEqual(calls[0].opts.env.npm_config_registry, policy.REGISTRY);
+    const noSh = () => { throw new Error('npm must not go through the generic shell runner'); };
+    fetchPrevious('npm', { prevEngine: '1.0.0' }, dir, noSh, (args, opts) => { calls.push({ args, opts }); return 'x.tgz\n'; });
+    assert.deepStrictEqual(calls[0].args.slice(0, 2), ['pack', 'pinescript-v6-validator@1.0.0']);
+    assert.strictEqual(calls[0].opts.cwd, path.join(dir, 'prev-npm'));
   });
 
-  test('publish-engine.sh passes --registry on every registry command', () => {
+  test('publish-engine.sh runs every npm command through npm_clean and refuses a publishConfig redirect', () => {
     const text = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'publish-engine.sh'), 'utf8');
-    const lines = text.split('\n').filter(l => /npm (ci|pack|view|publish)\b/.test(l) && !/^\s*#/.test(l) && /\(cd /.test(l));
-    assert.ok(lines.length >= 4, lines.join('\n'));
-    for (const l of lines) assert.match(l, /--registry "\$REG"/, l);
+    const code = text.split('\n').filter(l => !/^\s*(#|')/.test(l)).map(l => l.replace(/'[^']*'/g, ''));
+    assert.ok(code.filter(l => /\bnpm_clean (ci|pack|view|publish|run|--version)\b/.test(l)).length >= 6, code.join('\n'));
+    assert.match(text, /source "\$WORK\/src\/scripts\/lib\/npm-clean\.sh"/);
     assert.match(text, /publish-policy\.js" publish-config/);
   });
 });
@@ -613,5 +614,26 @@ describe('--help does nothing but print usage', () => {
     assert.strictEqual(r.status, 0, r.stderr);
     assert.match(r.stdout, /Release sequence: merge -> git fetch/);
     assert.deepStrictEqual(fs.readdirSync(cwd), []);
+  });
+});
+
+describe('round 3: a record binds only when EVERY artefact in it is complete and PASS', () => {
+  const full = () => ({ meta: {}, artefacts: passArtefacts(), record: { sha: 'c0ffee', tree: 'tree-A', extensionVersion: '9.9.9', engineVersion: '8.8.8' } });
+  const bind = { tree: 'tree-A', version: '8.8.8', sha256: HEX('c') };
+
+  test('a record truncated to the engine artefact does not bind an engine publish', () => {
+    const pre = full();
+    pre.artefacts = pre.artefacts.filter(a => a.kind === 'npm');
+    assert.match(policy.checkPreForPublish(pre, bind).join('\n'), /0 vsix artefact\(s\); exactly one is required/);
+  });
+
+  test('an incomplete VSIX artefact blocks an engine-only binding too', () => {
+    for (const breakIt of [a => { a.run = { ok: false }; }, a => { delete a.sha256; }, a => { a.files = {}; }]) {
+      const pre = full();
+      breakIt(pre.artefacts[0]);
+      const problems = policy.checkPreForPublish(pre, bind);
+      assert.ok(problems.some(p => /^vsix artefact x\.vsix /.test(p)), problems.join('\n'));
+      assert.ok(policy.checkPreRecord(pre, ['npm']).length > 0);
+    }
   });
 });

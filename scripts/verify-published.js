@@ -37,6 +37,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const A = require('./lib/artefacts');
+const N = require('./lib/npm'); // the only way to spawn npm (test/npm-guard.test.js)
 const { checkPreRecord } = require('./lib/publish-policy');
 
 const EXT = { publisher: 'jpantsjoha', name: 'pinescript-v6-extension' };
@@ -109,6 +110,7 @@ function bindPre(prePath, { extVersion, engineVersion, ref }, treeOf) {
 const realDeps = () => ({
   fetch: globalThis.fetch,
   sh: A.sh,
+  npm: N.npm,
   exportRef: A.exportRef,
   inspect: A.inspect,
   treeOf: ref => A.sh('git', ['rev-parse', `${ref}^{tree}`], { cwd: A.REPO }).trim(),
@@ -223,7 +225,7 @@ async function run(argv = process.argv.slice(2), deps = realDeps()) {
     try {
       const d = path.join(work, 'npm');
       fs.mkdirSync(d);
-      const name = deps.sh('npm', ['pack', `pinescript-v6-validator@${engineVersion}`, '--pack-destination', d, ...A.REGISTRY_ARGS], { cwd: d, env: A.npmEnv() })
+      const name = deps.npm(['pack', `pinescript-v6-validator@${engineVersion}`, '--pack-destination', d], { cwd: d })
         .trim().split('\n').pop().trim();
       deps.err(`verify-published: inspecting npm pinescript-v6-validator@${engineVersion}…`);
       records.push(deps.inspect({ kind: 'npm', file: path.join(d, name), root, label: `npm pinescript-v6-validator@${engineVersion}` }));

@@ -16,7 +16,7 @@
 const fs = require('fs');
 
 /** The only registry the engine is published to or verified against. */
-const REGISTRY = 'https://registry.npmjs.org/';
+const { REGISTRY } = require('./npm');
 
 const sameRegistry = url => String(url || '').replace(/\/+$/, '') === REGISTRY.replace(/\/+$/, '');
 
@@ -38,13 +38,17 @@ function checkPublishConfig(manifest) {
   return out;
 }
 
+/** Every artefact kind a release inspection records; a binding record has exactly one of each. */
+const RECORD_KINDS = ['vsix', 'npm'];
+
 /**
- * A pre-release record binds only if its inspection PASSED and is complete: a record
- * block, and for every kind asked for exactly one artefact with an archive SHA-256,
- * a non-empty per-file hash list, no failures and a successful run. Any failure in any
- * artefact of the record makes the whole record a FAIL.
+ * A pre-release record binds only if the WHOLE inspection PASSED and is complete: a
+ * record block; exactly one artefact of every kind a release inspection produces
+ * (RECORD_KINDS), plus any extra kind asked for; and every artefact in the record with
+ * an archive SHA-256, a non-empty per-file hash list, no failures and a successful
+ * run. A record truncated to the kind being verified does not bind.
  */
-function checkPreRecord(pre, kinds) {
+function checkPreRecord(pre, kinds = []) {
   const out = [];
   if (!pre || typeof pre !== 'object') return ['the record is not an inspection.json object'];
   const rec = pre.record || {};
@@ -53,18 +57,18 @@ function checkPreRecord(pre, kinds) {
   }
   const arts = Array.isArray(pre.artefacts) ? pre.artefacts : [];
   if (!arts.length) out.push('the record lists no artefacts');
-  for (const a of arts) {
-    if ((a.failures || []).length) out.push(`the inspection FAILED for ${a.name || a.kind}: ${a.failures.length} failure(s), e.g. ${a.failures[0]}`);
+  for (const kind of new Set([...RECORD_KINDS, ...kinds])) {
+    const n = arts.filter(a => a.kind === kind).length;
+    if (n !== 1) out.push(`the record has ${n} ${kind} artefact(s); exactly one is required`);
   }
-  for (const kind of kinds) {
-    const matching = arts.filter(a => a.kind === kind);
-    if (matching.length !== 1) { out.push(`the record has ${matching.length} ${kind} artefact(s); exactly one is required`); continue; }
-    const a = matching[0];
-    if (!/^[0-9a-f]{64}$/.test(a.sha256 || '')) out.push(`${kind} artefact has no archive SHA-256`);
+  for (const a of arts) {
+    const label = `${a.kind || 'unknown'} artefact ${a.name || ''}`.trim();
+    if ((a.failures || []).length) out.push(`the inspection FAILED for ${a.name || a.kind}: ${a.failures.length} failure(s), e.g. ${a.failures[0]}`);
+    if (!/^[0-9a-f]{64}$/.test(a.sha256 || '')) out.push(`${label} has no archive SHA-256`);
     const files = a.files && typeof a.files === 'object' ? Object.entries(a.files) : [];
-    if (!files.length) out.push(`${kind} artefact lists no files`);
-    if (files.some(([, f]) => !f || !/^[0-9a-f]{64}$/.test(f.sha256 || ''))) out.push(`${kind} artefact has files without a SHA-256`);
-    if (!a.run || a.run.ok !== true) out.push(`${kind} artefact was not run successfully in the inspection`);
+    if (!files.length) out.push(`${label} lists no files`);
+    if (files.some(([, f]) => !f || !/^[0-9a-f]{64}$/.test(f.sha256 || ''))) out.push(`${label} has files without a SHA-256`);
+    if (!a.run || a.run.ok !== true) out.push(`${label} was not run successfully in the inspection`);
   }
   return out;
 }
@@ -80,7 +84,7 @@ function checkPreForPublish(pre, { tree, version, sha256 }) {
   return out;
 }
 
-module.exports = { REGISTRY, checkTip, checkPublishConfig, checkPreRecord, checkPreForPublish };
+module.exports = { REGISTRY, RECORD_KINDS, checkTip, checkPublishConfig, checkPreRecord, checkPreForPublish };
 
 if (require.main === module) {
   const [cmd, ...rest] = process.argv.slice(2);

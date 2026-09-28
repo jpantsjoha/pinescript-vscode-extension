@@ -59,6 +59,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `check-pack` refuses build configuration it does not model; every script's `--help`
   prints usage and runs nothing. `test/release-guards.test.js` proves each one offline
   (48 tests).
+- **One way to run npm**: every script spawns npm only through
+  `packages/validator/scripts/npm-clean.js` (re-exported as `scripts/lib/npm.js`) or its
+  shell twin `scripts/lib/npm-clean.sh` — inherited `npm_config_*` dropped, `~/.npmrc`
+  for authentication only, an empty global config, `--registry` pinned on the command
+  line, refused inside iCloud (except `npm run`). `test/npm-guard.test.js` fails on any
+  direct npm or npx spawn in scripts or release tests.
 - The Definition of Done "Release" row, the release runbook and the publisher agent
   require all four; `npm run audit` fails if any of them stops naming them.
 

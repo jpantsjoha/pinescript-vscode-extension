@@ -3,41 +3,41 @@
 set -euo pipefail
 
 usage() {
-  # Builtins only (no cat): --help must work with nothing on PATH.
-  while IFS= read -r line; do printf '%s\n' "$line"; done <<'USAGE'
-Publish pinescript-v6-validator from a clean export, never the working tree (#67).
-
-  scripts/publish-engine.sh                   dry run: export, build, guard, pack, test
-  scripts/publish-engine.sh --publish --pre <inspection.json>
-                                              the same, then `npm publish` of THAT tarball
-  scripts/publish-engine.sh --candidate [--pre <inspection.json>]
-                                              dry run of a HEAD not yet on origin/main
-  scripts/publish-engine.sh --keep            keep the temporary export
-  scripts/publish-engine.sh --help            this text (no git, npm or network)
-
-Release sequence: merge -> git fetch && git checkout origin/main ->
-node scripts/inspect-artefacts.js --out-dir <dir> -> scripts/publish-engine.sh --publish
---pre <dir>/inspection.json -> node scripts/verify-published.js --engine <v> --pre <same>.
-
-The script:
-  1. refuses a dirty tree (tracked files) and a project-level .npmrc in the checkout or
-     the commit; a dry run needs HEAD on origin/main (or --candidate); --publish needs
-     HEAD to BE the freshly fetched origin/main tip;
-  2. exports HEAD with `git archive` into a fresh directory under $TMPDIR, refusing any
-     path inside iCloud ("Mobile Documents");
-  3. isolates npm: no inherited npm_config_* variables, the user's ~/.npmrc (auth) as
-     the only config file, an empty global config, `--registry https://registry.npmjs.org/`
-     on every registry command (a CLI flag outranks publishConfig and the environment),
-     and refuses a publishConfig registry pointing anywhere else; cwd in the export;
-  4. installs (`npm ci --ignore-scripts`), builds, runs the check-pack guard;
-  5. packs, prints every file, the count and the SHA-256, re-checks the tarball;
-  6. installs the tarball into a throwaway project and runs the regression corpus;
-  7. with --pre: the record must be a PASS inspection (no failures, every artefact run,
-     hashes present) of this tree, this engine version and this exact tarball SHA-256;
-  8. only with --publish: re-hashes the tarball, then `npm publish <that tarball>`.
-     Authentication and 2FA are npm's own (OTP prompt); this script never reads, stores
-     or prints a token.
-USAGE
+  # printf with arguments only: no heredoc (bash writes those to a temp file), no
+  # external command, so --help touches nothing and needs nothing on PATH.
+  printf '%s\n' \
+    'Publish pinescript-v6-validator from a clean export, never the working tree (#67).' \
+    '' \
+    '  scripts/publish-engine.sh                   dry run: export, build, guard, pack, test' \
+    '  scripts/publish-engine.sh --publish --pre <inspection.json>' \
+    '                                              the same, then `npm publish` of THAT tarball' \
+    '  scripts/publish-engine.sh --candidate [--pre <inspection.json>]' \
+    '                                              dry run of a HEAD not yet on origin/main' \
+    '  scripts/publish-engine.sh --keep            keep the temporary export' \
+    '  scripts/publish-engine.sh --help            this text (no git, npm or network)' \
+    '' \
+    'Release sequence: merge -> git fetch && git checkout origin/main ->' \
+    'node scripts/inspect-artefacts.js --out-dir <dir> -> scripts/publish-engine.sh --publish' \
+    '--pre <dir>/inspection.json -> node scripts/verify-published.js --engine <v> --pre <same>.' \
+    '' \
+    'The script:' \
+    '  1. refuses a dirty tree (tracked files) and a project-level .npmrc in the checkout or' \
+    '     the commit; a dry run needs HEAD on origin/main (or --candidate); --publish needs' \
+    '     HEAD to BE the freshly fetched origin/main tip;' \
+    '  2. exports HEAD with `git archive` into a fresh directory under $TMPDIR, refusing any' \
+    '     path inside iCloud ("Mobile Documents");' \
+    '  3. isolates npm: no inherited npm_config_* variables, the user'\''s ~/.npmrc (auth) as' \
+    '     the only config file, an empty global config, `--registry https://registry.npmjs.org/`' \
+    '     on every registry command (a CLI flag outranks publishConfig and the environment),' \
+    '     and refuses a publishConfig registry pointing anywhere else; cwd in the export;' \
+    '  4. installs (`npm ci --ignore-scripts`), builds, runs the check-pack guard;' \
+    '  5. packs, prints every file, the count and the SHA-256, re-checks the tarball;' \
+    '  6. installs the tarball into a throwaway project and runs the regression corpus;' \
+    '  7. with --pre: the record must be a PASS inspection (no failures, every artefact run,' \
+    '     hashes present) of this tree, this engine version and this exact tarball SHA-256;' \
+    '  8. only with --publish: re-hashes the tarball, then `npm publish <that tarball>`.' \
+    '     Authentication and 2FA are npm'\''s own (OTP prompt); this script never reads, stores' \
+    '     or prints a token.'
 }
 
 # Help first: nothing below runs for --help.
@@ -118,30 +118,31 @@ for rc in "$WORK/src/.npmrc" "$PKG/.npmrc"; do
 done
 WHY="$(node "$WORK/src/scripts/lib/publish-policy.js" publish-config "$PKG/package.json")" || die "$WHY"
 
-# 3. npm configuration isolated from the checkout and the calling shell.
+# 3. npm isolated from the checkout and the calling shell: every npm call below goes
+#    through npm_clean (scripts/lib/npm-clean.sh, from the export) — inherited
+#    npm_config_* removed, ~/.npmrc for auth only, empty global config, --registry
+#    pinned on the command line, refused inside iCloud. Node children use the JS twin.
+# shellcheck source=lib/npm-clean.sh
+source "$WORK/src/scripts/lib/npm-clean.sh"
+[ "$NPM_CLEAN_REGISTRY" = "$REG" ] || die "npm-clean.sh pins $NPM_CLEAN_REGISTRY, expected $REG"
 for name in $(compgen -e); do
   case "$name" in npm_config_*|NPM_CONFIG_*) unset "$name" ;; esac
 done
-: > "$WORK/empty-globalrc"
-export npm_config_userconfig="$HOME/.npmrc"
-export npm_config_globalconfig="$WORK/empty-globalrc"
-export npm_config_registry="$REG"
-export npm_config_audit=false npm_config_fund=false
 
 VERSION="$(node -p "require('$PKG/package.json').version")"
 echo "publish-engine: pinescript-v6-validator@$VERSION"
 echo "  commit:   $HEAD_SHA (tree $HEAD_TREE; origin/main: $ON_MAIN)"
 echo "  export:   $WORK/src"
-echo "  node $(node --version), npm $(cd "$PKG" && npm --version), registry $REG"
+echo "  node $(node --version), npm $(cd "$PKG" && npm_clean --version), registry $REG"
 
 # 4. Install, build, guard — all in the export.
-(cd "$PKG" && npm ci --ignore-scripts --registry "$REG" >/dev/null)
-(cd "$PKG" && npm run --silent build)
+(cd "$PKG" && npm_clean ci --ignore-scripts >/dev/null)
+(cd "$PKG" && npm_clean run --silent build)
 (cd "$PKG" && node -e "require('./dist/index.js')")
 (cd "$PKG" && node scripts/check-pack.js)
 
 # 5. Pack (prepack runs the guard again) and inspect the tarball itself.
-TARBALL_NAME="$(cd "$PKG" && npm pack --silent --registry "$REG" --pack-destination "$WORK/out" | tail -n 1)"
+TARBALL_NAME="$(cd "$PKG" && npm_clean pack --silent --pack-destination "$WORK/out" | tail -n 1)"
 TARBALL="$WORK/out/$TARBALL_NAME"
 (cd "$PKG" && node scripts/check-pack.js --tarball "$TARBALL")
 COUNT="$(tar -tzf "$TARBALL" | grep -vc '/$')"
@@ -160,7 +161,7 @@ if [ -n "$PRE" ]; then
   echo "publish-engine: matches the PASS pre-release inspection $(basename "$PRE") (tree, version, tarball sha256)"
 fi
 
-if (cd "$PKG" && npm view "pinescript-v6-validator@$VERSION" version --registry "$REG" >/dev/null 2>&1); then
+if (cd "$PKG" && npm_clean view "pinescript-v6-validator@$VERSION" version >/dev/null 2>&1); then
   ALREADY="yes"
 else
   ALREADY="no"
@@ -172,7 +173,7 @@ if [ "$PUBLISH" = 1 ]; then
   NOW="$(shasum -a 256 "$TARBALL" | cut -d' ' -f1)"
   [ "$NOW" = "$SHA" ] || die "the tarball changed after inspection ($SHA -> $NOW)"
   echo "publish-engine: publishing $TARBALL_NAME (sha256 $NOW) to $REG"
-  (cd "$PKG" && npm publish "$TARBALL" --access public --registry "$REG")
+  (cd "$PKG" && npm_clean publish "$TARBALL" --access public)
   echo "publish-engine: published. Next: node scripts/verify-published.js --engine $VERSION --pre $PRE"
 else
   echo "publish-engine: DRY RUN — nothing published (already on npm: $ALREADY). To publish: on the origin/main tip, --publish --pre <inspection.json>."

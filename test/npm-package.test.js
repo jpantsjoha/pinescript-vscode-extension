@@ -33,7 +33,6 @@
 
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert');
-const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -47,6 +46,7 @@ const SKIP = process.env.SKIP_PACKAGE_TEST === '1';
 // to the repo's typescript without installing anything.
 const REPO_BIN = path.join(path.dirname(require.resolve('typescript/package.json')), '..', '.bin');
 const { expectedFiles, tarballFiles, compare } = require('../packages/validator/scripts/check-pack.js');
+const { npm } = require('../scripts/lib/npm'); // the only way to spawn npm (test/npm-guard.test.js)
 
 let workspace = null;
 /** The module object, obtained by name from the installed package. */
@@ -56,14 +56,6 @@ let publishedManifest = null;
 /** The packed tarball, and the isolated copy it was built from. */
 let tarball = null;
 let packageCopy = null;
-
-function run(command, args, cwd) {
-  return execFileSync(command, args, {
-    cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-}
 
 describe('Published npm package', { skip: SKIP && 'SKIP_PACKAGE_TEST=1' }, () => {
   before(() => {
@@ -87,17 +79,15 @@ describe('Published npm package', { skip: SKIP && 'SKIP_PACKAGE_TEST=1' }, () =>
     });
     // The package's declared build, run inside the copy: whatever `npm run build`
     // does (compile, generate, copy), the tarball below reflects it.
-    execFileSync('npm', ['run', 'build'], {
+    npm(['run', 'build'], {
       cwd: copy,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, PATH: `${REPO_BIN}${path.delimiter}${process.env.PATH}` },
     });
     packageCopy = copy;
 
     // `npm pack` runs the package's prepack guard (scripts/check-pack.js), so a dist
     // carrying anything beyond the expected set fails here, before install (#67).
-    const packed = run('npm', ['pack', '--pack-destination', workspace], copy)
+    const packed = npm(['pack', '--pack-destination', workspace], { cwd: copy })
       .trim().split('\n').pop().trim();
     tarball = path.join(workspace, packed);
 
@@ -106,7 +96,7 @@ describe('Published npm package', { skip: SKIP && 'SKIP_PACKAGE_TEST=1' }, () =>
       JSON.stringify({ name: 'consumer', version: '1.0.0', private: true }, null, 2)
     );
 
-    run('npm', ['install', tarball, '--no-audit', '--no-fund'], workspace);
+    npm(['install', tarball], { cwd: workspace });
 
     const installedDir = path.join(workspace, 'node_modules', PACKAGE_NAME);
     publishedManifest = JSON.parse(

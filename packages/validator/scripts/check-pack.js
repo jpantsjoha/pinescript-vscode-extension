@@ -24,6 +24,7 @@
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { npm } = require('./npm-clean.js'); // the only way to spawn npm (test/npm-guard.test.js)
 
 // A synced folder's conflict copy: "index 2.js", "accurateValidator 2.d.ts".
 const CONFLICT_COPY = / \d+(\.[^/]*)?$/;
@@ -96,8 +97,11 @@ function expectedFiles(pkgDir) {
   // files this derivation cannot predict.
   const alwaysPacked = /^(package\.json|(readme|license|licence)(\.[^./]+)?)$/i;
   const unsupportedFiles = (manifest.files || []).filter(e => {
-    const p = e.replace(/^\.\//, '').replace(/\/+$/, '');
-    if (/[*?![\]{}]/.test(p)) return true;
+    const raw = String(e).replace(/\/+$/, '');
+    if (/[*?![\]{}]/.test(raw)) return true;
+    // Compared in canonical form, and any ".." refused outright: "dist/../docs" is docs.
+    if (raw.split('/').includes('..')) return true;
+    const p = path.posix.normalize(raw).replace(/^\.\//, '').replace(/\/+$/, '');
     return !(p === outDir || p.startsWith(outDir + '/') || alwaysPacked.test(p));
   });
   for (const k of unsupportedTs) problems.push(`tsconfig "${k}" is not modelled`);
@@ -149,9 +153,7 @@ function expectedFiles(pkgDir) {
 
 /** File list `npm pack --dry-run` would produce, without running lifecycle scripts. */
 function dryRunFiles(pkgDir) {
-  const out = execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
-    cwd: pkgDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  const out = npm(['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: pkgDir });
   const json = JSON.parse(out.slice(out.indexOf('[')));
   return json[0].files.map(f => f.path).sort();
 }
@@ -213,8 +215,9 @@ function main(argv) {
     return 0;
   }
   const t = argv.indexOf('--tarball');
-  const pkgArg = argv.filter((a, i) => !a.startsWith('--') && i !== t + 1)[0];
-  const pkgDir = path.resolve(pkgArg || process.cwd());
+  const pkgArg = argv.filter((a, i) => !a.startsWith('--') && (t === -1 || i !== t + 1))[0];
+  // Default: the package this script belongs to, whatever the working directory.
+  const pkgDir = path.resolve(pkgArg || path.join(__dirname, '..'));
   const { expected, problems } = expectedFiles(pkgDir);
   if (problems.length) {
     // A configuration or source problem: the expected set itself cannot be trusted,

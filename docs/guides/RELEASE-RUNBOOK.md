@@ -153,9 +153,11 @@ The script refuses a dirty tree, any project-level `.npmrc` (in the checkout or 
 commit) and a `publishConfig` registry other than npmjs.org; a dry run needs HEAD on
 `origin/main` (or `--candidate`), and `--publish` needs HEAD to be exactly the freshly
 fetched `origin/main` tip. It packs from a `git archive` export under
-`$TMPDIR`, runs every npm command with the user's `~/.npmrc` as the only config file
-and `--registry https://registry.npmjs.org/` on every registry command (a CLI flag
-outranks `publishConfig` and the environment), prints every file, the count (25 for 0.4.3) and the
+`$TMPDIR`, runs every npm command through `npm_clean` (`scripts/lib/npm-clean.sh`; the
+JS scripts use its twin `scripts/lib/npm.js`) — inherited `npm_config_*` dropped, the
+user's `~/.npmrc` as the only config file, and `--registry https://registry.npmjs.org/`
+on every registry command (a CLI flag outranks `publishConfig` and the environment);
+`test/npm-guard.test.js` fails if any script spawns npm another way. It prints every file, the count (25 for 0.4.3) and the
 SHA-256, and runs the regression corpus against the tarball installed by name.
 `--publish` requires `--pre`: the record must be a complete PASS inspection (no
 failures, every artefact run, hashes present) of this tree, and its engine tarball

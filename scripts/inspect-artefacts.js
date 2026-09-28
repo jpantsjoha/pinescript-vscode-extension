@@ -41,25 +41,31 @@
 const fs = require('fs');
 const path = require('path');
 const A = require('./lib/artefacts');
+const N = require('./lib/npm'); // the only way to spawn npm (test/npm-guard.test.js)
 
 function arg(argv, name, fallback) {
   const i = argv.indexOf(name);
   return i !== -1 ? argv[i + 1] : fallback;
 }
 
-function buildArtefacts(root) {
-  const env = { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false' };
-  const run = (cmd, args, cwd) => A.sh(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
-  run('npm', ['ci', '--ignore-scripts'], root);
-  run('npm', ['run', 'build'], root);
+/**
+ * Build the VSIX and the engine tarball in the export `root`. Every npm command runs
+ * through scripts/lib/npm.js — inherited npm_config_* dropped and
+ * `--registry https://registry.npmjs.org/` on the command line for anything that can
+ * reach a registry. `sh` and `npm` are injectable for tests.
+ */
+function buildArtefacts(root, sh = A.sh, npm = N.npm) {
+  npm(['ci', '--ignore-scripts'], { cwd: root });
+  npm(['run', 'build'], { cwd: root });
   fs.mkdirSync(path.join(root, 'build'), { recursive: true });
-  run(path.join(root, 'node_modules', '.bin', 'vsce'), ['package', '--out', 'build/'], root);
+  // vsce runs npm itself (dependency listing), so it gets the same sanitised environment.
+  sh(path.join(root, 'node_modules', '.bin', 'vsce'), ['package', '--out', 'build/'], { cwd: root, env: N.npmEnv() });
   const vsix = fs.readdirSync(path.join(root, 'build')).filter(f => f.endsWith('.vsix'));
   if (vsix.length !== 1) throw new Error(`expected one VSIX in build/, found ${vsix.length}`);
   const pkgDir = path.join(root, 'packages', 'validator');
   const out = path.join(root, 'build', 'engine');
   fs.mkdirSync(out, { recursive: true });
-  const tgz = run('npm', ['pack', '--pack-destination', out], pkgDir).trim().split('\n').pop().trim();
+  const tgz = npm(['pack', '--pack-destination', out], { cwd: pkgDir }).trim().split('\n').pop().trim();
   return [
     { kind: 'vsix', label: 'VS Code extension (Marketplace, Open VSX, GitHub release)', file: path.join(root, 'build', vsix[0]) },
     { kind: 'npm', label: 'engine (npm pinescript-v6-validator)', file: path.join(out, tgz) },
@@ -70,7 +76,7 @@ function buildArtefacts(root) {
  * The previous release's published artefact of this kind:
  * { file, source } on success, { error } on any failure (never a silent skip).
  */
-function fetchPrevious(kind, { prevTag, prevEngine }, dir, sh = A.sh) {
+function fetchPrevious(kind, { prevTag, prevEngine }, dir, sh = A.sh, npm = N.npm) {
   try {
     if (kind === 'vsix') {
       if (!prevTag) return { error: 'no previous tag found (pass --prev-tag, or --first-release)' };
@@ -82,7 +88,7 @@ function fetchPrevious(kind, { prevTag, prevEngine }, dir, sh = A.sh) {
     if (!prevEngine) return { error: 'no previous engine version found (pass --prev-engine, or --first-release)' };
     const d = path.join(dir, 'prev-npm');
     fs.mkdirSync(d, { recursive: true });
-    const name = sh('npm', ['pack', `pinescript-v6-validator@${prevEngine}`, '--pack-destination', d, ...A.REGISTRY_ARGS], { cwd: d, env: A.npmEnv() })
+    const name = npm(['pack', `pinescript-v6-validator@${prevEngine}`, '--pack-destination', d], { cwd: d })
       .trim().split('\n').pop().trim();
     return { file: path.join(d, name), source: `npm pinescript-v6-validator@${prevEngine}` };
   } catch (e) {
@@ -125,7 +131,7 @@ function main(argv = process.argv.slice(2)) {
   }
   // The registry is required: whether this engine version is already published, and
   // which version came before it. Offline is a FAIL, not a quieter report.
-  const versions = JSON.parse(A.sh('npm', ['view', 'pinescript-v6-validator', 'versions', '--json', ...A.REGISTRY_ARGS], { env: A.npmEnv() }));
+  const versions = JSON.parse(N.npm(['view', 'pinescript-v6-validator', 'versions', '--json'], { cwd: work }));
   const enginePublished = versions.includes(engineVersion);
   const prevEngine = arg(argv, '--prev-engine') || versions.filter(v => v !== engineVersion).pop();
 
@@ -169,7 +175,7 @@ function main(argv = process.argv.slice(2)) {
   return records.some(r => r.failures.length) ? 1 : 0;
 }
 
-module.exports = { fetchPrevious, attachPrevious, main };
+module.exports = { buildArtefacts, fetchPrevious, attachPrevious, main };
 
 const USAGE = `usage: node scripts/inspect-artefacts.js [--ref <commit>] [--prev-tag vX.Y.Z]
        [--prev-engine X.Y.Z] [--out-dir <dir>] [--first-release] [--keep]

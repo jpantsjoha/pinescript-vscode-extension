@@ -12,7 +12,10 @@ echo ""
 # Build extension
 echo "🏗️  Building extension..."
 cd "${WORKSPACE_DIR}"
-npm run build
+# npm only through the repo helper (scripts/lib/npm-clean.sh): sanitised config.
+# shellcheck source=lib/npm-clean.sh
+source "${WORKSPACE_DIR}/scripts/lib/npm-clean.sh"
+npm_clean run build
 
 echo ""
 echo "✅ Build complete!"

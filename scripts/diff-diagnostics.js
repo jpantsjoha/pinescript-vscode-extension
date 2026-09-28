@@ -22,6 +22,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { npm } = require('./lib/npm'); // the only way to spawn npm (test/npm-guard.test.js)
 const ROOT = path.join(__dirname, '..');
 const refIndex = process.argv.indexOf('--against');
 const ref = refIndex > 0 ? process.argv[refIndex + 1] : null;
@@ -73,8 +74,8 @@ const tmp = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'pine-diff-')
 try {
   const tar = execFileSync('git', ['archive', ref], { cwd: ROOT, maxBuffer: 1 << 30 });
   execFileSync('tar', ['-x', '-C', tmp], { input: tar });
-  execFileSync('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: tmp, stdio: 'ignore' });
-  execFileSync('npm', ['run', 'build'], { cwd: tmp, stdio: 'ignore' });
+  npm(['ci', '--ignore-scripts'], { cwd: tmp, stdio: 'ignore' });
+  npm(['run', 'build'], { cwd: tmp, stdio: 'ignore' });
 
   const before = loadSources(tmp);
   const after = loadSources(ROOT);

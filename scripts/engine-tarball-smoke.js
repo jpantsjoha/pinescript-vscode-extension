@@ -14,7 +14,7 @@
  */
 'use strict';
 
-const { execFileSync } = require('child_process');
+const { npm } = require('./lib/npm'); // the only way to spawn npm (test/npm-guard.test.js)
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -27,11 +27,7 @@ function smoke(tarball, corpus = path.join(__dirname, '..', 'test', 'regression-
   try {
     fs.writeFileSync(path.join(workspace, 'package.json'),
       JSON.stringify({ name: 'consumer', version: '1.0.0', private: true }));
-    // The tarball has no dependencies; the registry is pinned anyway so nothing ambient is used.
-    const env = { ...process.env };
-    for (const k of Object.keys(env)) if (/^npm_config_/i.test(k)) delete env[k];
-    execFileSync('npm', ['install', path.resolve(tarball), '--no-audit', '--no-fund', '--ignore-scripts',
-      '--registry', 'https://registry.npmjs.org/'], { cwd: workspace, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    npm(['install', path.resolve(tarball), '--ignore-scripts'], { cwd: workspace });
     const engine = require(require.resolve(PACKAGE_NAME, { paths: [workspace] }));
     const failures = [];
     const cases = [...CASES, ...SUPPRESSION_CASES];
