@@ -81,6 +81,34 @@ test -f syntaxes/*.tmLanguage.json && echo "✅ syntaxes"
 
 ---
 
+## Inspect, reflect, publish, verify (every release)
+
+Tests prove behaviour; they do not prove contents. npm 0.4.2 passed every test and
+still shipped 22 iCloud conflict copies, because it was packed from the working tree
+(#67). Every release follows docs/guides/RELEASE-RUNBOOK.md steps 4–8:
+
+```bash
+# 1. Build every artefact from a clean git-archive export outside iCloud and inspect it
+node scripts/inspect-artefacts.js --out-dir /tmp/inspect-X.Y.Z
+#    FAIL blocks the release. Every FLAG gets a written answer. Paste inspection.md
+#    into the release PR.
+
+# 2. Answer the "Pre-go-live reflection" (RELEASE-RUNBOOK) in the release PR; the
+#    independent reviewer checks it. Then merge and tag (publish.yml ships the VSIX).
+
+# 3. Engine, only when packages/validator was bumped — never npm publish from the tree
+scripts/publish-engine.sh               # dry run
+scripts/publish-engine.sh --publish     # npm 2FA prompt; publishes the inspected tarball
+
+# 4. Verify what went live against the pre-release inspection
+node scripts/verify-published.js X.Y.Z --engine A.B.C --pre /tmp/inspect-X.Y.Z/inspection.json
+```
+
+A release is not done until `verify-published` passes. Any incident gets an issue
+and a guard before the next release.
+
+---
+
 ## 🚀 Publishing Methods
 
 ### Method 1: Automated Publishing (RECOMMENDED)
@@ -565,6 +593,8 @@ Copy this for each release:
 - [ ] CHANGELOG.md updated with new section
 - [ ] README.md updated (if needed)
 - [ ] Local test: `npm run rebuild` successful
+- [ ] `node scripts/inspect-artefacts.js` PASS; report in the release PR; every FLAG answered
+- [ ] Pre-go-live reflection answered in the release PR and checked by the independent reviewer
 - [ ] Git commit created with version bump
 - [ ] Git tag created: `git tag -a vX.Y.Z -m "..."`
 - [ ] Tag pushed: `git push origin vX.Y.Z`
@@ -577,6 +607,8 @@ Copy this for each release:
 
 ## Post-Publish Verification
 
+- [ ] `node scripts/verify-published.js X.Y.Z --engine A.B.C --pre inspection.json` PASS
+- [ ] Engine (if bumped) published with `scripts/publish-engine.sh --publish`, never from the working tree
 - [ ] Marketplace shows new version: vX.Y.Z
 - [ ] Download/Install works from marketplace
 - [ ] Extension activates correctly

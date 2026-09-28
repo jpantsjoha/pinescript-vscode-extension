@@ -558,6 +558,53 @@ function auditLockfile() {
 }
 
 //──────────────────────────────────────────────────────────
+// 11. The release process inspects what it ships, before and after go-live
+//
+// npm 0.4.2 passed every behavioural test and still shipped 22 iCloud conflict
+// copies, because it was packed from the working tree and nothing looked at the
+// file list (#67). The guards exist only if the process names them: the runbook,
+// the Definition of Done and the publisher agent must all route a release through
+// inspect-artefacts, the reflection and verify-published, and the engine must
+// refuse to pack anything but its exact file list.
+//──────────────────────────────────────────────────────────
+
+function auditReleaseProcess() {
+  const problems = [];
+  const scripts = ['scripts/inspect-artefacts.js', 'scripts/verify-published.js', 'scripts/publish-engine.sh',
+    'packages/validator/scripts/check-pack.js'];
+  for (const s of scripts) if (!exists(s)) problems.push(`${s} is missing`);
+
+  const mustName = {
+    'docs/guides/RELEASE-RUNBOOK.md': ['inspect-artefacts', 'verify-published', 'publish-engine.sh', 'Pre-go-live reflection'],
+    'CLAUDE.md': ['inspect-artefacts', 'verify-published'],
+    '.claude/agents/publisher.md': ['inspect-artefacts', 'verify-published', 'publish-engine.sh'],
+  };
+  for (const [file, words] of Object.entries(mustName)) {
+    if (!exists(file)) { problems.push(`${file} is missing`); continue; }
+    const text = read(file);
+    for (const w of words) if (!text.includes(w)) problems.push(`${file} does not mention ${w}`);
+  }
+  const releaseRow = (exists('CLAUDE.md') ? read('CLAUDE.md') : '').split('\n').find(l => /^\| Release \|/.test(l)) || '';
+  for (const w of ['inspect-artefacts', 'verify-published']) {
+    if (!releaseRow.includes(w)) problems.push(`the CLAUDE.md Definition of Done "Release" row does not require ${w}`);
+  }
+
+  const engine = JSON.parse(read('packages/validator/package.json'));
+  if (!/check-pack\.js/.test((engine.scripts || {}).prepack || '')) {
+    problems.push('packages/validator prepack does not run scripts/check-pack.js');
+  }
+  if (exists('packages/validator/package-lock.json')) {
+    const lock = JSON.parse(read('packages/validator/package-lock.json'));
+    if (lock.version !== engine.version) {
+      problems.push(`packages/validator/package-lock.json is at ${lock.version}, package.json at ${engine.version}`);
+    }
+  }
+
+  if (problems.length) fail('release process', problems.join('; '));
+  else pass('release process', 'runbook, DoD and publisher agent require inspect-artefacts, the reflection and verify-published; engine prepack runs check-pack');
+}
+
+//──────────────────────────────────────────────────────────
 
 auditNpmScripts();
 auditClaudeHarness();
@@ -569,6 +616,7 @@ auditDiagnosticCoverage();
 auditEnginePortability();
 auditCi();
 auditLockfile();
+auditReleaseProcess();
 
 const ICON = { PASS: '[32m PASS[0m', WARN: '[33m WARN[0m', FAIL: '[31m FAIL[0m' };
 const counts = { PASS: 0, WARN: 0, FAIL: 0 };
