@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- S1 no longer warns on `request.security_lower_tf()`, whose advice to pass a
+  lookahead argument could not be followed (#60).
+
 ## [0.7.0] - 2026-09-26
 
 One-click fixes for common mistakes, a new check TradingView enforces, and one engine
