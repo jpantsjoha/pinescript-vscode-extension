@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Engine 0.4.3 (npm `pinescript-v6-validator`)
+
+- **A clean package.** npm 0.4.2 shipped 47 files where 25 were intended: 22 iCloud
+  conflict copies such as `dist/src/accurateValidator 2.js` (a stale validator the
+  entry point never loads) went out with it, because it was published from the
+  working tree and `files: ["dist"]` packs everything in `dist/` (#67). Behaviour was
+  unaffected (135/135 regression cases pass from npm). 0.4.3 has the same code and
+  exactly 25 files.
+- `npm pack` and `npm publish` now refuse any tarball that is not exactly the file list
+  derived from the package's sources and tsconfig (`scripts/check-pack.js`, run as
+  `prepack`).
+
+### Fixed
+
+- `npm test` could fail at random: the npm-package test rebuilt the shared engine
+  `dist/` while other test files were loading it, and failed the first v0.7.0 publish
+  attempt (#64). It now builds and packs an isolated copy, and also asserts the
+  tarball's exact file list.
+
+### Release process
+
+- **Artefact inspection before go-live** (`scripts/inspect-artefacts.js`): every
+  release artefact (the VSIX and the engine tarball) is built from a clean
+  `git archive` export outside iCloud, listed against its exact expected set, checked
+  for sync-conflict copies, dotfiles, sources and tests, compared with the previous
+  release's published artefact (size over 10%, files added or removed), hashed, and
+  run. Its report goes into the release PR.
+- **Pre-go-live reflection**: written answers in the release PR — what changed, how
+  each artefact is built, what could make it differ from what was tested, every
+  inspection flag explained, which past incidents are guarded, the rollback — checked
+  by the independent reviewer (`docs/templates/release-reflection.md`).
+- **Verification after go-live** (`scripts/verify-published.js`): downloads what went
+  live from the GitHub release, Open VSX, the Marketplace and npm, re-runs the same
+  inspection and compares file lists and per-file hashes with the pre-release record.
+- **Engine publish only from a clean export** (`scripts/publish-engine.sh`, dry run by
+  default, `--publish` to publish the inspected tarball).
+- The Definition of Done "Release" row, the release runbook and the publisher agent
+  require all four; `npm run audit` fails if any of them stops naming them.
+
 ## [0.7.0] - 2026-09-26
 
 One-click fixes for common mistakes, a new check TradingView enforces, and one engine

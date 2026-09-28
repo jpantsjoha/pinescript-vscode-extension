@@ -1,8 +1,27 @@
 # Project Status
 
-**Updated**: 2026-09-26
+**Updated**: 2026-09-28
 **Marketplace / Open VSX**: **0.7.0 live** (tag `v0.7.0` on `6d7f1f9`, released 2026-09-26)
-**Engine**: `pinescript-v6-validator@0.4.2` on npm (published 2026-09-28), the same source the extension bundles. Installed from npm, it passes all 135 regression-corpus cases.
+**Engine**: `pinescript-v6-validator@0.4.2` on npm (published 2026-09-28, #54 closed), the same source the extension bundles. Installed from npm it passes all 135 regression-corpus cases, but it ships 47 files where 25 were intended: 22 iCloud conflict copies, among them `dist/src/accurateValidator 2.js`, a stale copy the entry point never loads (#67). A clean 0.4.3 is ready on `fix/67-clean-engine-publish`.
+
+## 2026-09-28: engine 0.4.2 on npm, its packaging defect, and release inspection
+
+`pinescript-v6-validator@0.4.2` was published to npm from the iCloud working tree
+(#54 closed). Behaviour is right — 135/135 regression cases pass from the installed
+package — but the tarball holds 47 files, 25 intended and byte-identical to a clean
+build, plus 22 iCloud conflict copies (`* 2.js`, `*.d 2.ts`); `files: ["dist"]`
+packed whatever sat in `dist/` and nothing checked the list (#67).
+
+Branch `fix/67-clean-engine-publish` fixes #67 and #64 and bumps the engine to 0.4.3:
+`check-pack` (prepack and `npm-package.test.js`) fails any tarball that is not
+exactly the 25 derived files; `scripts/publish-engine.sh` packs only from a
+`git archive` export outside iCloud; the package test builds and packs an isolated
+copy, so it no longer rewrites the shared engine `dist/` under parallel test files
+(#64). Release inspection is now standing process (JP, 2026-09-28):
+`scripts/inspect-artefacts.js` before go-live, a written pre-go-live reflection
+checked by the independent reviewer, `scripts/verify-published.js` after. Run against
+what is live today it passes the 0.7.0 VSIX (GitHub release, Open VSX and Marketplace
+byte-identical, 36 files) and fails npm 0.4.2 on its 22 extra files.
 
 ## 2026-09-26: 0.7.0 — quick fixes, the invalid-cast rule, one engine
 
@@ -46,7 +65,7 @@ Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
 | Diagnostics vs 0.6.5 | 21 `.pine` files, 32 diagnostics, 0 new, 0 gone | `node scripts/diff-diagnostics.js --against v0.6.5` |
 | VSIX | 0.7.0: 36 files, 1.43 MB; `verify-vsix` PASS (activate, allowlist, one engine) | `npm run package`, `npm run verify:vsix` |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) | — |
-| Open issues | #60 #61 #62 #64 #5 #1 | `gh issue list` |
+| Open issues | #60 #61 #62 #64 #67 #5 #1 (#64 and #67 fixed on `fix/67-clean-engine-publish`, open until merge) | `gh issue list` |
 
 The test strategy (nine layers, the gate matrix, independent review) is in
 [docs/guides/TESTING-GUIDE.md](./docs/guides/TESTING-GUIDE.md).
@@ -55,7 +74,8 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 | # | Group | Decision | Unblocks | Recommendation | Right | Wrong | Reversibility |
 |---|---|---|---|---|---|---|---|
-| 1 | DO NOW | Bump pinescript-plugin to `pinescript-v6-validator@^0.4.2` (separate repo) | Agent users get the 0.7.0 engine | Bump and release the plugin | Agent and editor agree on every file | Agent users keep 27 fixed false positives | cheap |
+| 1 | DO NOW | After the #67 PR merges: `scripts/publish-engine.sh --publish` (npm 2FA), then `node scripts/verify-published.js --engine 0.4.3`, then `npm deprecate pinescript-v6-validator@0.4.2` | A clean engine on npm; pinescript-plugin can move off 0.4.2 | Publish 0.4.3 from the clean path | npm ships exactly 25 files | Consumers keep a package with 22 stray files, one a stale validator | cheap |
+| 1b | DO NOW | Then bump pinescript-plugin to `pinescript-v6-validator@^0.4.3` (separate repo) | Agent users get the 0.7.0 engine | Bump and release the plugin | Agent and editor agree on every file | Agent users keep 27 fixed false positives | cheap |
 | 2 | SCHEDULE | Re-authenticate Codex (`codex login`) | Non-Claude review lane back first in line | 2 minutes | Reviewer from a different model family | Reviews stay Claude-on-Claude | cheap |
 | 3 | SCHEDULE | Confirm the six inferred fields in the operating profile | Profile moves from `seed` to `active` | 10 minutes | Gates bind to confirmed facts | Gates keep citing inferences | cheap |
 | 4 | DEFER | GitHub sensitive-data purge of old history | — | Park; revisit if the repo is audited | — | — | one-way |
@@ -64,12 +84,12 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 | Project | Relationship |
 |---|---|
-| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. Consumes `pinescript-v6-validator` from npm, which is built from the same `packages/validator` source the extension bundles; the two agree once each release publishes the engine (0.4.2 with 0.7.0, #54). |
+| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. Consumes `pinescript-v6-validator` from npm, which is built from the same `packages/validator` source the extension bundles; the two agree once each release publishes the engine (0.4.2 with 0.7.0, #54; 0.4.3 replaces it with a clean package, #67). |
 
 ## What waits on whom
 
-- **JP**: decision board rows 1–4 (row 1 is in the pinescript-plugin repo).
-- **Next session**: #64 (flaky test race that can fail a release), then #61, #60, #62.
+- **JP**: review and merge the #67 PR (fixes #64 too); then decision board row 1 (publish 0.4.3 with `scripts/publish-engine.sh --publish`), row 1b (pinescript-plugin to `^0.4.3`, separate repo), rows 2–4.
+- **Next session**: #61, #60, #62.
 
 ## Repository hygiene
 

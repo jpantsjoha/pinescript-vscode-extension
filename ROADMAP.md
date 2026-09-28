@@ -4,7 +4,7 @@ Build order for the extension and its engine, `pinescript-v6-validator`. Derived
 the retired 2025-10-15 validator roadmap (deleted 2026-09-23; git history keeps it — its 70%/95%
 parity figures were never measured; treat percentages there as unsupported), the
 roadmap-reconciliation work that used to live in `STATUS.md`, and the open GitHub
-issues as of 2026-09-26 (reconciled after the 0.7.0 release). Status words: **not started** · **blocked** · **in
+issues as of 2026-09-28 (reconciled after engine 0.4.2 and #67). Status words: **not started** · **blocked** · **in
 progress** · **shipped**.
 
 ## Shipped
@@ -74,14 +74,16 @@ inference. Git history keeps the old code.
 |---|---|---|
 | 0.6.3 – 0.6.5 | Accuracy and IntelliSense: false positives fixed, the full v6 reference in the editor, parameter-name completions | **shipped** 2026-09-25 |
 | 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the invalid-cast rule (#12), one engine (#55) | **shipped** 2026-09-26 |
-| engine 0.4.2 | The npm engine catches up with 0.7.0, for external consumers (the pinescript-plugin agent plugin) | **shipped** 2026-09-28 (#54) |
+| engine 0.4.2 | The npm engine catches up with 0.7.0, for external consumers (the pinescript-plugin agent plugin) | **shipped** 2026-09-28 (#54); behaviour correct (135/135 from npm), but ships 22 iCloud conflict copies (47 files, 25 intended) (#67) |
+| engine 0.4.3 | A clean engine package: exact file-list guard, publish only from a clean export (#67); the package-test race fixed (#64); release inspection before and after go-live | **in progress**: built on `fix/67-clean-engine-publish`; publish waits on merge and JP's npm 2FA |
 | 0.7.x | Precision: missed errors and misleading advice found during 0.7.0 (#61, #60), packaging-guard follow-ups (#62) | not started |
 | later | Rename refactoring (#5) | not started |
 
 ## Open issues
 
 **Engine and delivery**
-- [#64](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/64) Flaky `npm test`: the npm-package test rebuilds `packages/validator/dist` while parallel test files load it; it failed the first v0.7.0 publish attempt.
+- [#67](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/67) npm 0.4.2 ships 22 iCloud conflict copies; the engine publish had no clean-build or file-list guard. **Fixed on `fix/67-clean-engine-publish`** (open until merge and a clean 0.4.3 on npm).
+- [#64](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/64) Flaky `npm test`: the npm-package test rebuilt `packages/validator/dist` while parallel test files loaded it; it failed the first v0.7.0 publish attempt. **Fixed on `fix/67-clean-engine-publish`.**
 - [#62](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/62) Packaging-guard follow-ups from the #59 review (all low severity).
 
 **Validator**
@@ -100,8 +102,8 @@ inference. Git history keeps the old code.
 
 ## Next up (recommended order)
 
-1. Bump pinescript-plugin to engine ^0.4.2 (separate repo), so agents get the 0.7.0 engine.
-2. #64 — a release can fail at random until the test race is fixed.
+1. Merge the #67 PR (fixes #64), then JP publishes engine 0.4.3 with `scripts/publish-engine.sh --publish` and checks it with `scripts/verify-published.js --engine 0.4.3`.
+2. Bump pinescript-plugin to engine ^0.4.3 (separate repo), so agents get the 0.7.0 engine in a clean package.
 3. #61 — a missed error on ordinary code (wrapped calls with comments are common).
 4. #60 — advice that cannot be followed.
 5. #62 — guard hardening.
