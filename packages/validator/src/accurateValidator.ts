@@ -219,12 +219,12 @@ export class AccurateValidator {
    * never extends the statement. When brackets balance on the line itself its
    * own index comes back: nothing is joined across lines when brackets balance.
    *
-   * Three bounds keep a syntax error from cascading (review finding f1 on #42):
+   * Two bounds keep a syntax error from cascading (review finding f1 on #42):
    * with an opener that never closes (`bad = (`) the join used to run to EOF,
    * swallowing every declaration below the break — `type Config` was never
    * collected and `Config.new()` was flagged as undefined. The join now stops
-   * at a blank line, at a line that opens a new top-level statement flush at
-   * column 0 (a wrapped continuation is indented; a column-0 `type`/`import`/
+   * at a line that opens a new top-level statement flush at column 0 (a wrapped
+   * continuation is indented; a column-0 `type`/`import`/
    * `var`/header/assignment is a new statement, and stopping there only ever
    * skips the arity check — the safe direction), and once the statement spans
    * 50 physical lines: reaching the 51st line cuts the statement at line 50
@@ -247,7 +247,6 @@ export class AccurateValidator {
     for (let end = start; end < cleanedLines.length; end++) {
       const cleaned = cleanedLines[end];
       if (end > start && depth > 0) {
-        if (!cleaned.trim()) return end - 1;
         const prevEndsWithComma = cleanedLines[end - 1].trimEnd().endsWith(',');
         if (this.startsTopLevelStatement(cleaned, prevEndsWithComma)) return end - 1;
         if (end - start >= MAX_WRAP_LINES) return end - 1;
