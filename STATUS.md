@@ -2,7 +2,7 @@
 
 **Updated**: 2026-09-26
 **Marketplace / Open VSX**: **0.7.0 live** (tag `v0.7.0` on `6d7f1f9`, released 2026-09-26)
-**Engine**: the extension, `validate-cli.js` and the MCP server run the local build of `packages/validator` (0.4.2 in this release). npm has 0.4.1 until 0.4.2 is published (#54), which only external consumers such as pinescript-plugin need.
+**Engine**: `pinescript-v6-validator@0.4.2` on npm (published 2026-09-28), the same source the extension bundles. Installed from npm, it passes all 135 regression-corpus cases.
 
 ## 2026-09-26: 0.7.0 — quick fixes, the invalid-cast rule, one engine
 
@@ -46,7 +46,7 @@ Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
 | Diagnostics vs 0.6.5 | 21 `.pine` files, 32 diagnostics, 0 new, 0 gone | `node scripts/diff-diagnostics.js --against v0.6.5` |
 | VSIX | 0.7.0: 36 files, 1.43 MB; `verify-vsix` PASS (activate, allowlist, one engine) | `npm run package`, `npm run verify:vsix` |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) | — |
-| Open issues | #54 #60 #61 #62 #64 #5 #1 | `gh issue list` |
+| Open issues | #60 #61 #62 #64 #5 #1 | `gh issue list` |
 
 The test strategy (nine layers, the gate matrix, independent review) is in
 [docs/guides/TESTING-GUIDE.md](./docs/guides/TESTING-GUIDE.md).
@@ -55,7 +55,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 | # | Group | Decision | Unblocks | Recommendation | Right | Wrong | Reversibility |
 |---|---|---|---|---|---|---|---|
-| 1 | DO NOW | Publish engine 0.4.2 (npm 2FA, #54) after the 0.7.0 tag | pinescript-plugin gets every fix since 0.4.1 | Publish at the cut | Agent and editor agree on every file | Agent users keep 27 fixed false positives | cheap |
+| 1 | DO NOW | Bump pinescript-plugin to `pinescript-v6-validator@^0.4.2` (separate repo) | Agent users get the 0.7.0 engine | Bump and release the plugin | Agent and editor agree on every file | Agent users keep 27 fixed false positives | cheap |
 | 2 | SCHEDULE | Re-authenticate Codex (`codex login`) | Non-Claude review lane back first in line | 2 minutes | Reviewer from a different model family | Reviews stay Claude-on-Claude | cheap |
 | 3 | SCHEDULE | Confirm the six inferred fields in the operating profile | Profile moves from `seed` to `active` | 10 minutes | Gates bind to confirmed facts | Gates keep citing inferences | cheap |
 | 4 | DEFER | GitHub sensitive-data purge of old history | — | Park; revisit if the repo is audited | — | — | one-way |
@@ -68,7 +68,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 ## What waits on whom
 
-- **JP**: engine 0.4.2 npm publish (2FA); decision board rows 2–4.
+- **JP**: decision board rows 1–4 (row 1 is in the pinescript-plugin repo).
 - **Next session**: #64 (flaky test race that can fail a release), then #61, #60, #62.
 
 ## Repository hygiene

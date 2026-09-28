@@ -74,7 +74,7 @@ inference. Git history keeps the old code.
 |---|---|---|
 | 0.6.3 – 0.6.5 | Accuracy and IntelliSense: false positives fixed, the full v6 reference in the editor, parameter-name completions | **shipped** 2026-09-25 |
 | 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the invalid-cast rule (#12), one engine (#55) | **shipped** 2026-09-26 |
-| engine 0.4.2 | The npm engine catches up with 0.7.0, for external consumers (the pinescript-plugin agent plugin) | **waits on** operator npm 2FA (#54) |
+| engine 0.4.2 | The npm engine catches up with 0.7.0, for external consumers (the pinescript-plugin agent plugin) | **shipped** 2026-09-28 (#54) |
 | 0.7.x | Precision: missed errors and misleading advice found during 0.7.0 (#61, #60), packaging-guard follow-ups (#62) | not started |
 | later | Rename refactoring (#5) | not started |
 
@@ -82,7 +82,6 @@ inference. Git history keeps the old code.
 
 **Engine and delivery**
 - [#64](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/64) Flaky `npm test`: the npm-package test rebuilds `packages/validator/dist` while parallel test files load it; it failed the first v0.7.0 publish attempt.
-- [#54](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/54) Publish engine 0.4.2. The npm 0.4.1 engine fails 27 of 107 regression cases the editor passes, so the external agent plugin (pinescript-plugin) still shows fixed false positives. The extension, `validate-cli.js` and the MCP server run the local engine build and do not wait on it.
 - [#62](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/62) Packaging-guard follow-ups from the #59 review (all low severity).
 
 **Validator**
@@ -101,7 +100,7 @@ inference. Git history keeps the old code.
 
 ## Next up (recommended order)
 
-1. #54 publish engine 0.4.2, so pinescript-plugin gets the same fixes. Needs JP's npm 2FA, about 10 minutes.
+1. Bump pinescript-plugin to engine ^0.4.2 (separate repo), so agents get the 0.7.0 engine.
 2. #64 — a release can fail at random until the test race is fixed.
 3. #61 — a missed error on ordinary code (wrapped calls with comments are common).
 4. #60 — advice that cannot be followed.
