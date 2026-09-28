@@ -102,7 +102,7 @@ inference. Git history keeps the old code.
 
 ## Next up (recommended order)
 
-1. Merge the #67 PR (fixes #64), then JP publishes engine 0.4.3 with `scripts/publish-engine.sh --publish` and checks it with `scripts/verify-published.js --engine 0.4.3`.
+1. Merge the #67 PR (fixes #64), then JP inspects main (`scripts/inspect-artefacts.js`), publishes engine 0.4.3 with `scripts/publish-engine.sh --publish --pre <inspection.json>` and checks it with `scripts/verify-published.js --engine 0.4.3 --pre <inspection.json>`.
 2. Bump pinescript-plugin to engine ^0.4.3 (separate repo), so agents get the 0.7.0 engine in a clean package.
 3. #61 — a missed error on ordinary code (wrapped calls with comments are common).
 4. #60 — advice that cannot be followed.

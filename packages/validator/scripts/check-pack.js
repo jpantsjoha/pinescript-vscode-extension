@@ -83,6 +83,23 @@ function expectedFiles(pkgDir) {
   const rootDir = posix(path.normalize(opts.rootDir || '.')).replace(/\/$/, '');
   const problems = [];
 
+  // The derivation models only the options this package uses. Anything else changes
+  // what tsc emits or npm packs in ways it cannot predict, so it fails loudly rather
+  // than guessing (a wrong guess is a false PASS or a false FAIL).
+  const unsupportedTs = ['extends', 'files', 'exclude', 'references'].filter(k => k in tsconfig);
+  const unsupportedOpts = ['outFile', 'out', 'composite', 'emitDeclarationOnly', 'noEmit', 'declarationDir',
+    'rootDirs', 'allowJs', 'checkJs', 'resolveJsonModule', 'tsBuildInfoFile', 'incremental'].filter(k => opts[k]);
+  const unsupportedIncludes = (tsconfig.include || []).filter(p =>
+    !/\.tsx?$/.test(p) || (/[*?]/.test(p) && !/^([\w.-]+\/)*(\*\*\/)?\*\.tsx?$/.test(p.replace(/^\.\//, ''))));
+  const unsupportedFiles = (manifest.files || []).filter(e => /[*?![\]{}]/.test(e));
+  for (const k of unsupportedTs) problems.push(`tsconfig "${k}" is not modelled`);
+  for (const k of unsupportedOpts) problems.push(`compilerOptions.${k} is not modelled`);
+  for (const p of unsupportedIncludes) problems.push(`tsconfig include "${p}" is not modelled (use dir/**/*.ts or a .ts file)`);
+  for (const e of unsupportedFiles) problems.push(`package.json files pattern "${e}" is not modelled`);
+  if (problems.length) {
+    problems.push('update the expected set in packages/validator/scripts/check-pack.js before changing the build');
+  }
+
   const inputs = new Set();
   for (const pattern of tsconfig.include || []) {
     for (const f of matchInclude(pkgDir, pattern)) {
@@ -131,20 +148,33 @@ function dryRunFiles(pkgDir) {
   return json[0].files.map(f => f.path).sort();
 }
 
-/** File list inside a built tarball (the `package/` prefix removed). */
+/**
+ * File list inside a built tarball (the `package/` prefix removed). Every entry is
+ * kept, duplicates included; an entry outside `package/` keeps its full name, so it
+ * can never match the expected set.
+ */
 function tarballFiles(tarball) {
   return execFileSync('tar', ['-tzf', tarball], { encoding: 'utf8' })
     .split('\n').filter(l => l && !l.endsWith('/'))
-    .map(l => l.replace(/^package\//, '')).sort();
+    .map(l => (l.startsWith('package/') ? l.slice('package/'.length) : `(outside package/) ${l}`)).sort();
 }
 
-/** Compare; returns { extra, missing, problems } (problems include conflict names). */
+/**
+ * Compare as multisets: a path listed twice in the archive is a failure, not a match.
+ * Returns { extra, missing, problems } (problems include duplicates and conflict names).
+ */
 function compare(expected, actual, problems = []) {
   const want = new Set(expected);
   const got = new Set(actual);
   const extra = actual.filter(f => !want.has(f));
   const missing = expected.filter(f => !got.has(f));
   const found = [...problems];
+  const seen = new Set();
+  for (const f of actual) {
+    if (seen.has(f)) found.push(`duplicate entry in the package: ${f}`);
+    seen.add(f);
+  }
+  if (actual.length !== expected.length) found.push(`packed ${actual.length} entries, expected ${expected.length}`);
   for (const f of actual) if (CONFLICT_COPY.test(f)) found.push(`sync-conflict copy in the package: ${f}`);
   return { extra, missing, problems: found };
 }

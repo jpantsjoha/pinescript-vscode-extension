@@ -43,8 +43,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Verification after go-live** (`scripts/verify-published.js`): downloads what went
   live from the GitHub release, Open VSX, the Marketplace and npm, re-runs the same
   inspection and compares file lists and per-file hashes with the pre-release record.
+  The record (`--pre`) is required and bound to the release by version and tree SHA;
+  a channel that cannot be downloaded fails unless waived with `--skip-channel`, which
+  the result prints.
 - **Engine publish only from a clean export** (`scripts/publish-engine.sh`, dry run by
-  default, `--publish` to publish the inspected tarball).
+  default; `--publish --pre <inspection.json>` publishes the tarball whose SHA-256
+  matches the inspection, with npm config isolated from the checkout).
+- **Fail closed everywhere**: archives are validated before extraction (traversal,
+  absolute paths, symlinks, duplicate entries); file lists compare as multisets; a
+  previous release that cannot be downloaded fails the inspection (`--first-release`
+  is the only waiver); `check-pack` refuses build configuration it does not model.
+  `test/release-guards.test.js` proves each one offline.
 - The Definition of Done "Release" row, the release runbook and the publisher agent
   require all four; `npm run audit` fails if any of them stops naming them.
 

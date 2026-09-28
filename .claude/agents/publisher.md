@@ -97,8 +97,10 @@ node scripts/inspect-artefacts.js --out-dir /tmp/inspect-X.Y.Z
 #    independent reviewer checks it. Then merge and tag (publish.yml ships the VSIX).
 
 # 3. Engine, only when packages/validator was bumped — never npm publish from the tree
-scripts/publish-engine.sh               # dry run
-scripts/publish-engine.sh --publish     # npm 2FA prompt; publishes the inspected tarball
+scripts/publish-engine.sh                                            # dry run
+scripts/publish-engine.sh --publish --pre /tmp/inspect-X.Y.Z/inspection.json
+#    npm 2FA prompt; refuses unless the record is for this tree and its tarball
+#    SHA-256 equals the one just packed
 
 # 4. Verify what went live against the pre-release inspection
 node scripts/verify-published.js X.Y.Z --engine A.B.C --pre /tmp/inspect-X.Y.Z/inspection.json
@@ -189,22 +191,21 @@ git push origin v$NEW_VERSION
   never install it globally; a global vsce is a different version from the one
   CI and the audit use.
 
+Never package or publish from the working tree: it lives in iCloud, which leaves
+conflict copies in build output (#67). A manual publish ships the VSIX that
+`inspect-artefacts` built from a clean export of the tagged commit — nothing else.
+
 **Commands:**
 ```bash
-# 1. Clean install, test, build, package with the pinned local vsce
-npm ci
-npm test
-rm -f build/*.vsix && npm run package          # node_modules/.bin/vsce package --out build/
+# 1. Build and inspect every artefact from a clean git-archive export of the tag
+node scripts/inspect-artefacts.js --ref vX.Y.Z --out-dir /tmp/inspect-X.Y.Z
+#    Must PASS; the inspected VSIX is copied to /tmp/inspect-X.Y.Z/
 
-# 2. Verify the exact VSIX you will publish: expected contents only, engine ships
-#    once, and the packaged activate() runs
-node scripts/verify-vsix.js build/pinescript-v6-extension-X.Y.Z.vsix
+# 2. Publish THAT file, and only that file (token from VSCE_PAT)
+npx --no-install vsce publish --packagePath /tmp/inspect-X.Y.Z/pinescript-v6-extension-X.Y.Z.vsix
 
-# 3. Publish THAT file, and only that file (token from VSCE_PAT)
-npx --no-install vsce publish --packagePath build/pinescript-v6-extension-X.Y.Z.vsix
-
-# 4. Verify on marketplace (within 5-10 minutes)
-# https://marketplace.visualstudio.com/items?itemName=jpantsjoha.pinescript-v6-extension
+# 3. Verify what went live against the inspection
+node scripts/verify-published.js X.Y.Z --pre /tmp/inspect-X.Y.Z/inspection.json
 ```
 
 ---
@@ -608,7 +609,7 @@ Copy this for each release:
 ## Post-Publish Verification
 
 - [ ] `node scripts/verify-published.js X.Y.Z --engine A.B.C --pre inspection.json` PASS
-- [ ] Engine (if bumped) published with `scripts/publish-engine.sh --publish`, never from the working tree
+- [ ] Engine (if bumped) published with `scripts/publish-engine.sh --publish --pre inspection.json`, never from the working tree
 - [ ] Marketplace shows new version: vX.Y.Z
 - [ ] Download/Install works from marketplace
 - [ ] Extension activates correctly

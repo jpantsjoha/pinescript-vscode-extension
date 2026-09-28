@@ -4,6 +4,9 @@
  * (after). One inspection, two moments, so the two records are comparable.
  *
  * An inspection of one artefact answers:
+ *   - is the archive safe to open: its listing is checked BEFORE extraction —
+ *     absolute, `..`, backslash paths, symlinks and special types, duplicate names,
+ *     npm entries outside `package/` — and a refused archive is never unpacked or run;
  *   - what is in it: every file with its size and SHA-256, the archive's SHA-256;
  *   - is that exactly what should be in it: the expected set is derived from the
  *     source tree the artefact was built from (verify-vsix's allowlist for the VSIX,
@@ -24,14 +27,34 @@ const path = require('path');
 
 const REPO = path.join(__dirname, '..', '..');
 const { expectedFiles, compare: compareEngine } = require('../../packages/validator/scripts/check-pack.js');
-const { checkListing } = require('../verify-vsix.js');
+const { checkListing, unsafeEntries, zipListing } = require('../verify-vsix.js');
 
 const ICLOUD = 'Mobile Documents';
 const SIZE_FLAG = 0.10;
 
+/**
+ * The canonical form of `p`: realpath of the longest existing prefix plus the rest,
+ * so a symlink alias cannot hide an iCloud location from the check below.
+ */
+function canonical(p) {
+  let head = path.resolve(p);
+  const rest = [];
+  while (!fs.existsSync(head)) {
+    const parent = path.dirname(head);
+    if (parent === head) break;
+    rest.unshift(path.basename(head));
+    head = parent;
+  }
+  return path.join(fs.realpathSync(head), ...rest);
+}
+
+/** Refuse any path whose canonical form is inside iCloud. Returns the canonical path. */
 function refuseICloud(p) {
-  if (p.includes(ICLOUD)) throw new Error(`refusing a path inside iCloud ("${ICLOUD}"): ${p}`);
-  return p;
+  const real = canonical(p);
+  for (const candidate of [path.resolve(p), real]) {
+    if (candidate.includes(ICLOUD)) throw new Error(`refusing a path inside iCloud ("${ICLOUD}"): ${p}${real !== p ? ` (${real})` : ''}`);
+  }
+  return real;
 }
 
 /** A fresh directory under the real temp dir, never inside iCloud. */
@@ -47,35 +70,61 @@ function sh(cmd, args, opts = {}) {
 /** `git archive <ref>` of this repository into a fresh directory. */
 function exportRef(ref, into) {
   const sha = sh('git', ['rev-parse', `${ref}^{commit}`], { cwd: REPO }).trim();
+  // The tree binds a record to its content: a squash merge changes the commit, not the tree.
+  const tree = sh('git', ['rev-parse', `${sha}^{tree}`], { cwd: REPO }).trim();
   const dir = refuseICloud(into || tempDir('artefact-export-'));
   fs.mkdirSync(dir, { recursive: true });
   execFileSync('/bin/sh', ['-c', 'git archive --format=tar "$1" | tar -x -C "$2"', 'sh', sha, dir], { cwd: REPO });
-  return { sha, dir };
+  return { sha, tree, dir };
 }
 
 function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
-/** Every regular file in the archive -> { size, sha256 }. VSIX is zip; engine is .tgz. */
+/**
+ * The archive's listing, validated BEFORE anything is extracted: absolute, `..`,
+ * backslash and drive-letter paths, symlinks and other special types, duplicate
+ * names, and (npm) any entry outside `package/`. Shares verify-vsix's rules.
+ * Returns { entries, failures }.
+ */
+function listArchive(kind, file) {
+  let entries;
+  let modes;
+  if (kind === 'vsix') {
+    ({ entries, modes } = zipListing(file));
+  } else {
+    entries = sh('tar', ['-tzf', file]).split('\n').filter(Boolean);
+    // `tar -tv` prints the mode first, one line per entry, in the same order.
+    modes = sh('tar', ['-tvzf', file]).split('\n').filter(Boolean).map(l => l[0]);
+  }
+  const failures = unsafeEntries(entries, modes);
+  if (kind === 'npm') {
+    for (const e of entries) if (!e.startsWith('package/')) failures.push(`entry outside package/: ${JSON.stringify(e)}`);
+  }
+  return { entries, failures };
+}
+
+/**
+ * Every regular file in the archive -> { size, sha256 }, extracted only after its
+ * listing passes listArchive(). Returns { files, failures }; `files` is null when the
+ * listing was refused (nothing was extracted). VSIX is zip; engine is .tgz.
+ */
 function contents(kind, file) {
+  const listing = listArchive(kind, file);
+  if (listing.failures.length) return { files: null, failures: listing.failures };
   const dir = tempDir('artefact-unpack-');
   try {
-    let names;
-    if (kind === 'vsix') {
-      names = sh('unzip', ['-Z1', file]).split('\n').filter(n => n && !n.endsWith('/'));
-      sh('unzip', ['-q', '-o', file, '-d', dir]);
-    } else {
-      names = sh('tar', ['-tzf', file]).split('\n').filter(n => n && !n.endsWith('/'));
-      sh('tar', ['-xzf', file, '-C', dir]);
-    }
+    const names = listing.entries.filter(n => !n.endsWith('/'));
+    if (kind === 'vsix') sh('unzip', ['-q', '-o', file, '-d', dir]);
+    else sh('tar', ['-xzf', file, '-C', dir]);
     const files = {};
     for (const name of names.sort()) {
       const abs = path.join(dir, name);
       const key = kind === 'vsix' ? name : name.replace(/^package\//, '');
       files[key] = { size: fs.statSync(abs).size, sha256: sha256(abs) };
     }
-    return files;
+    return { files, failures: [] };
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -110,7 +159,6 @@ function expectedSetFailures(kind, file, root, names) {
     ...r.extra.map(f => `not in the expected set: ${f}`),
     ...r.missing.map(f => `missing from the package: ${f}`),
     ...r.problems,
-    ...(r.extra.length || r.missing.length ? [`packed ${names.length} files, expected ${expected.length}`] : []),
   ];
 }
 
@@ -154,13 +202,19 @@ function comparePrevious(cur, prev) {
  * Returns a record; `failures` non-empty means it must not ship (or did not ship right).
  */
 function inspect({ kind, file, root, label, run = true }) {
-  const files = contents(kind, file);
+  const unpacked = contents(kind, file);
+  const files = unpacked.files || {};
   const names = Object.keys(files);
   const record = {
     kind, label: label || kind, name: path.basename(file), file,
     size: fs.statSync(file).size, sha256: sha256(file), count: names.length, files,
     failures: [], flags: [], run: null, previous: null,
   };
+  if (unpacked.failures.length) {
+    // Refused before extraction: nothing was unpacked, nothing is run.
+    record.failures.push(...unpacked.failures, 'archive refused before extraction; not unpacked, not run');
+    return record;
+  }
   const dirty = hygiene(names);
   // One line per offending file: a file already named by the hygiene check is not
   // repeated as "not in the expected set".
@@ -177,7 +231,9 @@ function inspect({ kind, file, root, label, run = true }) {
 
 /** Load a previous artefact's listing (no run, no expected-set check: it is history). */
 function describe(kind, file) {
-  return { kind, name: path.basename(file), size: fs.statSync(file).size, sha256: sha256(file), files: contents(kind, file) };
+  const unpacked = contents(kind, file);
+  if (unpacked.failures.length) throw new Error(`${path.basename(file)} refused before extraction: ${unpacked.failures.join('; ')}`);
+  return { kind, name: path.basename(file), size: fs.statSync(file).size, sha256: sha256(file), files: unpacked.files };
 }
 
 const fmtBytes = n => (n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(2)} MB` : `${(n / 1024).toFixed(1)} KB`);
@@ -226,6 +282,6 @@ function toJson(records, meta) {
 }
 
 module.exports = {
-  REPO, refuseICloud, tempDir, sh, exportRef, sha256, contents, hygiene,
+  REPO, canonical, refuseICloud, tempDir, sh, exportRef, sha256, listArchive, contents, hygiene,
   inspect, describe, comparePrevious, markdown, toJson, fmtBytes,
 };

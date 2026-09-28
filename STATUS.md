@@ -74,7 +74,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 | # | Group | Decision | Unblocks | Recommendation | Right | Wrong | Reversibility |
 |---|---|---|---|---|---|---|---|
-| 1 | DO NOW | After the #67 PR merges: `scripts/publish-engine.sh --publish` (npm 2FA), then `node scripts/verify-published.js --engine 0.4.3`, then `npm deprecate pinescript-v6-validator@0.4.2` | A clean engine on npm; pinescript-plugin can move off 0.4.2 | Publish 0.4.3 from the clean path | npm ships exactly 25 files | Consumers keep a package with 22 stray files, one a stale validator | cheap |
+| 1 | DO NOW | After the #67 PR merges: `node scripts/inspect-artefacts.js --out-dir /tmp/inspect-0.4.3` on main, `scripts/publish-engine.sh --publish --pre /tmp/inspect-0.4.3/inspection.json` (npm 2FA), then `node scripts/verify-published.js --engine 0.4.3 --pre /tmp/inspect-0.4.3/inspection.json`, then `npm deprecate pinescript-v6-validator@0.4.2` | A clean engine on npm; pinescript-plugin can move off 0.4.2 | Publish 0.4.3 from the clean path | npm ships exactly 25 files | Consumers keep a package with 22 stray files, one a stale validator | cheap |
 | 1b | DO NOW | Then bump pinescript-plugin to `pinescript-v6-validator@^0.4.3` (separate repo) | Agent users get the 0.7.0 engine | Bump and release the plugin | Agent and editor agree on every file | Agent users keep 27 fixed false positives | cheap |
 | 2 | SCHEDULE | Re-authenticate Codex (`codex login`) | Non-Claude review lane back first in line | 2 minutes | Reviewer from a different model family | Reviews stay Claude-on-Claude | cheap |
 | 3 | SCHEDULE | Confirm the six inferred fields in the operating profile | Profile moves from `seed` to `active` | 10 minutes | Gates bind to confirmed facts | Gates keep citing inferences | cheap |
@@ -88,7 +88,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 ## What waits on whom
 
-- **JP**: review and merge the #67 PR (fixes #64 too); then decision board row 1 (publish 0.4.3 with `scripts/publish-engine.sh --publish`), row 1b (pinescript-plugin to `^0.4.3`, separate repo), rows 2–4.
+- **JP**: review and merge the #67 PR (fixes #64 too); then decision board row 1 (inspect, then publish 0.4.3 with `scripts/publish-engine.sh --publish --pre …`, then `verify-published`), row 1b (pinescript-plugin to `^0.4.3`, separate repo), rows 2–4.
 - **Next session**: #61, #60, #62.
 
 ## Repository hygiene

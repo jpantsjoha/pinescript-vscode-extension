@@ -5,8 +5,8 @@
  *   node scripts/verify-vsix.js <file.vsix> [--root <source-tree>]
  *
  * 1. Reads the archive listing BEFORE extracting: rejects absolute, `..`, backslash,
- *    and any entry that is not a regular file or directory (symlink, device, FIFO,
- *    socket, unknown); asserts the one engine ships (dist/engine/index.js, every
+ *    duplicate names, and any entry that is not a regular file or directory (symlink,
+ *    device, FIFO, socket, unknown); asserts the one engine ships (dist/engine/index.js, every
  *    packages/validator/src module as dist/engine/src/*.js, every data file as
  *    dist/engine/data/*.js); rejects a second engine in any layout
  *    (extension/packages/**, node_modules/pinescript-v6-validator, or any file named
@@ -30,6 +30,43 @@ const path = require('path');
 const Module = require('module');
 
 /**
+ * Pre-extraction safety of an archive listing: `entries` (names) and `modes` (the
+ * first character of each entry's Unix mode, same order). Rejects absolute,
+ * drive-letter, backslash and `..` paths, any type other than a regular file or
+ * directory (symlink, block, char, FIFO, socket, unknown), duplicate names, and a
+ * listing whose names and modes disagree. Returns failure messages. Shared with
+ * scripts/lib/artefacts.js, which applies it to every archive before extracting it.
+ */
+function unsafeEntries(entries, modes) {
+  const out = [];
+  if (modes.length !== entries.length) {
+    out.push(`archive listing is inconsistent (${entries.length} names, ${modes.length} modes) — refusing to extract`);
+  }
+  entries.forEach((e, i) => {
+    if (e.startsWith('/') || /^[A-Za-z]:/.test(e) || e.includes('\\') ||
+        e.split('/').some(seg => seg === '..') || !['-', 'd'].includes(modes[i])) {
+      out.push(`unsafe archive entry (absolute, traversal, backslash, or not a regular file/directory): ${JSON.stringify(e)}`);
+    }
+  });
+  const seen = new Set();
+  for (const e of entries) {
+    const key = e.replace(/\/+$/, '');
+    if (seen.has(key)) out.push(`duplicate archive entry: ${JSON.stringify(e)}`);
+    seen.add(key);
+  }
+  return out;
+}
+
+/** Names and mode characters of a zip, from `unzip -Z1` / `unzip -Z` (no extraction). */
+function zipListing(file) {
+  const entries = execFileSync('unzip', ['-Z1', file], { encoding: 'utf8' })
+    .split('\n').filter(line => line.length);
+  const modes = execFileSync('unzip', ['-Z', file], { encoding: 'utf8' })
+    .split('\n').filter(line => /^[-dlbcps?][-rwxsStT?]{9}\s/.test(line)).map(line => line[0]);
+  return { entries, modes };
+}
+
+/**
  * The listing checks (step 1), reusable by scripts/inspect-artefacts.js. `ROOT` is
  * the source tree the VSIX was built from; the expected set is derived from it.
  * Returns { failures, entries, required, main }.
@@ -39,21 +76,10 @@ function checkListing(vsix, ROOT) {
   const fail = msg => failures.push(msg);
 
   // ── 1. Entries (read from the archive listing, BEFORE anything is extracted) ──
-  const entries = execFileSync('unzip', ['-Z1', vsix], { encoding: 'utf8' })
-    .split('\n').filter(line => line.length);
   // The long listing carries each entry's Unix mode; same order as -Z1.
-  const modes = execFileSync('unzip', ['-Z', vsix], { encoding: 'utf8' })
-    .split('\n').filter(line => /^[-dlbcps?][-rwxsStT?]{9}\s/.test(line)).map(line => line[0]);
-  if (modes.length !== entries.length) {
-    fail(`archive listing is inconsistent (${entries.length} names, ${modes.length} modes) — refusing to extract`);
-  }
-
-  // Unsafe entries: absolute, drive-letter, backslash, `..` segments, and any type other
-  // than a regular file or directory (symlink, block, char, FIFO, socket, unknown) — fail closed.
-  const unsafe = entries.filter((e, i) =>
-    e.startsWith('/') || /^[A-Za-z]:/.test(e) || e.includes('\\') ||
-    e.split('/').some(seg => seg === '..') || !['-', 'd'].includes(modes[i]));
-  for (const e of unsafe) fail(`unsafe archive entry (absolute, traversal, backslash, or not a regular file/directory): ${JSON.stringify(e)}`);
+  const { entries, modes } = zipListing(vsix);
+  // Unsafe or duplicate entries — fail closed.
+  for (const msg of unsafeEntries(entries, modes)) fail(msg);
 
   const has = p => entries.includes(`extension/${p}`);
   const modules = dir => fs.readdirSync(path.join(ROOT, dir)).filter(f => f.endsWith('.ts')).map(f => f.replace(/\.ts$/, '.js'));
@@ -110,7 +136,7 @@ function checkListing(vsix, ROOT) {
   return { failures, entries, required, main };
 }
 
-module.exports = { checkListing };
+module.exports = { checkListing, unsafeEntries, zipListing };
 
 if (require.main === module) {
   // --root <dir>: the source tree the VSIX was built from (default: this repo), so a

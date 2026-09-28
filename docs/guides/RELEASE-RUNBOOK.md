@@ -90,7 +90,9 @@ for each one:
   TypeScript sources, source maps, tests and fixtures;
 - prints file count, size and SHA-256;
 - compares it with the previous release's **published** artefact (the GitHub release
-  VSIX, npm's tarball) and FLAGs a size change over 10% or any file added or removed;
+  VSIX, npm's tarball) and FLAGs a size change over 10% or any file added or removed.
+  A previous artefact that cannot be downloaded is a FAIL; only `--first-release`
+  (printed in the report) waives the comparison;
 - runs it: the VSIX's packaged `activate()` (`verify-vsix`), the engine tarball
   installed by name against the regression corpus.
 
@@ -136,15 +138,20 @@ git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z
 working tree — 0.4.2 shipped 22 iCloud conflict copies that way (#67).
 
 ```bash
-scripts/publish-engine.sh             # dry run: clean export, build, check-pack, file list, corpus
-scripts/publish-engine.sh --publish   # the same, then npm publish of THAT tarball (npm 2FA prompt)
+scripts/publish-engine.sh                                             # dry run
+scripts/publish-engine.sh --publish --pre /tmp/inspect-X.Y.Z/inspection.json   # npm 2FA prompt
 ```
 
-The script refuses a dirty tree or a HEAD not on `origin/main`, packs from a
-`git archive` export under `$TMPDIR`, prints every file, the count (25 for 0.4.3) and
-the SHA-256, and runs the regression corpus against the tarball installed by name.
-`packages/validator`'s `prepack` runs `scripts/check-pack.js`, so even a manual
-`npm pack` or `npm publish` refuses a dist with anything beyond the expected files.
+The script refuses a dirty tree, a HEAD not on `origin/main`, and any project-level
+`.npmrc` (in the checkout or the commit). It packs from a `git archive` export under
+`$TMPDIR`, runs every npm command with the user's `~/.npmrc` as the only config file
+and the public registry pinned, prints every file, the count (25 for 0.4.3) and the
+SHA-256, and runs the regression corpus against the tarball installed by name.
+`--publish` requires `--pre`: the record must be for this tree (a squash merge keeps
+the tree) and its engine tarball SHA-256 must equal the one just packed; the tarball is
+re-hashed immediately before `npm publish <that tarball>`. `packages/validator`'s
+`prepack` runs `scripts/check-pack.js`, so even a manual `npm pack` or `npm publish`
+refuses a dist with anything beyond the expected files, or any file twice.
 
 ### 8. Confirm it actually landed — and that it is what was inspected
 
@@ -152,14 +159,17 @@ the SHA-256, and runs the regression corpus against the tarball installed by nam
 node scripts/verify-published.js X.Y.Z --engine A.B.C --pre /tmp/inspect-X.Y.Z/inspection.json
 ```
 
-`verify-published` downloads what went live — the GitHub release VSIX, the Open VSX
-file, the Marketplace VSIX (optional; the version is confirmed through the
-extensionquery API either way) and npm's tarball — re-runs the same inspection
-against an export of the tag, and compares file lists and per-file SHA-256 across
-channels and with the pre-release inspection (the engine tarball's archive SHA-256
-too: `publish-engine.sh` uploads the very tarball it inspected). Any mismatch exits
-non-zero. Record the result in the release PR and STATUS; any incident gets an issue
-and a guard before the next release.
+`--pre` is required, and refused unless its versions are the ones being verified and
+its tree is the tree of the tag. `verify-published` downloads what went live — the
+GitHub release VSIX, the Open VSX file, the Marketplace VSIX (after confirming the
+version through extensionquery) and npm's tarball — validates each listing before
+extracting it, re-runs the same inspection against an export of the tag, and compares
+file lists and per-file SHA-256 across channels and with the pre-release record (the
+engine tarball's archive SHA-256 too). A channel that cannot be downloaded is a FAIL;
+`--skip-channel <github|openvsx|marketplace|npm>` waives one explicitly and the waiver is
+printed in the result, where the reviewer sees it. Any mismatch exits non-zero. Record
+the result in the release PR and STATUS; any incident gets an issue and a guard before
+the next release.
 
 A green workflow is not proof. An uploaded version sits in **validation** before it
 goes public — `vsce publish` will say "already exists" while the gallery still

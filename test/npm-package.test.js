@@ -43,8 +43,9 @@ const { CASES, SUPPRESSION_CASES } = require('./regression-corpus.js');
 const PACKAGE_DIR = path.join(__dirname, '..', 'packages', 'validator');
 const PACKAGE_NAME = 'pinescript-v6-validator';
 const SKIP = process.env.SKIP_PACKAGE_TEST === '1';
-// The repo's own compiler, so the copy builds exactly as `npm run build` does.
-const TSC = require.resolve('typescript/bin/tsc');
+// The repo's own compiler: its bin directory goes on PATH so the copy's own `npm run build` resolves `tsc`
+// to the repo's typescript without installing anything.
+const REPO_BIN = path.join(path.dirname(require.resolve('typescript/package.json')), '..', '.bin');
 const { expectedFiles, tarballFiles, compare } = require('../packages/validator/scripts/check-pack.js');
 
 let workspace = null;
@@ -84,7 +85,14 @@ describe('Published npm package', { skip: SKIP && 'SKIP_PACKAGE_TEST=1' }, () =>
         return rel !== 'dist' && rel !== 'node_modules';
       },
     });
-    run(process.execPath, [TSC, '-p', copy], workspace);
+    // The package's declared build, run inside the copy: whatever `npm run build`
+    // does (compile, generate, copy), the tarball below reflects it.
+    execFileSync('npm', ['run', 'build'], {
+      cwd: copy,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, PATH: `${REPO_BIN}${path.delimiter}${process.env.PATH}` },
+    });
     packageCopy = copy;
 
     // `npm pack` runs the package's prepack guard (scripts/check-pack.js), so a dist

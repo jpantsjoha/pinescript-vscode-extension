@@ -1,58 +1,50 @@
 #!/usr/bin/env node
 /**
- * Post-release verification: inspect what ACTUALLY went live.
+ * Post-release verification: inspect what ACTUALLY went live, against the record of
+ * what was inspected before go-live.
  *
  *   node scripts/verify-published.js <ext-version> [--engine <engine-version>]
- *        [--pre <inspection.json>] [--ref <git-ref>] [--out-dir <dir>]
- *   node scripts/verify-published.js --engine <engine-version>     # engine only
+ *        --pre <inspection.json> [--ref <git-ref>] [--skip-channel <name>]... [--out-dir <dir>]
+ *   node scripts/verify-published.js --engine <engine-version> --pre <inspection.json>
  *
- * Downloads every published copy:
- *   - the GitHub release VSIX of v<ext-version>;
- *   - the Open VSX file (files.download of open-vsx.org/api/jpantsjoha/pinescript-v6-extension/<v>);
- *   - the Marketplace VSIX from the public gallery endpoint, when it serves one without
- *     auth (optional), after confirming the version through the extensionquery API;
- *   - npm's tarball of pinescript-v6-validator@<engine-version> (`npm pack`).
- * Each copy gets the same inspection as scripts/inspect-artefacts.js, against a clean
- * export of --ref (default: tag v<ext-version>, or HEAD for engine-only): exact
- * expected set, no sync-conflict copies / dotfiles / sources / tests, SHA-256, and a
- * run (packaged activate(); regression corpus from the installed tarball).
+ * `--pre` is required: the inspection.json written by scripts/inspect-artefacts.js.
+ * It is refused unless its versions equal the ones being verified and its tree SHA
+ * equals the tree of --ref (default: tag v<ext-version>, or the record's own commit
+ * for engine-only). The tree, not the commit, binds it: a squash merge changes the
+ * commit and keeps the tree.
  *
- * Then it compares: every VSIX channel must carry the same file list with the same
- * per-file SHA-256 (archive bytes may differ; zip timestamps are not content), and
- * with --pre, every published artefact must match the pre-release inspection's file
- * list and per-file hashes (and, for the engine tarball, its archive SHA-256 — the
- * publish script uploads the very tarball it inspected). Exit 1 on any mismatch.
+ * Downloads every published copy — the GitHub release VSIX, the Open VSX file
+ * (files.download of open-vsx.org/api/jpantsjoha/pinescript-v6-extension/<v>), the
+ * Marketplace VSIX from the public gallery endpoint (after confirming the version
+ * through extensionquery), npm's tarball of pinescript-v6-validator@<engine-version>.
+ * A channel that cannot be downloaded is a FAIL. `--skip-channel github|openvsx|
+ * marketplace|npm` waives one explicitly, and the waiver is printed in the result.
+ *
+ * Each copy gets the inspection of scripts/inspect-artefacts.js against a clean
+ * export of --ref: listing validated before extraction, exact expected set, no
+ * sync-conflict copies / dotfiles / sources / tests, SHA-256, and a run. Then every
+ * VSIX channel must carry the same file list and per-file SHA-256 as the others and
+ * as the pre-release record (archive bytes may differ; zip timestamps are not
+ * content), and the npm tarball must also match the record's archive SHA-256
+ * (scripts/publish-engine.sh publishes the very tarball it inspected). Exit 1 on any
+ * mismatch or failure; exit 2 on a refused or missing --pre.
  */
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const A = require('./lib/artefacts');
 
 const EXT = { publisher: 'jpantsjoha', name: 'pinescript-v6-extension' };
+const CHANNELS = ['github', 'openvsx', 'marketplace', 'npm'];
 
-function arg(name) {
-  const i = process.argv.indexOf(name);
-  return i !== -1 ? process.argv[i + 1] : undefined;
+function arg(argv, name) {
+  const i = argv.indexOf(name);
+  return i !== -1 ? argv[i + 1] : undefined;
 }
-
-async function download(url, file) {
-  const res = await fetch(url, { redirect: 'follow' });
-  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-  fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
-  return file;
-}
-
-async function marketplaceVersion(version) {
-  const res = await fetch('https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery', {
-    method: 'POST',
-    headers: { Accept: 'application/json;api-version=7.2-preview.1', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filters: [{ criteria: [{ filterType: 7, value: `${EXT.publisher}.${EXT.name}` }] }], flags: 0x1 | 0x2 | 0x10 | 0x80 | 0x100 }),
-  });
-  if (!res.ok) throw new Error(`extensionquery: HTTP ${res.status}`);
-  const ext = (await res.json()).results[0].extensions[0];
-  const versions = ext.versions.map(v => v.version);
-  return { listed: versions.includes(version), latest: versions[0] };
+function args(argv, name) {
+  return argv.flatMap((a, i) => (a === name ? [argv[i + 1]] : []));
 }
 
 /** Same file list and per-file hashes? Returns the differences as strings. */
@@ -68,63 +60,142 @@ function diffContents(a, b, label) {
   return out;
 }
 
-async function main() {
-  const extVersion = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : null;
-  const engineVersion = arg('--engine');
+/**
+ * Load and bind the pre-release record. Returns { pre } or { refused: reason }.
+ * `treeOf(ref)` resolves a ref to its tree SHA.
+ */
+function bindPre(prePath, { extVersion, engineVersion, ref }, treeOf) {
+  if (!prePath) return { refused: '--pre <inspection.json> is required (written by scripts/inspect-artefacts.js)' };
+  let pre;
+  try {
+    pre = JSON.parse(fs.readFileSync(prePath, 'utf8'));
+  } catch (e) {
+    return { refused: `cannot read the pre-release record ${prePath}: ${e.message}` };
+  }
+  const rec = pre.record || {};
+  if (!rec.sha || !rec.tree || !rec.extensionVersion || !rec.engineVersion) {
+    return { refused: `${prePath} carries no candidate record (sha, tree, versions); re-run scripts/inspect-artefacts.js` };
+  }
+  if (extVersion && rec.extensionVersion !== extVersion) {
+    return { refused: `the record inspected extension ${rec.extensionVersion}, not ${extVersion}` };
+  }
+  if (engineVersion && rec.engineVersion !== engineVersion) {
+    return { refused: `the record inspected engine ${rec.engineVersion}, not ${engineVersion}` };
+  }
+  const bindRef = ref || (extVersion ? `v${extVersion}` : rec.sha);
+  let tree;
+  try {
+    tree = treeOf(bindRef);
+  } catch (e) {
+    return { refused: `cannot resolve ${bindRef}: ${String(e.stderr || e.message).trim().split('\n')[0]}` };
+  }
+  if (tree !== rec.tree) {
+    return { refused: `the record's tree ${rec.tree} (commit ${rec.sha}) is not the tree of ${bindRef} (${tree})` };
+  }
+  return { pre, ref: bindRef };
+}
+
+const realDeps = () => ({
+  fetch: globalThis.fetch,
+  sh: A.sh,
+  exportRef: A.exportRef,
+  inspect: A.inspect,
+  treeOf: ref => A.sh('git', ['rev-parse', `${ref}^{tree}`], { cwd: A.REPO }).trim(),
+  log: s => console.log(s),
+  err: s => console.error(s),
+});
+
+async function download(fetchFn, url, file) {
+  const res = await fetchFn(url, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+  let buf = Buffer.from(await res.arrayBuffer());
+  // The gallery may serve the package gzip-wrapped; unwrap to the zip.
+  if (buf[0] === 0x1f && buf[1] === 0x8b) buf = zlib.gunzipSync(buf);
+  fs.writeFileSync(file, buf);
+  return file;
+}
+
+async function run(argv = process.argv.slice(2), deps = realDeps()) {
+  const extVersion = argv[0] && !argv[0].startsWith('--') ? argv[0] : null;
+  const engineVersion = arg(argv, '--engine');
+  const skip = args(argv, '--skip-channel');
   if (!extVersion && !engineVersion) {
-    console.error('usage: verify-published.js <ext-version> [--engine <v>] [--pre <inspection.json>] [--ref <ref>]');
+    deps.err('usage: verify-published.js <ext-version> [--engine <v>] --pre <inspection.json> [--ref <ref>] [--skip-channel <name>]');
     return 2;
   }
+  const badSkip = skip.filter(c => !CHANNELS.includes(c));
+  if (badSkip.length) {
+    deps.err(`verify-published: unknown --skip-channel ${badSkip.join(', ')} (one of ${CHANNELS.join(', ')})`);
+    return 2;
+  }
+  const bound = bindPre(arg(argv, '--pre'), { extVersion, engineVersion, ref: arg(argv, '--ref') }, deps.treeOf);
+  if (bound.refused) {
+    deps.err(`verify-published: REFUSED — ${bound.refused}`);
+    return 2;
+  }
+  const { pre, ref } = bound;
+
   const work = A.tempDir('verify-published-');
-  const ref = arg('--ref') || (extVersion ? `v${extVersion}` : 'HEAD');
-  const { sha, dir: root } = A.exportRef(ref, path.join(work, 'export'));
-  // The export needs its own build only for verify-vsix's allowlist inputs (sources),
-  // which are read from the tree; nothing is compiled.
+  const { sha, dir: root } = deps.exportRef(ref, path.join(work, 'export'));
   const records = [];
   const notes = [];
   const mismatches = [];
+  const skipped = (channel, what) => {
+    if (!skip.includes(channel)) return false;
+    notes.push(`**SKIPPED by --skip-channel ${channel}**: ${what} was not downloaded, inspected or compared`);
+    return true;
+  };
 
   if (extVersion) {
     const channels = [];
-    try {
-      const d = path.join(work, 'github');
-      fs.mkdirSync(d);
-      A.sh('gh', ['release', 'download', `v${extVersion}`, '-p', '*.vsix', '-D', d], { cwd: A.REPO });
-      channels.push({ label: `GitHub release v${extVersion}`, file: path.join(d, fs.readdirSync(d).find(f => f.endsWith('.vsix'))) });
-    } catch (e) {
-      mismatches.push(`GitHub release v${extVersion}: no VSIX downloaded (${String(e.stderr || e.message).split('\n')[0]})`);
-    }
-    try {
-      const meta = await (await fetch(`https://open-vsx.org/api/${EXT.publisher}/${EXT.name}/${extVersion}`)).json();
-      if (!meta.files || !meta.files.download) throw new Error(meta.error || 'no files.download');
-      const d = path.join(work, 'openvsx');
-      fs.mkdirSync(d);
-      channels.push({ label: `Open VSX ${extVersion}`, file: await download(meta.files.download, path.join(d, `${EXT.name}-${extVersion}.vsix`)) });
-    } catch (e) {
-      mismatches.push(`Open VSX ${extVersion}: ${e.message}`);
-    }
-    try {
-      const mp = await marketplaceVersion(extVersion);
-      if (!mp.listed) mismatches.push(`Marketplace: ${extVersion} is not listed (latest ${mp.latest})`);
-      else notes.push(`Marketplace lists ${extVersion} (latest ${mp.latest})`);
+    if (!skipped('github', `GitHub release v${extVersion}`)) {
       try {
+        const d = path.join(work, 'github');
+        fs.mkdirSync(d);
+        deps.sh('gh', ['release', 'download', `v${extVersion}`, '-p', '*.vsix', '-D', d], { cwd: A.REPO });
+        const f = fs.readdirSync(d).find(n => n.endsWith('.vsix'));
+        if (!f) throw new Error('no .vsix asset');
+        channels.push({ label: `GitHub release v${extVersion}`, file: path.join(d, f) });
+      } catch (e) {
+        mismatches.push(`GitHub release v${extVersion}: no VSIX downloaded (${String(e.stderr || e.message).trim().split('\n')[0]})`);
+      }
+    }
+    if (!skipped('openvsx', `Open VSX ${extVersion}`)) {
+      try {
+        const res = await deps.fetch(`https://open-vsx.org/api/${EXT.publisher}/${EXT.name}/${extVersion}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const meta = await res.json();
+        if (!meta.files || !meta.files.download) throw new Error(meta.error || 'no files.download');
+        const d = path.join(work, 'openvsx');
+        fs.mkdirSync(d);
+        channels.push({ label: `Open VSX ${extVersion}`, file: await download(deps.fetch, meta.files.download, path.join(d, `${EXT.name}-${extVersion}.vsix`)) });
+      } catch (e) {
+        mismatches.push(`Open VSX ${extVersion}: no VSIX downloaded (${e.message})`);
+      }
+    }
+    if (!skipped('marketplace', `Marketplace ${extVersion}`)) {
+      try {
+        const res = await deps.fetch('https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery', {
+          method: 'POST',
+          headers: { Accept: 'application/json;api-version=7.2-preview.1', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filters: [{ criteria: [{ filterType: 7, value: `${EXT.publisher}.${EXT.name}` }] }], flags: 0x1 | 0x2 | 0x10 | 0x80 | 0x100 }),
+        });
+        if (!res.ok) throw new Error(`extensionquery: HTTP ${res.status}`);
+        const ext = (await res.json()).results[0].extensions[0];
+        const versions = ext.versions.map(v => v.version);
+        if (!versions.includes(extVersion)) throw new Error(`${extVersion} is not listed (latest ${versions[0]})`);
+        notes.push(`Marketplace lists ${extVersion} (latest ${versions[0]})`);
         const d = path.join(work, 'marketplace');
         fs.mkdirSync(d);
         const url = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${EXT.publisher}/vsextensions/${EXT.name}/${extVersion}/vspackage`;
-        const file = await download(url, path.join(d, `${EXT.name}-${extVersion}.vsix`));
-        // The gallery may serve the package gzip-wrapped; unwrap to the zip.
-        const buf = fs.readFileSync(file);
-        if (buf[0] === 0x1f && buf[1] === 0x8b) fs.writeFileSync(file, require('zlib').gunzipSync(buf));
-        channels.push({ label: `Marketplace ${extVersion}`, file });
+        channels.push({ label: `Marketplace ${extVersion}`, file: await download(deps.fetch, url, path.join(d, `${EXT.name}-${extVersion}.vsix`)) });
       } catch (e) {
-        notes.push(`Marketplace VSIX not downloaded (optional): ${e.message}`);
+        mismatches.push(`Marketplace ${extVersion}: ${e.message}`);
       }
-    } catch (e) {
-      mismatches.push(`Marketplace: version query failed (${e.message})`);
     }
     for (const c of channels) {
-      console.error(`verify-published: inspecting ${c.label}…`);
-      records.push(A.inspect({ kind: 'vsix', file: c.file, root, label: c.label }));
+      deps.err(`verify-published: inspecting ${c.label}…`);
+      records.push(deps.inspect({ kind: 'vsix', file: c.file, root, label: c.label }));
     }
     const vsixRecords = records.filter(r => r.kind === 'vsix');
     for (const r of vsixRecords.slice(1)) {
@@ -133,37 +204,34 @@ async function main() {
     }
   }
 
-  if (engineVersion) {
+  if (engineVersion && !skipped('npm', `npm pinescript-v6-validator@${engineVersion}`)) {
     try {
       const d = path.join(work, 'npm');
       fs.mkdirSync(d);
-      const name = A.sh('npm', ['pack', `pinescript-v6-validator@${engineVersion}`, '--pack-destination', d], { cwd: d })
+      const name = deps.sh('npm', ['pack', `pinescript-v6-validator@${engineVersion}`, '--pack-destination', d], { cwd: d })
         .trim().split('\n').pop().trim();
-      console.error(`verify-published: inspecting npm pinescript-v6-validator@${engineVersion}…`);
-      records.push(A.inspect({ kind: 'npm', file: path.join(d, name), root, label: `npm pinescript-v6-validator@${engineVersion}` }));
+      deps.err(`verify-published: inspecting npm pinescript-v6-validator@${engineVersion}…`);
+      records.push(deps.inspect({ kind: 'npm', file: path.join(d, name), root, label: `npm pinescript-v6-validator@${engineVersion}` }));
     } catch (e) {
-      mismatches.push(`npm pinescript-v6-validator@${engineVersion}: ${String(e.stderr || e.message).split('\n')[0]}`);
+      mismatches.push(`npm pinescript-v6-validator@${engineVersion}: ${String(e.stderr || e.message).trim().split('\n')[0]}`);
     }
   }
 
-  const prePath = arg('--pre');
-  if (prePath) {
-    const pre = JSON.parse(fs.readFileSync(prePath, 'utf8'));
-    for (const r of records) {
-      const p = pre.artefacts.find(a => a.kind === r.kind);
-      if (!p) { mismatches.push(`${r.label}: no ${r.kind} artefact in the pre-release inspection`); continue; }
-      mismatches.push(...diffContents(p, r, `${r.label} vs pre-release ${p.name}`));
-      if (r.kind === 'npm' && r.sha256 !== p.sha256) {
-        mismatches.push(`${r.label}: tarball SHA-256 ${r.sha256} differs from the inspected ${p.sha256}`);
-      }
+  for (const r of records) {
+    const p = pre.artefacts.find(a => a.kind === r.kind);
+    if (!p) { mismatches.push(`${r.label}: no ${r.kind} artefact in the pre-release inspection`); continue; }
+    mismatches.push(...diffContents(p, r, `${r.label} vs pre-release ${p.name}`));
+    if (r.kind === 'npm' && r.sha256 !== p.sha256) {
+      mismatches.push(`${r.label}: tarball SHA-256 ${r.sha256} differs from the inspected ${p.sha256}`);
     }
   }
 
   const meta = {
-    'verified against': `${sha} (\`${ref}\`)`,
+    'verified against': `${sha} (\`${ref}\`), tree ${pre.record.tree}`,
     'extension version': extVersion || '—',
     'engine version': engineVersion || '—',
-    'pre-release inspection': prePath ? path.basename(prePath) : 'not given (channels compared with each other only)',
+    'pre-release inspection': `${path.basename(arg(argv, '--pre'))} (commit ${pre.record.sha})`,
+    'skipped channels': skip.length ? `**${skip.join(', ')} (operator waiver)**` : 'none',
     date: new Date().toISOString().slice(0, 10),
   };
   let md = A.markdown('Published artefact verification', meta, records);
@@ -172,20 +240,23 @@ async function main() {
     ? `**Mismatches (${mismatches.length})**:\n` + mismatches.map(m => `- ${m}`).join('\n')
     : '**Mismatches**: none');
   const failed = mismatches.length || records.some(r => r.failures.length);
-  md += `\n\n**verify-published: ${failed ? 'FAIL' : 'PASS'}**`;
+  md += `\n\n**verify-published: ${failed ? 'FAIL' : 'PASS'}**${skip.length ? ` — channels skipped: ${skip.join(', ')}` : ''}`;
 
-  const outDir = A.refuseICloud(path.resolve(arg('--out-dir') || path.join(work, 'report')));
+  const outDir = A.refuseICloud(arg(argv, '--out-dir') || path.join(work, 'report'));
   fs.mkdirSync(outDir, { recursive: true });
+  A.refuseICloud(outDir);
   fs.writeFileSync(path.join(outDir, 'published.md'), md + '\n');
-  fs.writeFileSync(path.join(outDir, 'published.json'), JSON.stringify(A.toJson(records, { ...meta, sha, mismatches }), null, 2) + '\n');
-  console.log(md);
-  console.log(`\nverify-published: report in ${outDir}`);
+  fs.writeFileSync(path.join(outDir, 'published.json'), JSON.stringify(A.toJson(records, { ...meta, sha, mismatches, skipped: skip }), null, 2) + '\n');
+  deps.log(md);
+  deps.log(`\nverify-published: report in ${outDir}`);
   fs.rmSync(path.join(work, 'export'), { recursive: true, force: true });
   return failed ? 1 : 0;
 }
 
+module.exports = { run, bindPre, diffContents, CHANNELS };
+
 if (require.main === module) {
-  main().then(code => process.exit(code), e => {
+  run().then(code => process.exit(code), e => {
     console.error(`verify-published: FAIL — ${e.stack || e.message}`);
     process.exit(1);
   });
