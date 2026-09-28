@@ -103,7 +103,7 @@ inference. Git history keeps the old code.
 1. Merge `feat/67-ci-engine-publish`; add `NPM_TOKEN`; operator pushes `engine-v0.4.3`; verify the workflow (#67, #64).
 2. #62 — guard hardening.
 3. Release 0.7.1 when the unreleased fixes (#61, #60) are worth shipping.
-5. #5 — rename, the largest remaining editor feature.
+4. #5 — rename, the largest remaining editor feature.
 
 ## Related
 
