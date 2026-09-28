@@ -496,6 +496,17 @@ function auditCi() {
   }
 }
 
+function findPackageScriptPublishCallers(root, manifestPaths) {
+  const callers = [];
+  for (const manifestPath of manifestPaths) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, manifestPath), 'utf8'));
+    for (const [name, command] of Object.entries(manifest.scripts || {})) {
+      if (/\bnpm\s+publish\b/.test(command)) callers.push(`${manifestPath}#scripts.${name}`);
+    }
+  }
+  return callers;
+}
+
 //──────────────────────────────────────────────────────────
 // 7b. The npm engine may be published only by its tag workflow
 //──────────────────────────────────────────────────────────
@@ -566,9 +577,10 @@ function auditEnginePublish() {
       if (/\bnpm\s+publish\b/.test(read(relative))) publishCallers.push(relative);
     }
   }
-  for (const [name, command] of Object.entries(JSON.parse(read('packages/validator/package.json')).scripts || {})) {
-    if (/\bnpm\s+publish\b/.test(command)) publishCallers.push(`packages/validator/package.json#scripts.${name}`);
-  }
+  publishCallers.push(...findPackageScriptPublishCallers(ROOT, [
+    'package.json',
+    'packages/validator/package.json',
+  ]));
   if (publishCallers.length !== 1 || publishCallers[0] !== workflow) {
     fail('engine publish', `npm publish must appear only in ${workflow}; found: ${publishCallers.join(', ') || 'none'}`);
   } else {
@@ -639,35 +651,42 @@ function auditLockfile() {
 
 //──────────────────────────────────────────────────────────
 
-auditNpmScripts();
-auditClaudeHarness();
-auditTestGate();
-auditPackaging();
-auditVersionConsistency();
-auditDataCurrency();
-auditDiagnosticCoverage();
-auditEnginePortability();
-auditCi();
-auditEnginePublish();
-auditLockfile();
+function main() {
+  auditNpmScripts();
+  auditClaudeHarness();
+  auditTestGate();
+  auditPackaging();
+  auditVersionConsistency();
+  auditDataCurrency();
+  auditDiagnosticCoverage();
+  auditEnginePortability();
+  auditCi();
+  auditEnginePublish();
+  auditLockfile();
 
-const ICON = { PASS: '[32m PASS[0m', WARN: '[33m WARN[0m', FAIL: '[31m FAIL[0m' };
-const counts = { PASS: 0, WARN: 0, FAIL: 0 };
+  const icons = { PASS: '[32m PASS[0m', WARN: '[33m WARN[0m', FAIL: '[31m FAIL[0m' };
+  const counts = { PASS: 0, WARN: 0, FAIL: 0 };
 
-console.log('\n[1mRepo self-audit[0m\n');
-let currentArea = null;
-for (const result of results) {
-  counts[result.status]++;
-  if (result.area !== currentArea) {
-    currentArea = result.area;
-    console.log(`[2m${currentArea}[0m`);
+  console.log('\n[1mRepo self-audit[0m\n');
+  let currentArea = null;
+  for (const result of results) {
+    counts[result.status]++;
+    if (result.area !== currentArea) {
+      currentArea = result.area;
+      console.log(`[2m${currentArea}[0m`);
+    }
+    console.log(`  ${icons[result.status]}  ${result.message}`);
   }
-  console.log(`  ${ICON[result.status]}  ${result.message}`);
+
+  console.log(`\n  ${counts.PASS} pass · ${counts.WARN} warn · ${counts.FAIL} fail\n`);
+
+  if (counts.FAIL > 0 && !ADVISORY) {
+    console.error('[31mAudit failed.[0m Fix the FAIL items above, or run with --warn to downgrade.\n');
+    return 1;
+  }
+  return 0;
 }
 
-console.log(`\n  ${counts.PASS} pass · ${counts.WARN} warn · ${counts.FAIL} fail\n`);
+module.exports = { findPackageScriptPublishCallers };
 
-if (counts.FAIL > 0 && !ADVISORY) {
-  console.error('[31mAudit failed.[0m Fix the FAIL items above, or run with --warn to downgrade.\n');
-  process.exit(1);
-}
+if (require.main === module) process.exitCode = main();

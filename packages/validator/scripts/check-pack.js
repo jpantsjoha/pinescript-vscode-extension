@@ -10,6 +10,7 @@
 
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const CONFLICT_COPY = / \d+\./;
@@ -99,12 +100,19 @@ function parsePackJson(text) {
 
 /** File list npm would pack, with lifecycle scripts disabled to avoid prepack recursion. */
 function dryRunFiles(packageDir) {
-  const output = execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
-    cwd: packageDir,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return parsePackJson(output);
+  const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'pine-check-pack-'));
+  try {
+    const output = execFileSync('npm', [
+      'pack', '--dry-run', '--json', '--ignore-scripts', '--cache', cache,
+    ], {
+      cwd: packageDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return parsePackJson(output);
+  } finally {
+    fs.rmSync(cache, { recursive: true, force: true });
+  }
 }
 
 /** File list inside a built tarball, retaining duplicate archive entries. */

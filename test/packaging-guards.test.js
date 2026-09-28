@@ -25,7 +25,9 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const VERIFY = path.join(ROOT, 'scripts/verify-vsix.js');
 const VSCE_LS = path.join(ROOT, 'scripts/vsce-ls.js');
-const PACK_GUARD = require('../packages/validator/scripts/check-pack.js');
+const PACK_GUARD_PATH = path.join(ROOT, 'packages', 'validator', 'scripts', 'check-pack.js');
+const PACK_GUARD = require(PACK_GUARD_PATH);
+const { findPackageScriptPublishCallers } = require('../scripts/audit.js');
 
 const tmp = prefix => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
 const hasCli = cmd => spawnSync(cmd, ['-v'], { stdio: 'ignore' }).status === 0 ||
@@ -147,4 +149,36 @@ test('check-pack compares as a multiset and rejects sync-conflict copies', () =>
   const conflict = PACK_GUARD.compare(expected, [...expected, conflictName]);
   assert.deepStrictEqual(conflict.extra, [conflictName]);
   assert.match(conflict.problems.join('\n'), /sync-conflict copy/);
+});
+
+test('check-pack does not trust ambient npm cache configuration', () => {
+  const dir = tmp('check-pack-cache-');
+  try {
+    const invalidCache = path.join(dir, 'not-a-directory');
+    fs.writeFileSync(invalidCache, 'fixture');
+    const checked = spawnSync(process.execPath, [PACK_GUARD_PATH], {
+      cwd: path.join(ROOT, 'packages', 'validator'),
+      encoding: 'utf8',
+      env: { ...process.env, npm_config_cache: invalidCache },
+    });
+    assert.strictEqual(checked.status, 0, checked.stdout + checked.stderr);
+    assert.match(checked.stdout, /check-pack: PASS/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('engine publish audit finds npm publish in any package manifest script', () => {
+  const dir = tmp('engine-publish-audit-');
+  try {
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+      scripts: { test: 'node --test', release: 'npm publish ./engine.tgz' },
+    }));
+    assert.deepStrictEqual(
+      findPackageScriptPublishCallers(dir, ['package.json']),
+      ['package.json#scripts.release']
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
