@@ -67,8 +67,8 @@ or granular token with publish rights to `pinescript-v6-validator`), then push
 | #72 | #60 S1 no longer advises a `lookahead` that `request.security_lower_tf` lacks | `52c6eed` |
 | #73 | #62 workflow audit parses steps (verify before Marketplace, Open VSX and GitHub release), conflict-copy rejection, pinned `ovsx`, distinct `diff-diagnostics` exit codes | `e787950` |
 
-Written by Codex sol-xhigh in worktrees outside iCloud; reviewed by Gemini (agy) on
-each exact head, with delta reviews after every change; CI 6/6 before each merge.
+Built in worktrees outside iCloud; each exact head independently reviewed, with a
+delta review after every change; CI 6/6 before each merge.
 Main `e787950`, clean export under Node 22: `npm test` 833/833, audit 36/0/0,
 engine `npm pack --dry-run` exactly 25 files. PR #68 closed as superseded by #70.
 
@@ -109,7 +109,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 ## What waits on whom
 
-- **JP**: add the `NPM_TOKEN` repo secret and push tag `engine-v0.4.3` on `main` (#70 merged as `a11f908`); `publish-engine.yml` publishes and verifies. Then bump pinescript-plugin to `^0.4.3`. Decide when to release 0.7.1 (#61, #60 unreleased on main).
+- **JP**: tag `engine-v0.4.3` is pushed; publish run `36447823922` stopped at its preflight because the `NPM_TOKEN` repo secret is not set (nothing published). Add the secret (`gh secret set NPM_TOKEN`), then `gh run rerun 36447823922`. Then bump pinescript-plugin to `^0.4.3`. Decide when to release 0.7.1 (#61, #60 unreleased on main).
 - **Next session**: release 0.7.1 if JP calls it; otherwise #5 (rename) needs a scoping session.
 
 ## Repository hygiene

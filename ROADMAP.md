@@ -82,8 +82,6 @@ inference. Git history keeps the old code.
 ## Open issues
 
 **Engine and delivery**
-- [#64](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/64) **Built** on `feat/67-ci-engine-publish`: the npm-package test builds and packs an isolated copy instead of shared `packages/validator/dist`.
-- [#67](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/67) **Built** on `feat/67-ci-engine-publish`: engine 0.4.3 is a guarded 25-file package published only by the `engine-v*.*.*` CI workflow with provenance. Awaiting merge, repository secret `NPM_TOKEN`, and operator tag `engine-v0.4.3`.
 
 **Validator**
 
@@ -99,7 +97,7 @@ inference. Git history keeps the old code.
 
 ## Next up (recommended order)
 
-1. Add `NPM_TOKEN`; operator pushes `engine-v0.4.3`; confirm `publish-engine.yml` verifies npm (#67 merged).
+1. Add the `NPM_TOKEN` secret and re-run publish run 36447823922 for tag `engine-v0.4.3` (pushed; preflight stopped on the missing secret, nothing published).
 2. Release 0.7.1 (#61, #60 and the #62 tooling are on main, unreleased).
 3. #5 — rename, the largest remaining editor feature; needs a scoping session.
 
