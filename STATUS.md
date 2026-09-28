@@ -37,8 +37,8 @@ minutes later.
 0.4.2 went to npm from the working tree and carries 22 iCloud conflict copies; nothing
 checked the packed file list. PR #68 (clean-export publish script, exact 25-file guard,
 artefact inspection and pre-go-live reflection, #64 test-race fix) went through four
-Codex sol-xhigh rounds, each blocked on the same shape: an npm invocation trusting ambient
-configuration. Under the two-strike rule it is **deferred as a design question** (C1):
+Codex sol-xhigh rounds, and each included a blocker of the same shape: an npm invocation
+trusting ambient configuration. Under the two-strike rule it is **deferred as a design question** (C1):
 branch `fix/67-clean-engine-publish` kept on the remote, PR #68 in draft. The next attempt
 decides whether the engine publishes from a tag-triggered CI workflow (clean runner,
 provenance), which removes the class instead of guarding each call site. Lesson recorded:
@@ -69,7 +69,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 | # | Group | Decision | Unblocks | Recommendation | Right | Wrong | Reversibility |
 |---|---|---|---|---|---|---|---|
 | 1 | SCHEDULE | Dedicated session on the engine publish design (#67): CI tag workflow with an `NPM_TOKEN` secret and provenance, or PR #68's hardened local script | A clean 0.4.3; pinescript-plugin bump | Publish from CI | One publishing path; ambient config and iCloud copies impossible | Another round of local-script patching | costly |
-| 2 | SCHEDULE | Re-authenticate Codex (`codex login`) | Non-Claude review lane back first in line | 2 minutes | Reviewer from a different model family | Reviews stay Claude-on-Claude | cheap |
+| 2 | SCHEDULE | Upgrade the Codex CLI (0.146.0 installed, 0.158.0 current): `npm i -g @openai/codex@latest` | Codex's default model; sol-xhigh (`gpt-5.6-sol`) already works and reviewed four rounds on 2026-09-28 | Upgrade | Every Codex model available as a lane | Default-model calls keep failing with "requires a newer version" | cheap |
 | 3 | SCHEDULE | Confirm the six inferred fields in the operating profile | Profile moves from `seed` to `active` | 10 minutes | Gates bind to confirmed facts | Gates keep citing inferences | cheap |
 | 4 | DEFER | GitHub sensitive-data purge of old history | — | Park; revisit if the repo is audited | — | — | one-way |
 

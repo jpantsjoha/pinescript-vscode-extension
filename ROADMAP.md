@@ -83,7 +83,7 @@ inference. Git history keeps the old code.
 
 **Engine and delivery**
 - [#64](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/64) Flaky `npm test`: the npm-package test rebuilds `packages/validator/dist` while parallel test files load it; it failed the first v0.7.0 publish attempt.
-- [#67](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/67) **Deferred (C1).** npm 0.4.2 ships 22 iCloud duplicate files. PR #68 (draft, branch kept) blocked four Codex rounds on one shape: npm trusting ambient configuration. Next: a dedicated session deciding whether the engine publishes from a tag-triggered CI workflow. Blocks a clean 0.4.3.
+- [#67](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/67) **Deferred (C1).** npm 0.4.2 ships 22 iCloud duplicate files. PR #68 (draft, branch kept) went through four Codex rounds, each with a blocker of the same shape: npm trusting ambient configuration. Next: a dedicated session deciding whether the engine publishes from a tag-triggered CI workflow. Blocks a clean 0.4.3.
 - [#62](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/62) Packaging-guard follow-ups from the #59 review (all low severity).
 
 **Validator**
