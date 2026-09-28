@@ -43,39 +43,62 @@ const { CASES, SUPPRESSION_CASES } = require('./regression-corpus.js');
 const PACKAGE_DIR = path.join(__dirname, '..', 'packages', 'validator');
 const PACKAGE_NAME = 'pinescript-v6-validator';
 const SKIP = process.env.SKIP_PACKAGE_TEST === '1';
+// Put the repository's pinned TypeScript binary on PATH for the isolated package copy.
+const REPO_BIN = path.join(path.dirname(require.resolve('typescript/package.json')), '..', '.bin');
+const { expectedFiles, tarballFiles, compare } = require('../packages/validator/scripts/check-pack.js');
 
 let workspace = null;
 /** The module object, obtained by name from the installed package. */
 let installed = null;
 /** package.json as it exists INSIDE the tarball. */
 let publishedManifest = null;
+/** The packed tarball and the isolated copy it was built from. */
+let tarball = null;
+let packageCopy = null;
 
-function run(command, args, cwd) {
+function run(command, args, cwd, options = {}) {
   return execFileSync(command, args, {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    ...options,
   });
 }
 
 describe('Published npm package', { skip: SKIP && 'SKIP_PACKAGE_TEST=1' }, () => {
   before(() => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'pine-pkg-'));
+    const npmEnv = {
+      ...process.env,
+      npm_config_cache: path.join(workspace, '.npm-cache'),
+    };
 
-    // Build first. Packing a stale dist/ is precisely the drift this suite exists
-    // to catch, and it would produce a confusing pass rather than a useful failure.
-    run('npm', ['run', 'build'], PACKAGE_DIR);
+    // Build and pack an isolated COPY of packages/validator, never the shared tree
+    // (#64). node --test runs test files in parallel processes; rebuilding the shared
+    // dist/ here can rewrite a module while another test process is loading it.
+    const copy = path.join(workspace, 'validator');
+    fs.cpSync(PACKAGE_DIR, copy, {
+      recursive: true,
+      filter: source => {
+        const topLevel = path.relative(PACKAGE_DIR, source).split(path.sep)[0];
+        return topLevel !== 'dist' && topLevel !== 'node_modules';
+      },
+    });
+    run('npm', ['run', 'build'], copy, {
+      env: { ...npmEnv, PATH: `${REPO_BIN}${path.delimiter}${process.env.PATH}` },
+    });
+    packageCopy = copy;
 
-    const packed = run('npm', ['pack', '--pack-destination', workspace], PACKAGE_DIR)
+    const packed = run('npm', ['pack', '--pack-destination', workspace], copy, { env: npmEnv })
       .trim().split('\n').pop().trim();
-    const tarball = path.join(workspace, packed);
+    tarball = path.join(workspace, packed);
 
     fs.writeFileSync(
       path.join(workspace, 'package.json'),
       JSON.stringify({ name: 'consumer', version: '1.0.0', private: true }, null, 2)
     );
 
-    run('npm', ['install', tarball, '--no-audit', '--no-fund'], workspace);
+    run('npm', ['install', tarball, '--no-audit', '--no-fund'], workspace, { env: npmEnv });
 
     const installedDir = path.join(workspace, 'node_modules', PACKAGE_NAME);
     publishedManifest = JSON.parse(
@@ -117,6 +140,15 @@ describe('Published npm package', { skip: SKIP && 'SKIP_PACKAGE_TEST=1' }, () =>
       `main "${publishedManifest.main}" is missing from the tarball`);
     assert.ok(fs.existsSync(path.join(dir, publishedManifest.types)),
       `types "${publishedManifest.types}" is missing from the tarball`);
+  });
+
+  test('contains exactly the files derived from the package sources', () => {
+    const { expected, problems } = expectedFiles(packageCopy);
+    assert.deepStrictEqual(problems, [], 'the expected package set must be derivable');
+    const actual = tarballFiles(tarball);
+    const result = compare(expected, actual);
+    assert.deepStrictEqual(result, { extra: [], missing: [], problems: [] });
+    assert.deepStrictEqual(actual, expected);
   });
 
   //────────────────────────────────────────────────────────

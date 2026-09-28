@@ -313,23 +313,27 @@ substitute a weaker gate silently.
 - Authorized delivery destination: VS Code Marketplace, extension id
   `jpantsjoha.pinescript-v6-extension`, via `.github/workflows/publish.yml` (trigger: push
   of tag `v*.*.*`; uses the `VSCE_PAT` repo secret) and GitHub Releases via
-  `.github/workflows/release.yml` (same tag trigger). npm registry for the engine package
-  `pinescript-v6-validator` — no automated publish workflow found for it (verified:
-  `grep -rn "npm publish" .github/ packages/validator/package.json scripts/` returns
-  nothing); inferred — source: `packages/validator/package.json` is at 0.4.0 on main
-  (2026-09-23) while `npm view pinescript-v6-validator version` still returns 0.3.0,
-  implying a manual `npm publish` from `packages/validator/` is the current path; confirm:
-  JP.
+  `.github/workflows/release.yml` (same tag trigger). The npm registry is the delivery
+  destination for `pinescript-v6-validator`, via `.github/workflows/publish-engine.yml`
+  only: an `engine-v*.*.*` tag triggers Node 22 tests/build, exact tarball-list and
+  installed-corpus gates, publication to `https://registry.npmjs.org/` with provenance,
+  and public-registry verification. The workflow uses the `NPM_TOKEN` repository secret;
+  local engine publication is forbidden (verified by JP's #67 task brief, 2026-09-28).
 - Pre-delivery gates: `.github/workflows/ci.yml` (typecheck, `npm run audit`, build,
   `npm test`, self-test, artifact verification, packaging, quality-gates, and a
   non-blocking `npm audit` security job) runs on push to `main`/`develop` and on PRs into
   `main`. `publish.yml` and `release.yml` each re-run `npm test` and the build before
-  publishing.
-- Deployment owner and authority: JP — the `VSCE_PAT` secret and npm publish credentials
-  are JP's; `.claude/agents/publisher.md` executes only on JP's instruction.
+  publishing. `publish-engine.yml` additionally checks the tag/package version and
+  `publishConfig` registry, runs the package `prepack` exact-file guard, executes all 135
+  regression/suppression cases against the built tarball, and performs the post-publish
+  file-count and exact-list check before reporting success.
+- Deployment owner and authority: JP — the `VSCE_PAT` and `NPM_TOKEN` repository secrets
+  and release-tag authority are JP's; `.claude/agents/publisher.md` executes only on JP's
+  instruction.
 - Observation window and signals: marketplace installs and rating (surfaced via the
-  shields.io badges in `README.md`), and GitHub issues reporting false positives
-  (verified: open issues #7–#16, #24–#26 are all field reports of exactly this kind).
+  shields.io badges in `README.md`), GitHub issues reporting false positives, and the
+  engine workflow's 30 attempts at 10-second intervals to observe npm `dist.fileCount`
+  and the exact public dry-run package list.
 - Stop/rollback triggers: not yet established — owner: JP; required before: a numeric
   threshold (install drop, rating drop, or issue-report count) is defined. Today the
   trigger is qualitative — any reported false positive is a fix-forward patch, per
@@ -350,11 +354,13 @@ substitute a weaker gate silently.
 - Production kill switch: not applicable — reason: the VS Code Marketplace has no
   rollback mechanism (verified given fact, consistent with the Marketplace's public
   behaviour of not supporting per-version unpublish, only a full unlist). Rollback path
-  is publishing a new patch version.
+  is publishing a new patch version. npm versions are also immutable; an incorrect engine
+  release is deprecated and replaced by a corrected patch through `publish-engine.yml`.
 - Post-rollback verification: `npm run audit` and `npm test` on the patched version,
-  then the marketplace listing re-checked for the new version number — inferred
-  procedure; confirm: JP (no rollback has occurred in this repo's recorded history; every
-  `STATUS.md`/`CHANGELOG.md` entry found is a forward release).
+  then the marketplace listing or npm exact-file/corpus workflow checks are re-run for
+  the new version — inferred procedure; confirm: JP (no rollback has occurred in this
+  repo's recorded history; every `STATUS.md`/`CHANGELOG.md` entry found is a forward
+  release).
 
 ## Cost and concurrency budget
 

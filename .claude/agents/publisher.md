@@ -147,7 +147,26 @@ git push origin v$NEW_VERSION
 
 ---
 
-### Method 2: Manual Publishing
+### npm engine publishing (CI only)
+
+The `pinescript-v6-validator` engine is never published from a developer machine.
+Its release sequence is:
+
+1. Merge a version-bump PR updating `packages/validator/package.json`, its lockfile,
+   and `CHANGELOG.md`.
+2. Confirm GitHub secret `NPM_TOKEN` is an npm automation or granular token with
+   publish rights to `pinescript-v6-validator`.
+3. The operator pushes `engine-vX.Y.Z` matching the package version.
+4. `publish-engine.yml` tests and builds on Node 22, enforces the exact tarball file
+   list, installs the tarball and runs the regression corpus, publishes that tarball
+   with provenance, then verifies the public npm file count and exact file set.
+
+There is no local fallback. Fix a failed workflow through a PR; a bad published
+version is recovered by deprecating it and releasing a corrected patch.
+
+---
+
+### Method 2: Manual extension publishing (VSIX only)
 
 **When:**
 - First-time publishing

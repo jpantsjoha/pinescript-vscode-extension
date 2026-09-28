@@ -496,6 +496,98 @@ function auditCi() {
   }
 }
 
+function findPackageScriptPublishCallers(root, manifestPaths) {
+  const callers = [];
+  for (const manifestPath of manifestPaths) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, manifestPath), 'utf8'));
+    for (const [name, command] of Object.entries(manifest.scripts || {})) {
+      if (/\bnpm\s+publish\b/.test(command)) callers.push(`${manifestPath}#scripts.${name}`);
+    }
+  }
+  return callers;
+}
+
+//──────────────────────────────────────────────────────────
+// 7b. The npm engine may be published only by its tag workflow
+//──────────────────────────────────────────────────────────
+function auditEnginePublish() {
+  const workflow = '.github/workflows/publish-engine.yml';
+  if (!exists(workflow)) {
+    fail('engine publish', `${workflow} is missing`);
+    return;
+  }
+
+  const yaml = read(workflow);
+  const onBlock = (yaml.match(/^on:\s*\n([\s\S]*?)(?=^[^\s#])/m) || [])[1] || '';
+  const triggerLines = onBlock.split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('#'));
+  const expectedTrigger = ['push:', 'tags:', "- 'engine-v*.*.*'"];
+  if (JSON.stringify(triggerLines) !== JSON.stringify(expectedTrigger)) {
+    fail('engine publish', `${workflow} must trigger only on tags engine-v*.*.*`);
+  } else {
+    pass('engine publish', 'workflow triggers only on engine-v*.*.* tags');
+  }
+
+  if (!/^permissions:\s*\n\s+contents:\s*read\s*\n\s+id-token:\s*write\s*$/m.test(yaml)) {
+    fail('engine publish', 'workflow permissions must be contents: read and id-token: write');
+  } else {
+    pass('engine publish', 'workflow uses read-only contents plus provenance identity permission');
+  }
+
+  const packAt = yaml.indexOf('npm pack');
+  const listCheckAt = yaml.indexOf('scripts/check-pack.js --tarball');
+  const corpusAt = yaml.indexOf('scripts/test-engine-tarball.js');
+  const publishAt = yaml.indexOf('npm publish');
+  if (packAt < 0 || listCheckAt < packAt || corpusAt < listCheckAt || publishAt < corpusAt) {
+    fail('engine publish', 'workflow must pack, check the exact tarball list, run the tarball corpus, then publish');
+  } else {
+    pass('engine publish', 'file-list and tarball-corpus gates run before npm publish');
+  }
+
+  const required = [
+    ['NPM_TOKEN', 'preflight for the npm publishing secret'],
+    ['GITHUB_REF_NAME#engine-v', 'tag/package version comparison'],
+    ['publishConfig', 'publishConfig registry preflight'],
+    ['--provenance', 'npm provenance'],
+    ['--access public', 'public package access'],
+    ['--registry https://registry.npmjs.org/', 'explicit npmjs registry'],
+    ['npm view', 'post-publish file-count verification'],
+    ['--pack-json', 'post-publish exact file-list verification'],
+  ];
+  const absent = required.filter(([needle]) => !yaml.includes(needle)).map(([, description]) => description);
+  if (absent.length) fail('engine publish', `workflow is missing: ${absent.join(', ')}`);
+  else pass('engine publish', 'workflow pins npmjs and verifies the published count and exact file set');
+
+  const prepack = JSON.parse(read('packages/validator/package.json')).scripts?.prepack || '';
+  if (!prepack.includes('scripts/check-pack.js')) {
+    fail('engine publish', 'validator prepack does not run scripts/check-pack.js');
+  } else {
+    pass('engine publish', 'validator prepack runs the exact file-list guard');
+  }
+
+  const publishCallers = [];
+  const filesUnder = directory => fs.readdirSync(path.join(ROOT, directory), { withFileTypes: true })
+    .flatMap(entry => entry.isDirectory()
+      ? filesUnder(`${directory}/${entry.name}`)
+      : [`${directory}/${entry.name}`]);
+  for (const directory of ['.github/workflows', 'scripts', 'packages/validator/scripts']) {
+    for (const relative of filesUnder(directory)) {
+      if (relative === 'scripts/audit.js') continue;
+      if (/\bnpm\s+publish\b/.test(read(relative))) publishCallers.push(relative);
+    }
+  }
+  publishCallers.push(...findPackageScriptPublishCallers(ROOT, [
+    'package.json',
+    'packages/validator/package.json',
+  ]));
+  if (publishCallers.length !== 1 || publishCallers[0] !== workflow) {
+    fail('engine publish', `npm publish must appear only in ${workflow}; found: ${publishCallers.join(', ') || 'none'}`);
+  } else {
+    pass('engine publish', 'no other workflow or script runs npm publish');
+  }
+}
+
 
 //──────────────────────────────────────────────────────────
 // Lockfile
@@ -559,34 +651,42 @@ function auditLockfile() {
 
 //──────────────────────────────────────────────────────────
 
-auditNpmScripts();
-auditClaudeHarness();
-auditTestGate();
-auditPackaging();
-auditVersionConsistency();
-auditDataCurrency();
-auditDiagnosticCoverage();
-auditEnginePortability();
-auditCi();
-auditLockfile();
+function main() {
+  auditNpmScripts();
+  auditClaudeHarness();
+  auditTestGate();
+  auditPackaging();
+  auditVersionConsistency();
+  auditDataCurrency();
+  auditDiagnosticCoverage();
+  auditEnginePortability();
+  auditCi();
+  auditEnginePublish();
+  auditLockfile();
 
-const ICON = { PASS: '[32m PASS[0m', WARN: '[33m WARN[0m', FAIL: '[31m FAIL[0m' };
-const counts = { PASS: 0, WARN: 0, FAIL: 0 };
+  const icons = { PASS: '[32m PASS[0m', WARN: '[33m WARN[0m', FAIL: '[31m FAIL[0m' };
+  const counts = { PASS: 0, WARN: 0, FAIL: 0 };
 
-console.log('\n[1mRepo self-audit[0m\n');
-let currentArea = null;
-for (const result of results) {
-  counts[result.status]++;
-  if (result.area !== currentArea) {
-    currentArea = result.area;
-    console.log(`[2m${currentArea}[0m`);
+  console.log('\n[1mRepo self-audit[0m\n');
+  let currentArea = null;
+  for (const result of results) {
+    counts[result.status]++;
+    if (result.area !== currentArea) {
+      currentArea = result.area;
+      console.log(`[2m${currentArea}[0m`);
+    }
+    console.log(`  ${icons[result.status]}  ${result.message}`);
   }
-  console.log(`  ${ICON[result.status]}  ${result.message}`);
+
+  console.log(`\n  ${counts.PASS} pass · ${counts.WARN} warn · ${counts.FAIL} fail\n`);
+
+  if (counts.FAIL > 0 && !ADVISORY) {
+    console.error('[31mAudit failed.[0m Fix the FAIL items above, or run with --warn to downgrade.\n');
+    return 1;
+  }
+  return 0;
 }
 
-console.log(`\n  ${counts.PASS} pass · ${counts.WARN} warn · ${counts.FAIL} fail\n`);
+module.exports = { findPackageScriptPublishCallers };
 
-if (counts.FAIL > 0 && !ADVISORY) {
-  console.error('[31mAudit failed.[0m Fix the FAIL items above, or run with --warn to downgrade.\n');
-  process.exit(1);
-}
+if (require.main === module) process.exitCode = main();
