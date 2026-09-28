@@ -1222,6 +1222,85 @@ const CASES = [
     why: 'Delta review of PR #57: continuation suppression applied to the whole statement, so ' +
       'a wrapped final segment hid the completed float-to-int error before the comma.',
   },
+  //────────────────────────────────────────────────────────
+  // #61 — comment-only lines inside wrapped calls
+  //────────────────────────────────────────────────────────
+  {
+    name: '#61: a comment-only line inside a wrapped call does not shadow color',
+    code: '//@version=6\nindicator("x")\nplot(close,\n    // the series title, on its own line inside the call\n    "Close",\n    color=color.blue)\nplot(close, color=color.purplee)\n',
+    expect: 'error',
+    found: '2026-09-28',
+    why:
+      'A cleaned comment line ended the wrapped-statement join, so the later named argument ' +
+      'was collected as a declaration of color and hid the misspelled color.purplee member.',
+  },
+  {
+    name: '#61: a blank line inside a wrapped call does not shadow color',
+    code: IND + 'plot(close,\n\n    "Close",\n    color=color.blue)\nplot(close, color=color.purplee)\n',
+    expect: 'error',
+    found: '2026-09-28',
+    why:
+      'A blank physical line is legal while the call brackets remain open and must not make ' +
+      'the following color named argument look like a statement-level declaration.',
+  },
+  {
+    name: '#61: brackets in a comment inside a wrapped call do not shadow color',
+    code: IND + 'plot(close,\n    // ignored delimiters: ( [ ) ]\n    "Close",\n    color=color.blue)\nplot(close, color=color.purplee)\n',
+    expect: 'error',
+    found: '2026-09-28',
+    why:
+      'Comment delimiters are text, not bracket depth; blanking the entire comment must both ' +
+      'preserve the open call and prevent its following named argument from declaring color.',
+  },
+  {
+    name: '#61: a CRLF comment-only line inside a wrapped call does not shadow color',
+    code: '//@version=6\r\nindicator("x")\r\nplot(close,\r\n    // title on its own line\r\n    "Close",\r\n    color=color.blue)\r\nplot(close, color=color.purplee)\r\n',
+    expect: 'error',
+    found: '2026-09-28',
+    why:
+      'CRLF leaves a carriage return after splitting on newline; trimming a cleaned comment ' +
+      'must not turn that platform-specific form into a declaration-boundary escape.',
+  },
+  {
+    name: '#61: a real statement-level color declaration still shadows the namespace',
+    code: IND + 'color = color.blue\nplot(close, color=color.foo)\n',
+    expect: null,
+    found: '2026-09-28',
+    why:
+      'A genuine statement-level user binding named color owns later color.foo access; the ' +
+      'wrapped-call fix must not remove the existing declared-local shadowing exemption.',
+  },
+  {
+    name: '#61: a no-comment continuation named argument still does not shadow color',
+    code: IND + 'plot(close,\n    color=color.blue)\nplot(close, color=color.purplee)\n',
+    expect: 'error',
+    found: '2026-09-28',
+    why:
+      'Without an intervening comment, the join already keeps the named argument inside the ' +
+      'call; preserving that behavior proves the fix does not widen declaration collection.',
+  },
+
+  //────────────────────────────────────────────────────────
+  // #60 — S1 does not apply HTF lookahead advice to lower-timeframe requests
+  //────────────────────────────────────────────────────────
+  {
+    name: '#60: request.security_lower_tf has no actionable S1 lookahead fix',
+    code: IND + 'values = request.security_lower_tf(syminfo.tickerid, "1", close)\nplot(array.size(values))\n',
+    expect: null,
+    found: '2026-09-28',
+    why:
+      'request.security_lower_tf has no lookahead argument, so S1 advised a fix the author ' +
+      'could not apply and produced a false warning on a valid lower-timeframe request.',
+  },
+  {
+    name: '#60: request.security without an offset still produces S1',
+    code: IND + 'd = request.security(syminfo.tickerid, "D", close)\nplot(d)\n',
+    expect: 'S1',
+    found: '2026-09-28',
+    why:
+      'Paired guard for #60: narrowing S1 away from request.security_lower_tf must not ' +
+      'silence the repainting warning on an undecided higher-timeframe request.security call.',
+  },
 ];
 
 /**

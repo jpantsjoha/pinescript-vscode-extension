@@ -76,7 +76,7 @@ inference. Git history keeps the old code.
 | 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the invalid-cast rule (#12), one engine (#55) | **shipped** 2026-09-26 |
 | engine 0.4.2 | The npm engine catches up with 0.7.0, for external consumers (the pinescript-plugin agent plugin) | **shipped** 2026-09-28 (#54); contains 22 duplicate files (#67) |
 | engine 0.4.3 | A clean 25-file package, tag-only CI publishing with provenance, and the #64 test-race fix | **built** on `feat/67-ci-engine-publish`; awaiting merge, `NPM_TOKEN`, and operator tag `engine-v0.4.3` |
-| 0.7.x | Precision: missed errors and misleading advice found during 0.7.0 (#61, #60), packaging-guard follow-ups (#62) | not started |
+| 0.7.x | Precision: missed errors and misleading advice found during 0.7.0 (#61, #60), packaging-guard follow-ups (#62) | #61 and #60 **merged** 2026-09-28 (unreleased); #62 not started |
 | later | Rename refactoring (#5) | not started |
 
 ## Open issues
@@ -87,8 +87,6 @@ inference. Git history keeps the old code.
 - [#62](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/62) Packaging-guard follow-ups from the #59 review (all low severity).
 
 **Validator**
-- [#61](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/61) Missed error: a comment line inside a wrapped call makes a later `name=` argument shadow its namespace, hiding misspellings further down.
-- [#60](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/60) S1 on `request.security_lower_tf` suggests a `lookahead` argument that function does not have.
 
 **Editor / IntelliSense**
 - [#5](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/5) Variable refactor support wanted.
@@ -103,9 +101,8 @@ inference. Git history keeps the old code.
 ## Next up (recommended order)
 
 1. Merge `feat/67-ci-engine-publish`; add `NPM_TOKEN`; operator pushes `engine-v0.4.3`; verify the workflow (#67, #64).
-2. #61 — a missed error on ordinary code (wrapped calls with comments are common).
-3. #60 — advice that cannot be followed.
-4. #62 — guard hardening.
+2. #62 — guard hardening.
+3. Release 0.7.1 when the unreleased fixes (#61, #60) are worth shipping.
 5. #5 — rename, the largest remaining editor feature.
 
 ## Related

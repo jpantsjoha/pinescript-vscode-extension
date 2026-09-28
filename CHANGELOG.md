@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- S1 no longer warns on `request.security_lower_tf()`, whose advice to pass a
+  lookahead argument could not be followed (#60).
+- A comment or blank line inside a wrapped call no longer hides a later misspelled
+  constant such as `color.purplee` (#61).
+
 ### Engine 0.4.3 (npm `pinescript-v6-validator`)
 
 - Publishes from tag-triggered CI with npm provenance, never from a local working
