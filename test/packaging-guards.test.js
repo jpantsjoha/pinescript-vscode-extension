@@ -7,6 +7,8 @@
  *   - scripts/vsce-ls.js --check-manifest: a package.json `files` field fails.
  *   - scripts/vsce-ls.js --compare-npm: a dependency that ships only in vsce's Npm
  *     mode is reported as a divergence.
+ *   - packages/validator/scripts/check-pack.js: extra, missing, duplicate and
+ *     iCloud conflict-copy entries fail while the exact set passes.
  *
  * The VSIX fixture needs the `zip` and `unzip` CLIs. Without them the VSIX test
  * skips locally and FAILS under CI, so the guard can never go silently untested.
@@ -23,6 +25,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const VERIFY = path.join(ROOT, 'scripts/verify-vsix.js');
 const VSCE_LS = path.join(ROOT, 'scripts/vsce-ls.js');
+const PACK_GUARD = require('../packages/validator/scripts/check-pack.js');
 
 const tmp = prefix => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
 const hasCli = cmd => spawnSync(cmd, ['-v'], { stdio: 'ignore' }).status === 0 ||
@@ -122,4 +125,26 @@ test('vsce-ls --compare-npm: a dependency only the Npm mode would ship is a dive
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('check-pack compares as a multiset and rejects sync-conflict copies', () => {
+  const packageDir = path.join(ROOT, 'packages', 'validator');
+  const { expected, problems } = PACK_GUARD.expectedFiles(packageDir);
+  assert.deepStrictEqual(problems, []);
+  assert.strictEqual(expected.length, 25);
+  assert.deepStrictEqual(PACK_GUARD.compare(expected, expected), {
+    extra: [], missing: [], problems: [],
+  });
+
+  const missing = PACK_GUARD.compare(expected, expected.slice(1));
+  assert.deepStrictEqual(missing.missing, [expected[0]]);
+
+  const duplicate = PACK_GUARD.compare(expected, [...expected, expected[0]]);
+  assert.deepStrictEqual(duplicate.extra, [expected[0]]);
+  assert.match(duplicate.problems.join('\n'), /duplicate package entry/);
+
+  const conflictName = 'dist/index 2.js';
+  const conflict = PACK_GUARD.compare(expected, [...expected, conflictName]);
+  assert.deepStrictEqual(conflict.extra, [conflictName]);
+  assert.match(conflict.problems.join('\n'), /sync-conflict copy/);
 });

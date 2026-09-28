@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Engine 0.4.3 (npm `pinescript-v6-validator`)
+
+- Publishes from tag-triggered CI with npm provenance, never from a local working
+  tree. The package guard derives and enforces the exact 25-file tarball; 0.4.2
+  shipped 47 files, including 22 iCloud conflict copies (#67).
+- The npm-package regression suite now builds and packs an isolated package copy
+  instead of rebuilding shared `packages/validator/dist` during parallel tests (#64).
+
 ## [0.7.0] - 2026-09-26
 
 One-click fixes for common mistakes, a new check TradingView enforces, and one engine

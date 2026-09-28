@@ -1,0 +1,117 @@
+name: Publish npm Engine
+
+on:
+  push:
+    tags:
+      - 'engine-v*.*.*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Test and publish pinescript-v6-validator
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Preflight tag, manifest and publishing credential
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::error::NPM_TOKEN is not configured. Nothing was published."
+            exit 1
+          fi
+
+          TAG_VERSION="${GITHUB_REF_NAME#engine-v}"
+          PACKAGE_VERSION=$(node -p "require('./packages/validator/package.json').version")
+          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "::error::Tag version $TAG_VERSION does not match validator package version $PACKAGE_VERSION."
+            exit 1
+          fi
+
+          node <<'NODE'
+          const manifest = require('./packages/validator/package.json');
+          const registry = manifest.publishConfig && manifest.publishConfig.registry;
+          if (registry && registry.replace(/\/+$/, '') !== 'https://registry.npmjs.org') {
+            console.error(`::error::publishConfig.registry must be https://registry.npmjs.org/ (found ${registry}).`);
+            process.exit(1);
+          }
+          NODE
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full test suite
+        run: npm test
+
+      - name: Build exact tagged source
+        run: npm run build
+
+      - name: Pack engine
+        id: pack
+        working-directory: packages/validator
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          FILENAME="pinescript-v6-validator-${VERSION}.tgz"
+          npm pack
+          test -f "$FILENAME"
+          echo "filename=$FILENAME" >> "$GITHUB_OUTPUT"
+          echo "path=$GITHUB_WORKSPACE/packages/validator/$FILENAME" >> "$GITHUB_OUTPUT"
+
+      - name: Verify exact tarball file list
+        env:
+          TARBALL: ${{ steps.pack.outputs.path }}
+        run: node packages/validator/scripts/check-pack.js --tarball "$TARBALL" packages/validator
+
+      - name: Install tarball and run regression corpus
+        env:
+          TARBALL: ${{ steps.pack.outputs.path }}
+        run: node scripts/test-engine-tarball.js "$TARBALL"
+
+      - name: Publish engine to npm
+        working-directory: packages/validator
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TARBALL: ./${{ steps.pack.outputs.filename }}
+        run: npm publish "$TARBALL" --provenance --access public --registry https://registry.npmjs.org/
+
+      - name: Verify published package
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          VERSION="${VERSION#engine-v}"
+          EXPECTED_COUNT=$(node -e "const guard=require('./packages/validator/scripts/check-pack.js'); const result=guard.expectedFiles('./packages/validator'); if(result.problems.length) throw new Error(result.problems.join('; ')); process.stdout.write(String(result.expected.length));")
+          PACK_JSON="$RUNNER_TEMP/published-engine-pack.json"
+
+          for ATTEMPT in $(seq 1 30); do
+            FILE_COUNT=$(npm view "pinescript-v6-validator@$VERSION" dist.fileCount --registry https://registry.npmjs.org/ 2>/dev/null || true)
+            if [ "$FILE_COUNT" = "$EXPECTED_COUNT" ]; then
+              if npm pack "pinescript-v6-validator@$VERSION" --dry-run --json --ignore-scripts --registry https://registry.npmjs.org/ > "$PACK_JSON"; then
+                if node packages/validator/scripts/check-pack.js --pack-json "$PACK_JSON" packages/validator; then
+                  echo "Published engine verified: $EXPECTED_COUNT files, exact expected set."
+                  exit 0
+                fi
+              fi
+            fi
+
+            if [ "$ATTEMPT" -lt 30 ]; then
+              echo "Published metadata not ready (attempt $ATTEMPT/30); retrying in 10 seconds."
+              sleep 10
+            fi
+          done
+
+          echo "::error::Published engine did not converge to the expected $EXPECTED_COUNT-file package within five minutes."
+          exit 1

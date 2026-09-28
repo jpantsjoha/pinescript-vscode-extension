@@ -18,6 +18,7 @@ is one `git add -A` from a leak.
 | macOS keychain | `vsce-publish-pat` — preferred |
 | `~/.config/vscode-publishing/publish.env` | mode 600 fallback |
 | GitHub secret `VSCE_PAT` | used by `publish.yml` |
+| GitHub secret `NPM_TOKEN` | npm automation or granular token with publish rights to `pinescript-v6-validator`; used only by `publish-engine.yml` |
 
 Load for a manual publish:
 
@@ -110,6 +111,26 @@ git tag -a v0.5.1 -m "..." && git push origin v0.5.1
 
 **Pushing the tag is the release.** `publish.yml` fires `vsce publish` on any
 `v*.*.*`. It is not a dry run.
+
+### Engine release (npm)
+
+The engine has one release path; never run `npm publish` locally:
+
+1. Open and merge a PR that bumps `packages/validator/package.json` and its lockfile,
+   and updates this changelog.
+2. Confirm the repository secret `NPM_TOKEN` is an npm automation or granular token
+   with publish rights to `pinescript-v6-validator`.
+3. From the merged commit, the operator pushes `engine-vX.Y.Z` matching the package
+   version (for 0.4.3: `engine-v0.4.3`).
+4. `.github/workflows/publish-engine.yml` runs Node 22 tests and build, packs the
+   engine through its exact-file `prepack` guard, installs that tarball and runs the
+   regression corpus, then publishes the same tarball with provenance.
+5. Wait for the workflow's post-publish check. It retries npm for about five minutes
+   until `dist.fileCount` is 25 and the public package's dry-run file list is exactly
+   the expected set.
+
+A failed engine workflow does not authorize a local fallback. Fix the cause in a new
+PR; if a version reached npm and is bad, deprecate it and publish a corrected patch.
 
 ### 7. Confirm it actually landed
 

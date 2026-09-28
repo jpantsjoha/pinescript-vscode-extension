@@ -75,15 +75,15 @@ inference. Git history keeps the old code.
 | 0.6.3 – 0.6.5 | Accuracy and IntelliSense: false positives fixed, the full v6 reference in the editor, parameter-name completions | **shipped** 2026-09-25 |
 | 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the invalid-cast rule (#12), one engine (#55) | **shipped** 2026-09-26 |
 | engine 0.4.2 | The npm engine catches up with 0.7.0, for external consumers (the pinescript-plugin agent plugin) | **shipped** 2026-09-28 (#54); contains 22 duplicate files (#67) |
-| engine 0.4.3 | A clean package and one publishing path | **deferred (C1)**: needs a design session on CI tag-workflow publishing vs PR #68's hardened local script |
+| engine 0.4.3 | A clean 25-file package, tag-only CI publishing with provenance, and the #64 test-race fix | **built** on `feat/67-ci-engine-publish`; awaiting merge, `NPM_TOKEN`, and operator tag `engine-v0.4.3` |
 | 0.7.x | Precision: missed errors and misleading advice found during 0.7.0 (#61, #60), packaging-guard follow-ups (#62) | not started |
 | later | Rename refactoring (#5) | not started |
 
 ## Open issues
 
 **Engine and delivery**
-- [#64](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/64) Flaky `npm test`: the npm-package test rebuilds `packages/validator/dist` while parallel test files load it; it failed the first v0.7.0 publish attempt.
-- [#67](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/67) **Deferred (C1).** npm 0.4.2 ships 22 iCloud duplicate files. PR #68 (draft, branch kept) went through four Codex rounds, each with a blocker of the same shape: npm trusting ambient configuration. Next: a dedicated session deciding whether the engine publishes from a tag-triggered CI workflow. Blocks a clean 0.4.3.
+- [#64](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/64) **Built** on `feat/67-ci-engine-publish`: the npm-package test builds and packs an isolated copy instead of shared `packages/validator/dist`.
+- [#67](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/67) **Built** on `feat/67-ci-engine-publish`: engine 0.4.3 is a guarded 25-file package published only by the `engine-v*.*.*` CI workflow with provenance. Awaiting merge, repository secret `NPM_TOKEN`, and operator tag `engine-v0.4.3`.
 - [#62](https://github.com/jpantsjoha/pinescript-vscode-extension/issues/62) Packaging-guard follow-ups from the #59 review (all low severity).
 
 **Validator**
@@ -102,12 +102,11 @@ inference. Git history keeps the old code.
 
 ## Next up (recommended order)
 
-1. #67 design session: publish the engine from a tag-triggered CI workflow or harden the local script (PR #68); then a clean 0.4.3.
-2. #64 — a release can fail at random until the test race is fixed.
-3. #61 — a missed error on ordinary code (wrapped calls with comments are common).
-4. #60 — advice that cannot be followed.
-5. #62 — guard hardening.
-6. #5 — rename, the largest remaining editor feature.
+1. Merge `feat/67-ci-engine-publish`; add `NPM_TOKEN`; operator pushes `engine-v0.4.3`; verify the workflow (#67, #64).
+2. #61 — a missed error on ordinary code (wrapped calls with comments are common).
+3. #60 — advice that cannot be followed.
+4. #62 — guard hardening.
+5. #5 — rename, the largest remaining editor feature.
 
 ## Related
 

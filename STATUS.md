@@ -2,7 +2,7 @@
 
 **Updated**: 2026-09-28
 **Marketplace / Open VSX**: **0.7.0 live** (tag `v0.7.0` on `6d7f1f9`, released 2026-09-26)
-**Engine**: `pinescript-v6-validator@0.4.2` on npm (published 2026-09-28, #54 closed). Behaviour is correct: installed from npm it passes all 135 regression cases. It also ships 22 iCloud duplicate files (47 files, 25 intended; `dist/src/accurateValidator 2.js` is a stale copy the entry point never loads) because it was published from the iCloud working tree (#67).
+**Engine**: `pinescript-v6-validator@0.4.2` remains on npm. Clean 0.4.3 and the #64 test-race fix are built on branch `feat/67-ci-engine-publish`; publication waits for merge, the `NPM_TOKEN` repository secret, and operator tag `engine-v0.4.3`.
 
 ## 2026-09-26: 0.7.0 — quick fixes, the invalid-cast rule, one engine
 
@@ -45,6 +45,19 @@ provenance), which removes the class instead of guarding each call site. Lesson 
 nothing that ships is packed from the iCloud tree, and every artefact's file list is
 audited before go-live.
 
+## 2026-09-28: engine 0.4.3 CI publish path built (#67, #64)
+
+Branch `feat/67-ci-engine-publish` replaces the deferred local-publish design with a
+tag-only GitHub Actions workflow. It builds on Node 22, enforces the derived 25-file
+package list, installs the exact tarball and runs all 135 regression cases, publishes
+that tarball with npm provenance, and verifies the public package after publication.
+The npm-package test now builds an isolated validator copy and no longer races other
+parallel test files through shared `packages/validator/dist`.
+
+**Operator action after merge:** add repository secret `NPM_TOKEN` (an npm automation
+or granular token with publish rights to `pinescript-v6-validator`), then push
+`engine-v0.4.3`. Do not publish the engine locally.
+
 ## Where this stands
 
 Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
@@ -68,7 +81,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 | # | Group | Decision | Unblocks | Recommendation | Right | Wrong | Reversibility |
 |---|---|---|---|---|---|---|---|
-| 1 | SCHEDULE | Dedicated session on the engine publish design (#67): CI tag workflow with an `NPM_TOKEN` secret and provenance, or PR #68's hardened local script | A clean 0.4.3; pinescript-plugin bump | Publish from CI | One publishing path; ambient config and iCloud copies impossible | Another round of local-script patching | costly |
+| 1 | OPERATOR | After `feat/67-ci-engine-publish` merges, add `NPM_TOKEN` with engine publish rights and push `engine-v0.4.3` | Clean engine 0.4.3 publication; pinescript-plugin bump | Use the tag workflow only | One CI-built, provenance-backed package | Local publication can repeat #67 | cheap |
 | 2 | SCHEDULE | Upgrade the Codex CLI (0.146.0 installed, 0.158.0 current): `npm i -g @openai/codex@latest` | Codex's default model; sol-xhigh (`gpt-5.6-sol`) already works and reviewed four rounds on 2026-09-28 | Upgrade | Every Codex model available as a lane | Default-model calls keep failing with "requires a newer version" | cheap |
 | 3 | SCHEDULE | Confirm the six inferred fields in the operating profile | Profile moves from `seed` to `active` | 10 minutes | Gates bind to confirmed facts | Gates keep citing inferences | cheap |
 | 4 | DEFER | GitHub sensitive-data purge of old history | — | Park; revisit if the repo is audited | — | — | one-way |
@@ -81,8 +94,8 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 ## What waits on whom
 
-- **JP**: decision board rows 1–4; bump pinescript-plugin to `^0.4.2` now (behaviour correct) or wait for a clean 0.4.3.
-- **Next session**: the #67 design session (engine publish via CI), then #64, #61, #60, #62.
+- **JP**: merge `feat/67-ci-engine-publish`, add `NPM_TOKEN`, and push `engine-v0.4.3`; then bump pinescript-plugin to `^0.4.3` after the workflow verifies npm.
+- **Next session**: #61, #60, then #62 after the engine release is verified.
 
 ## Repository hygiene
 
