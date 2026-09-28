@@ -337,7 +337,17 @@ function checkExternalFeed(lines: string[], rawLines: string[]): ValidationError
 
 function checkRepainting(lines: string[]): ValidationError[] {
   const findings: ValidationError[] = [];
-  const pattern = /(?<![a-zA-Z0-9_.])request\.security(?:_lower_tf)?\s*\(/g;
+  // S1 is deliberately limited to request.security(), where the HTF offset /
+  // lookahead advice is actionable. Official docs fetched 2026-09-28:
+  // https://www.tradingview.com/pine-script-reference/v6/#fun_request.security_lower_tf
+  // https://www.tradingview.com/pine-script-docs/concepts/other-timeframes-and-data/
+  // https://www.tradingview.com/pine-script-docs/concepts/repainting/
+  // The reference is JS-rendered, so its no-lookahead parameter list is also
+  // cross-checked in data/parameter-requirements-generated.ts. The concept docs
+  // recommend request.security_lower_tf() for reliable LTF requests; the minor
+  // repainting they still note comes from provider data changes, with no call-site
+  // option that S1 can action. Warning there would therefore be a false positive.
+  const pattern = /(?<![a-zA-Z0-9_.])request\.security\s*\(/g;
 
   lines.forEach((text, i) => {
     let match;

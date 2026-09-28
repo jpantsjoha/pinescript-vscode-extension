@@ -39,8 +39,21 @@ function assertSilent(source, id, why) {
 //──────────────────────────────────────────────────────────
 
 test('S1 flags request.security reading the current, forming bar', () => {
-  assertFlags(IND + 'd = request.security(syminfo.tickerid, "D", close)\nplot(d)\n', 'S1',
+  const source = IND + 'd = request.security(syminfo.tickerid, "D", close)\nplot(d)\n';
+  assertFlags(source, 'S1',
     'History shows a settled value, live shows a moving one — the backtest measures something the market will not repeat');
+  const [finding] = checks(source).filter(d => d.checkId === 'S1');
+  assert.match(finding.message, /lookahead=barmerge\.lookahead_off/,
+    'request.security keeps its actionable lookahead advice');
+});
+
+test('S1 is silent for request.security_lower_tf and never suggests lookahead', () => {
+  const findings = checks(
+    IND + 'bars = request.security_lower_tf(syminfo.tickerid, "1", close)\nplot(array.size(bars))\n');
+  assert.ok(!findings.some(d => d.checkId === 'S1'),
+    `security_lower_tf has no user-fixable S1 pattern. Findings: ${findings.map(d => d.message).join(' | ')}`);
+  assert.ok(!findings.some(d => /lookahead/i.test(d.message)),
+    `security_lower_tf has no lookahead parameter. Findings: ${findings.map(d => d.message).join(' | ')}`);
 });
 
 test('S1 is silent when the expression uses a historical offset', () => {
