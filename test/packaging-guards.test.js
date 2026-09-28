@@ -30,6 +30,8 @@ const PACK_GUARD_PATH = path.join(ROOT, 'packages', 'validator', 'scripts', 'che
 const PACK_GUARD = require(PACK_GUARD_PATH);
 const { listFiles, PackageManager } = require('@vscode/vsce');
 const {
+  TAG_WORKFLOW_GATES,
+  auditOvsxInvocation,
   auditWorkflowVsixOrder,
   findPackageScriptPublishCallers,
 } = require('../scripts/audit.js');
@@ -373,11 +375,100 @@ test('repository tag workflows verify the exact VSIX they publish or upload', ()
   assert.deepStrictEqual(auditWorkflowVsixOrder(release, ['action-gh-release']), []);
 });
 
-test('publish workflow pins ovsx and keeps OVSX_PAT off the command line', () => {
+test('publish workflow audit includes the GitHub release upload after the verified VSIX', () => {
+  const entry = TAG_WORKFLOW_GATES.find(([workflow]) => workflow === '.github/workflows/publish.yml');
+  assert.ok(entry, 'publish.yml is absent from the tag-workflow audit');
+  assert.deepStrictEqual(entry[1], ['vsce publish', 'ovsx publish', 'action-gh-release']);
+
   const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/publish.yml'), 'utf8');
-  assert.match(workflow, /npx --yes ovsx@1\.2\.0 publish/);
-  assert.match(workflow, /env:\n\s+OVSX_PAT: \$\{\{ secrets\.OVSX_PAT \}\}/);
-  assert.doesNotMatch(workflow, /ovsx[^\n]*\s(?:-p|--pat)(?:\s|=)/);
+  assert.deepStrictEqual(auditWorkflowVsixOrder(workflow, entry[1]), []);
+
+  const uploadBeforeVerify = `
+jobs:
+  publish:
+    steps:
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: build/extension.vsix
+      - run: node scripts/verify-vsix.js build/extension.vsix
+`;
+  assert.match(
+    auditWorkflowVsixOrder(uploadBeforeVerify, ['action-gh-release']).join('\n'),
+    /runs before verify-vsix/
+  );
+});
+
+function openVsxWorkflow(command, verifyFirst = true) {
+  const verify = '      - run: node scripts/verify-vsix.js build/extension.vsix';
+  const publish = `      - env:\n          OVSX_PAT: fixture-token\n        run: ${command}`;
+  return `jobs:\n  publish:\n    steps:\n${verifyFirst ? `${verify}\n${publish}` : `${publish}\n${verify}`}\n`;
+}
+
+test('Open VSX audit rejects -p and --pat command-line token flags', () => {
+  for (const flag of ['-p "$OVSX_PAT"', '--pat="$OVSX_PAT"']) {
+    const problems = auditOvsxInvocation(openVsxWorkflow(
+      `npx --yes ovsx@1.2.0 publish build/extension.vsix ${flag}`
+    ));
+    assert.match(problems.join('\n'), /token must not be passed on the command line/, flag);
+  }
+});
+
+test('Open VSX audit rejects a token flag on a continued command line', () => {
+  const workflow = `
+jobs:
+  publish:
+    steps:
+      - run: node scripts/verify-vsix.js build/extension.vsix
+      - env:
+          OVSX_PAT: fixture-token
+        run: |
+          npx --yes ovsx@1.2.0 publish build/extension.vsix \\
+            --pat="$OVSX_PAT"
+`;
+  assert.match(
+    auditOvsxInvocation(workflow).join('\n'),
+    /token must not be passed on the command line/
+  );
+});
+
+test('Open VSX audit rejects unpinned and latest ovsx packages', () => {
+  for (const executable of ['npx --yes ovsx', 'npx --yes ovsx@latest']) {
+    const problems = auditOvsxInvocation(openVsxWorkflow(
+      `${executable} publish build/extension.vsix`
+    ));
+    assert.match(problems.join('\n'), /pinned to an exact version/, executable);
+  }
+});
+
+test('Open VSX audit rejects publish before verify-vsix', () => {
+  const problems = auditOvsxInvocation(openVsxWorkflow(
+    'npx --yes ovsx@1.2.0 publish build/extension.vsix',
+    false
+  ));
+  assert.match(problems.join('\n'), /runs before verify-vsix/);
+});
+
+test('Open VSX audit checks every publish invocation', () => {
+  const workflow = `
+jobs:
+  publish:
+    steps:
+      - run: node scripts/verify-vsix.js build/extension.vsix
+      - env:
+          OVSX_PAT: fixture-token
+        run: npx --yes ovsx@1.2.0 publish build/extension.vsix
+      - env:
+          OVSX_PAT: fixture-token
+        run: npx --yes ovsx@latest publish build/extension.vsix --pat="$OVSX_PAT"
+`;
+  const problems = auditOvsxInvocation(workflow).join('\n');
+  assert.match(problems, /pinned to an exact version/);
+  assert.match(problems, /token must not be passed on the command line/);
+});
+
+test('Open VSX audit accepts the checked-in publish workflow', () => {
+  const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/publish.yml'), 'utf8');
+  assert.deepStrictEqual(auditOvsxInvocation(workflow), []);
 });
 
 test('diff-diagnostics reserves exit 2 for usage errors', () => {

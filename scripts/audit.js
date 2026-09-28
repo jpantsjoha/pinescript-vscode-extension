@@ -58,9 +58,20 @@ function gateInStep(step, gate) {
   }
   const patterns = {
     'vsce publish': /^(?:npx\s+(?:--no-install\s+)?vsce|vsce)\s+publish(?:\s|$)/,
-    'ovsx publish': /^(?:npx\s+(?:--yes\s+)?ovsx(?:@\d+\.\d+\.\d+)?|ovsx)\s+publish(?:\s|$)/,
+    'ovsx publish': /^(?:npx\s+(?:--yes\s+)?ovsx(?:@[^\s]+)?|ovsx)\s+publish(?:\s|$)/,
   };
   return executableLines(step.run).some(line => patterns[gate] && patterns[gate].test(line));
+}
+
+function gateCommand(step, gate) {
+  const lines = executableLines(step.run);
+  let index = lines.findIndex(line => gateInStep({ run: line }, gate));
+  if (index < 0) return '';
+  let command = lines[index];
+  while (/\\\s*$/.test(command) && index + 1 < lines.length) {
+    command = command.replace(/\\\s*$/, ' ') + lines[++index];
+  }
+  return command;
 }
 
 function gateVsixPaths(step, gate) {
@@ -72,9 +83,13 @@ function gateVsixPaths(step, gate) {
     .map(line => {
       const match = gate === 'vsce publish'
         ? line.match(/--packagePath(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))/)
-        : line.match(/\bovsx(?:@\d+\.\d+\.\d+)?\s+publish\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))/);
+        : line.match(/\bovsx(?:@[^\s]+)?\s+publish\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))/);
       return commandToken(match);
     });
+}
+
+function comparableVsixPath(value) {
+  return String(value || '').replace(/\$\{GITHUB_REF_NAME#v\}/g, '*');
 }
 
 /** Parse workflow steps and prove each shipping step is gated by the same VSIX. */
@@ -131,7 +146,8 @@ function auditWorkflowVsixOrder(yamlText, gates) {
 
       const verifiedPath = verifyVsixPath(verify.line);
       const shippedPaths = gateVsixPaths(occurrence.step, gate);
-      if (!verifiedPath || shippedPaths.length !== 1 || shippedPaths[0] !== verifiedPath) {
+      if (!verifiedPath || shippedPaths.length !== 1 ||
+          comparableVsixPath(shippedPaths[0]) !== comparableVsixPath(verifiedPath)) {
         problems.push(`${gate} references a different VSIX than verify-vsix ` +
           `(verified ${verifiedPath || '(none)'}; ships ${shippedPaths.map(p => p || '(none)').join(', ') || '(none)'})`);
       }
@@ -147,22 +163,29 @@ function auditOvsxInvocation(yamlText) {
   } catch (error) {
     return [`workflow YAML does not parse: ${error.message}`];
   }
-  const problems = [];
+  const problems = auditWorkflowVsixOrder(yamlText, ['ovsx publish']);
   const steps = Object.values(jobs).flatMap(job => Array.isArray(job.steps) ? job.steps : []);
-  const step = steps.find(candidate => candidate && gateInStep(candidate, 'ovsx publish'));
-  if (!step) return ['no executable ovsx publish step'];
-  const line = executableLines(step.run).find(candidate => gateInStep({ run: candidate }, 'ovsx publish')) || '';
-  if (!/\bovsx@\d+\.\d+\.\d+\s+publish\b/.test(line)) {
-    problems.push('ovsx must be pinned to an exact version');
-  }
-  if (/(?:^|\s)(?:-p|--pat)(?:\s|=)/.test(line)) {
-    problems.push('ovsx token must not be passed on the command line');
-  }
-  if (!step.env || !Object.prototype.hasOwnProperty.call(step.env, 'OVSX_PAT')) {
-    problems.push('ovsx publish step must receive OVSX_PAT through env');
+  const publishSteps = steps.filter(candidate => candidate && gateInStep(candidate, 'ovsx publish'));
+  if (!publishSteps.length) return problems.length ? problems : ['no executable ovsx publish step'];
+  for (const step of publishSteps) {
+    const line = gateCommand(step, 'ovsx publish');
+    if (!/\bovsx@\d+\.\d+\.\d+\s+publish\b/.test(line)) {
+      problems.push('ovsx must be pinned to an exact version');
+    }
+    if (/(?:^|\s)(?:-p|--pat)(?:\s|=)/.test(line)) {
+      problems.push('ovsx token must not be passed on the command line');
+    }
+    if (!step.env || !Object.prototype.hasOwnProperty.call(step.env, 'OVSX_PAT')) {
+      problems.push('ovsx publish step must receive OVSX_PAT through env');
+    }
   }
   return problems;
 }
+
+const TAG_WORKFLOW_GATES = [
+  ['.github/workflows/publish.yml', ['vsce publish', 'ovsx publish', 'action-gh-release']],
+  ['.github/workflows/release.yml', ['action-gh-release']],
+];
 
 //──────────────────────────────────────────────────────────
 // 1. npm scripts must point at files that exist
@@ -432,10 +455,7 @@ function auditPackaging() {
     pass('packaging', 'CI lists the packaged VSIX entries and executes activate() (scripts/verify-vsix.js)');
   }
   // The tag workflows must verify the exact VSIX BEFORE it leaves the building.
-  for (const [wf, gates] of [
-    ['.github/workflows/publish.yml', ['vsce publish', 'ovsx publish']],
-    ['.github/workflows/release.yml', ['action-gh-release']],
-  ]) {
+  for (const [wf, gates] of TAG_WORKFLOW_GATES) {
     if (!exists(wf)) { fail('packaging', `${wf} is missing`); continue; }
     const yaml = read(wf);
     const problems = auditWorkflowVsixOrder(yaml, gates);
@@ -821,6 +841,11 @@ function main() {
   return 0;
 }
 
-module.exports = { auditWorkflowVsixOrder, findPackageScriptPublishCallers };
+module.exports = {
+  TAG_WORKFLOW_GATES,
+  auditOvsxInvocation,
+  auditWorkflowVsixOrder,
+  findPackageScriptPublishCallers,
+};
 
 if (require.main === module) process.exitCode = main();
