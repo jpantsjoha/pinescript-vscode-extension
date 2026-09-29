@@ -98,7 +98,7 @@ inference. Git history keeps the old code.
 ## Next up (recommended order)
 
 1. Give CI an npm credential that can publish (npm Trusted Publishing, or a bypass-2FA token) before the next engine release.
-2. Bump pinescript-plugin to `^0.4.3` (separate repo).
+2. ~~Bump pinescript-plugin~~ — done: plugin v0.5.0 runs engine 0.4.3 (2026-09-29).
 3. #5 — rename, the largest remaining editor feature; needs a scoping session.
 
 ## Related
