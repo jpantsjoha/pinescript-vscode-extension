@@ -49,7 +49,7 @@ mistakes one paste at a time. This extension moves that feedback into your edito
      [Open VSX](https://open-vsx.org/extension/jpantsjoha/pinescript-v6-extension).
    - Offline: download the `.vsix` from
      [Releases](https://github.com/jpantsjoha/pinescript-vscode-extension/releases) and run
-     `code --install-extension pinescript-v6-extension-0.7.0.vsix`.
+     `code --install-extension pinescript-v6-extension-0.7.1.vsix`.
 2. **Open or create a `.pine` file.** Highlighting and checks start immediately; there is
    nothing to configure.
 3. **Paste this and watch the checks work:**
@@ -186,6 +186,10 @@ the finished line.
 ---
 
 ## What's new
+
+**0.7.1**: a comment or blank line inside a wrapped call no longer hides a later
+misspelled constant (`color.purplee`), and S1 no longer suggests a `lookahead` argument
+that `request.security_lower_tf()` does not have.
 
 **0.7.0**: quick fixes on the lightbulb, invalid casts from `input.*()` flagged as
 TradingView does, one engine behind the editor, the CLI and the MCP server, and a
