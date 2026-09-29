@@ -94,17 +94,18 @@ engine `npm pack --dry-run` exactly 25 files. PR #68 closed as superseded by #70
 
 ## Where this stands
 
-Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
+Measured on a clean export of `4d35ad1` (the 0.7.1 release tree) under Node 22.23.3, 2026-09-29.
 
 | Signal | State | Command |
 |---|---|---|
-| Tests | 796 · 796 pass · 0 skip · 0 fail (26 files) | `npm test` |
-| Audit | 29 pass · 0 warn · 0 fail (in the repo, 1 warn until the v0.7.0 tag exists) | `npm run audit` |
+| Tests | 833 · 833 pass · 0 skip · 0 fail | `npm test` |
+| Audit | 36 pass · 0 warn · 0 fail | `npm run audit` |
 | Self-test, watch smoke, typecheck | pass | `node test/v0.4.0-self-test.js`, `npm run test:watch`, `npx tsc --noEmit` |
-| Regression corpus | 131 cases + 4 suppression cases; correct-code cases fail on warnings too | `test/regression-corpus.js` |
+| Regression corpus | 139 cases + 4 suppression cases; correct-code cases fail on warnings too | `test/regression-corpus.js` |
 | Golden corpus | 4 committed fixtures, 0 errors, 0 warnings | `node --test test/golden-corpus.test.js` |
-| Diagnostics vs 0.6.5 | 21 `.pine` files, 32 diagnostics, 0 new, 0 gone | `node scripts/diff-diagnostics.js --against v0.6.5` |
-| VSIX | 0.7.0: 36 files, 1.43 MB; `verify-vsix` PASS (activate, allowlist, one engine) | `npm run package`, `npm run verify:vsix` |
+| Diagnostics vs 0.7.0 | 21 `.pine` files, 32 diagnostics, 0 new, 0 gone | `node scripts/diff-diagnostics.js --against v0.7.0` |
+| VSIX | 0.7.1: 36 files, 1.43 MB; `verify-vsix` PASS on the local build and on the GitHub release asset | `npm run package`, `npm run verify:vsix` |
+| Engine on npm | 0.4.3: 25 files, 0 conflict copies; 143/143 regression cases installed from the registry | `npm view pinescript-v6-validator@0.4.3 dist.fileCount` |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) | — |
 | Released in 0.7.1 | #61 (PR #71, `ca3b978`): a comment or blank line inside a wrapped call no longer hides a later misspelled constant; #60 (PR #72, `52c6eed`): S1 is silent on `request.security_lower_tf()`; #62 (PR #73, `e787950`): release-workflow audit parses steps, pinned `ovsx`, conflict-copy rejection | Regression-corpus cases both ways; `npm test` green on main |
 | Open issues | #5 #1 (feature requests, not scheduled) | `gh issue list` |
