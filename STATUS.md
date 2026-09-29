@@ -1,8 +1,8 @@
 # Project Status
 
-**Updated**: 2026-09-28
+**Updated**: 2026-09-29
 **Marketplace / Open VSX**: **0.7.0 live** (tag `v0.7.0` on `6d7f1f9`, released 2026-09-26)
-**Engine**: `pinescript-v6-validator@0.4.2` remains on npm. Clean 0.4.3 is merged (#70) and publish run `36447823922` first stopped at its preflight (no `NPM_TOKEN`); after the secret was added (2026-09-28) the re-run passed every gate (tests, exact 25-file pack, corpus against the tarball) and npm refused the upload with EOTP — the token does not bypass 2FA. Nothing is published yet.
+**Engine**: `pinescript-v6-validator@0.4.3` on npm (published 2026-09-29): 25 files, no iCloud copies; installed from npm it passes all 143 regression cases. Published by JP from a clean export of tag `engine-v0.4.3` (not the iCloud tree), after the CI run passed every gate but could not publish (EOTP). No provenance attestation on 0.4.3.
 
 ## 2026-09-26: 0.7.0 — quick fixes, the invalid-cast rule, one engine
 
@@ -58,6 +58,16 @@ parallel test files through shared `packages/validator/dist`.
 (or configure npm Trusted Publishing), then re-run publish run `36447823922` on the pushed tag
 `engine-v0.4.3`. Do not publish the engine locally.
 
+## 2026-09-29: engine 0.4.3 published
+
+Publish run `36447823922` for tag `engine-v0.4.3` passed every gate (tests, exact 25-file
+pack, corpus against the tarball) and npm refused the upload (EOTP: the `NPM_TOKEN` token
+does not bypass 2FA). **Operator decision (JP, 2026-09-29):** publish 0.4.3 locally with
+interactive npm approval rather than wait for a CI credential. It was built from a clean
+`git archive` of the tag outside iCloud; the prepack guard passed at 25 files and the
+corpus passed 143/143 against the tarball before JP approved `npm publish`. Verified
+from the registry: 0.4.3, 25 files, 0 conflict copies, 143/143 regression cases.
+
 ## 2026-09-28: backlog cleared — #67 #64 #61 #60 #62 merged
 
 | PR | Issue | Merge |
@@ -96,7 +106,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 | # | Group | Decision | Unblocks | Recommendation | Right | Wrong | Reversibility |
 |---|---|---|---|---|---|---|---|
-| 1 | OPERATOR | Give CI an npm credential that can publish: a granular token with bypass-2FA in `NPM_TOKEN`, or npm Trusted Publishing for `publish-engine.yml` | Clean engine 0.4.3; pinescript-plugin bump | Trusted Publishing (no long-lived token) | Engine 0.4.3 ships from CI with provenance | Agent users stay on 0.4.2 with 22 stray files | cheap |
+| 1 | SCHEDULE | Make CI able to publish the next engine: npm Trusted Publishing for `publish-engine.yml`, or a bypass-2FA token in `NPM_TOKEN` | Unattended engine releases with provenance | Trusted Publishing | Next engine ships from CI with provenance | Another manual, 2FA-approved local publish | cheap |
 | 2 | SCHEDULE | Upgrade the Codex CLI (0.146.0 installed, 0.158.0 current): `npm i -g @openai/codex@latest` | Codex's default model; sol-xhigh (`gpt-5.6-sol`) already works and reviewed four rounds on 2026-09-28 | Upgrade | Every Codex model available as a lane | Default-model calls keep failing with "requires a newer version" | cheap |
 | 3 | SCHEDULE | Confirm the six inferred fields in the operating profile | Profile moves from `seed` to `active` | 10 minutes | Gates bind to confirmed facts | Gates keep citing inferences | cheap |
 | 4 | DEFER | GitHub sensitive-data purge of old history | — | Park; revisit if the repo is audited | — | — | one-way |
@@ -109,7 +119,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 ## What waits on whom
 
-- **JP**: tag `engine-v0.4.3` pushed on `a11f908`; publish run `36447823922` first stopped at its preflight (no `NPM_TOKEN`); after the secret was added (2026-09-28) the re-run passed every gate (tests, exact 25-file pack, corpus against the tarball) and npm refused the upload with EOTP — the token does not bypass 2FA. Nothing published; npm is still 0.4.2. Next: a bypass-2FA token (update `npm_pat` in `.env`; the secret is reloaded from it) or Trusted Publishing, then `gh run rerun 36447823922`. Afterwards bump pinescript-plugin to `^0.4.3`; decide when to release 0.7.1 (#61, #60, #62 unreleased on main).
+- **JP**: bump pinescript-plugin to `^0.4.3`; optionally `npm deprecate pinescript-v6-validator@0.4.2 "ships stray iCloud copies; use 0.4.3"` (needs your 2FA); decide when to release extension 0.7.1 (#61, #60, #62 on main); decision-board row 1 before the next engine release.
 - **Next session**: release 0.7.1 if JP calls it; otherwise #5 (rename) needs a scoping session.
 
 ## Repository hygiene
