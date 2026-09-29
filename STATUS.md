@@ -4,6 +4,15 @@
 **Marketplace / Open VSX**: **0.7.1 live** (tag `v0.7.1` on `4ad69fb`, released 2026-09-29)
 **Engine**: `pinescript-v6-validator@0.4.3` on npm (published 2026-09-29): 25 files, no iCloud copies; installed from npm it passes all 143 regression cases. Published by JP from a clean export of tag `engine-v0.4.3` (not the iCloud tree), after the CI run passed every gate but could not publish (EOTP). No provenance attestation on 0.4.3.
 
+## 2026-09-29: pinescript-plugin 0.5.0 released
+
+pinescript-plugin pinned `pinescript-v6-validator@^0.3.0`, which for a 0.x version never
+resolves 0.4.x, so agents ran engine 0.3.0. Plugin PR #2 (merged `ea15df5`, reviewed to
+PASS) moves it to `^0.4.3`, repoints its local-checkout fallback to `dist/engine`, and
+adds a version-consistency test. v0.5.0 is a GitHub release; a fresh clone of the tag
+installs engine 0.4.3, reports 0.5.0 and flags the invalid-cast and `color.purplee`
+probes; `npm test` 37/38 (1 skip by design).
+
 ## 2026-09-29: extension 0.7.1 released
 
 PR #76 merged as `4ad69fb` (tree identical to the gated `4d35ad1`), tagged `v0.7.1`.
@@ -126,11 +135,11 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 | Project | Relationship |
 |---|---|
-| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. Consumes `pinescript-v6-validator` from npm, built from the same `packages/validator` source the extension bundles. Engine 0.4.3 is published (2026-09-29); the plugin agrees with the editor once it pins `^0.4.3`. |
+| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. v0.5.0 (released 2026-09-29) runs `pinescript-v6-validator@0.4.3`, the same engine source the extension bundles, so an agent and the editor agree on a file. |
 
 ## What waits on whom
 
-- **JP**: bump pinescript-plugin to `^0.4.3`; decision-board row 1 (a CI npm credential) before the next engine release.
+- **JP**: decision-board row 1 (a CI npm credential: Trusted Publishing or a bypass-2FA token) before the next engine release.
 - **Next session**: #5 (rename) needs a scoping session; nothing else is open.
 
 ## Repository hygiene
