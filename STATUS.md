@@ -1,8 +1,18 @@
 # Project Status
 
 **Updated**: 2026-09-29
-**Marketplace / Open VSX**: **0.7.0 live** (tag `v0.7.0` on `6d7f1f9`, released 2026-09-26)
+**Marketplace / Open VSX**: **0.7.1 live** (tag `v0.7.1` on `4ad69fb`, released 2026-09-29)
 **Engine**: `pinescript-v6-validator@0.4.3` on npm (published 2026-09-29): 25 files, no iCloud copies; installed from npm it passes all 143 regression cases. Published by JP from a clean export of tag `engine-v0.4.3` (not the iCloud tree), after the CI run passed every gate but could not publish (EOTP). No provenance attestation on 0.4.3.
+
+## 2026-09-29: extension 0.7.1 released
+
+PR #76 merged as `4ad69fb` (tree identical to the gated `4d35ad1`), tagged `v0.7.1`.
+Ships #61 and #60, plus the #62 release tooling; bundles the same engine source as npm
+0.4.3. Gate on a clean export under Node 22: `npm test` 833/833, audit 36/0/0,
+`diff-diagnostics --against v0.7.0` 21 files, 32 diagnostics, 0 new, 0 gone, VSIX
+36 files with `verify-vsix` PASS. `publish.yml` (run 36543226880) and `release.yml`
+(run 36543226597) passed; both registries reported 0.7.1, and the GitHub release VSIX
+re-verified: 36 files, 0 conflict copies, `verify-vsix` PASS.
 
 ## 2026-09-29: engine 0.4.3 published
 
@@ -96,7 +106,7 @@ Measured on a clean export of `f6067d6` under Node 22.23.3, 2026-09-26.
 | Diagnostics vs 0.6.5 | 21 `.pine` files, 32 diagnostics, 0 new, 0 gone | `node scripts/diff-diagnostics.js --against v0.6.5` |
 | VSIX | 0.7.0: 36 files, 1.43 MB; `verify-vsix` PASS (activate, allowlist, one engine) | `npm run package`, `npm run verify:vsix` |
 | Semantic checks | S1-S3, S5-S10 (S4 specified, not built; S10 is an info hint) | — |
-| Fixed on main, unreleased | #61 (PR #71, `ca3b978`): a comment or blank line inside a wrapped call no longer hides a later misspelled constant; #60 (PR #72, `52c6eed`): S1 is silent on `request.security_lower_tf()`; #62 (PR #73, `e787950`): release-workflow audit parses steps, pinned `ovsx`, conflict-copy rejection | Regression-corpus cases both ways; `npm test` green on main |
+| Released in 0.7.1 | #61 (PR #71, `ca3b978`): a comment or blank line inside a wrapped call no longer hides a later misspelled constant; #60 (PR #72, `52c6eed`): S1 is silent on `request.security_lower_tf()`; #62 (PR #73, `e787950`): release-workflow audit parses steps, pinned `ovsx`, conflict-copy rejection | Regression-corpus cases both ways; `npm test` green on main |
 | Open issues | #5 #1 (feature requests, not scheduled) | `gh issue list` |
 
 The test strategy (nine layers, the gate matrix, independent review) is in
@@ -119,8 +129,8 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 ## What waits on whom
 
-- **JP**: bump pinescript-plugin to `^0.4.3`; optionally `npm deprecate pinescript-v6-validator@0.4.2 "ships stray iCloud copies; use 0.4.3"` (needs your 2FA); decide when to release extension 0.7.1 (#61, #60, #62 on main); decision-board row 1 before the next engine release.
-- **Next session**: release 0.7.1 if JP calls it; otherwise #5 (rename) needs a scoping session.
+- **JP**: bump pinescript-plugin to `^0.4.3`; decision-board row 1 (a CI npm credential) before the next engine release.
+- **Next session**: #5 (rename) needs a scoping session; nothing else is open.
 
 ## Repository hygiene
 

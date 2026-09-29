@@ -76,7 +76,7 @@ inference. Git history keeps the old code.
 | 0.7.0 | Fix it for me, and one engine: quick fixes (#49), the invalid-cast rule (#12), one engine (#55) | **shipped** 2026-09-26 |
 | engine 0.4.2 | The npm engine catches up with 0.7.0, for external consumers (the pinescript-plugin agent plugin) | **shipped** 2026-09-28 (#54); contains 22 duplicate files (#67) |
 | engine 0.4.3 | A clean 25-file package, tag-only CI publishing with provenance, and the #64 test-race fix | **shipped** 2026-09-29 (published locally from a clean tag export after CI was refused with EOTP; no provenance) |
-| 0.7.x | Precision: missed errors and misleading advice found during 0.7.0 (#61, #60), packaging-guard follow-ups (#62) | **merged** 2026-09-28 (#61 #60 #62), unreleased — ships as 0.7.1 when JP cuts it |
+| 0.7.1 | Precision: missed errors and misleading advice found during 0.7.0 (#61, #60), packaging-guard follow-ups (#62) | **shipped** 2026-09-29 |
 | later | Rename refactoring (#5) | not started |
 
 ## Open issues
@@ -98,7 +98,7 @@ inference. Git history keeps the old code.
 ## Next up (recommended order)
 
 1. Give CI an npm credential that can publish (npm Trusted Publishing, or a bypass-2FA token) before the next engine release.
-2. Release 0.7.1 (#61, #60 and the #62 tooling are on main, unreleased).
+2. Bump pinescript-plugin to `^0.4.3` (separate repo).
 3. #5 — rename, the largest remaining editor feature; needs a scoping session.
 
 ## Related
