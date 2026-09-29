@@ -4,6 +4,16 @@
 **Marketplace / Open VSX**: **0.7.0 live** (tag `v0.7.0` on `6d7f1f9`, released 2026-09-26)
 **Engine**: `pinescript-v6-validator@0.4.3` on npm (published 2026-09-29): 25 files, no iCloud copies; installed from npm it passes all 143 regression cases. Published by JP from a clean export of tag `engine-v0.4.3` (not the iCloud tree), after the CI run passed every gate but could not publish (EOTP). No provenance attestation on 0.4.3.
 
+## 2026-09-29: engine 0.4.3 published
+
+Publish run `36447823922` for tag `engine-v0.4.3` passed every gate (tests, exact 25-file
+pack, corpus against the tarball) and npm refused the upload (EOTP: the `NPM_TOKEN` token
+does not bypass 2FA). **Operator decision (JP, 2026-09-29):** publish 0.4.3 locally with
+interactive npm approval rather than wait for a CI credential. It was built from a clean
+`git archive` of the tag outside iCloud; the prepack guard passed at 25 files and the
+corpus passed 143/143 against the tarball before JP approved `npm publish`. Verified
+from the registry: 0.4.3, 25 files, 0 conflict copies, 143/143 regression cases.
+
 ## 2026-09-26: 0.7.0 — quick fixes, the invalid-cast rule, one engine
 
 Three PRs, built in parallel worktrees and each reviewed independently on its exact
@@ -54,19 +64,9 @@ that tarball with npm provenance, and verifies the public package after publicat
 The npm-package test now builds an isolated validator copy and no longer races other
 parallel test files through shared `packages/validator/dist`.
 
-**Operator action (now):** replace the `NPM_TOKEN` secret with an npm token that bypasses 2FA
-(or configure npm Trusted Publishing), then re-run publish run `36447823922` on the pushed tag
-`engine-v0.4.3`. Do not publish the engine locally.
-
-## 2026-09-29: engine 0.4.3 published
-
-Publish run `36447823922` for tag `engine-v0.4.3` passed every gate (tests, exact 25-file
-pack, corpus against the tarball) and npm refused the upload (EOTP: the `NPM_TOKEN` token
-does not bypass 2FA). **Operator decision (JP, 2026-09-29):** publish 0.4.3 locally with
-interactive npm approval rather than wait for a CI credential. It was built from a clean
-`git archive` of the tag outside iCloud; the prepack guard passed at 25 files and the
-corpus passed 143/143 against the tarball before JP approved `npm publish`. Verified
-from the registry: 0.4.3, 25 files, 0 conflict copies, 143/143 regression cases.
+**Operator action (superseded 2026-09-29):** the CI publish needed a bypass-2FA `NPM_TOKEN` or npm
+Trusted Publishing; instead JP published 0.4.3 locally from a clean tag export (see the
+2026-09-29 entry). The next engine release still needs one of those CI credentials.
 
 ## 2026-09-28: backlog cleared — #67 #64 #61 #60 #62 merged
 
@@ -115,7 +115,7 @@ The test strategy (nine layers, the gate matrix, independent review) is in
 
 | Project | Relationship |
 |---|---|
-| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. Consumes `pinescript-v6-validator` from npm, which is built from the same `packages/validator` source the extension bundles; the two agree once each release publishes the engine (0.4.2 published 2026-09-28; a clean 0.4.3 waits on #67). |
+| [pinescript-plugin](https://github.com/jpantsjoha/pinescript-plugin) | Agent-facing counterpart. Consumes `pinescript-v6-validator` from npm, built from the same `packages/validator` source the extension bundles. Engine 0.4.3 is published (2026-09-29); the plugin agrees with the editor once it pins `^0.4.3`. |
 
 ## What waits on whom
 

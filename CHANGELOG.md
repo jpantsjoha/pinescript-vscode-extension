@@ -26,11 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   environment. Diagnostic diffs now reserve exit 1 for reviewed differences, 2
   for usage errors and 3 for failed tools (#62).
 
-### Engine 0.4.3 (npm `pinescript-v6-validator`)
+### Engine 0.4.3 (npm `pinescript-v6-validator`, published 2026-09-29)
 
-- Publishes from tag-triggered CI with npm provenance, never from a local working
-  tree. The package guard derives and enforces the exact 25-file tarball; 0.4.2
-  shipped 47 files, including 22 iCloud conflict copies (#67).
+- A clean 25-file package; 0.4.2 shipped 47 files, including 22 iCloud conflict copies
+  (#67). The prepack guard derives and enforces the exact file list.
+- A tag-triggered CI workflow (`publish-engine.yml`) now builds, checks and publishes the
+  engine with npm provenance. For 0.4.3 it passed every gate but npm refused the upload
+  (the token needs 2FA), so 0.4.3 was published from a clean export of the tag with
+  interactive approval, without provenance. Never publish from a working tree.
 - The npm-package regression suite now builds and packs an isolated package copy
   instead of rebuilding shared `packages/validator/dist` during parallel tests (#64).
 
