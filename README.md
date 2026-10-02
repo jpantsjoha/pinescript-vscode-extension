@@ -12,6 +12,8 @@ including the ones that compile and are still wrong.**
 
 Built and maintained by **[Jaroslav Pantsjoha](https://jpantsjoha.com)**. Free, open source, and unofficial: not affiliated with TradingView.
 
+Build, run and test: see [run_instruction.md](run_instruction.md).
+
 ![Real-time validation, IntelliSense and hover documentation](./images/screenshots/blog-image.png)
 
 ---
