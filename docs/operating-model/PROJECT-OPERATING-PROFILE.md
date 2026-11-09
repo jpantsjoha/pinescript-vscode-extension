@@ -228,7 +228,7 @@ npm test                           # clean build + node --test test/*.test.js �
 npm run build                      # rm -rf dist, tsc packages/validator then root, copy the LOCAL engine build into dist/engine
 node validate-cli.js <file.pine>          # headless single-file check against dist/engine (the engine the VSIX ships)
 npm audit --audit-level=moderate   # dependency security scan (also run in CI: .github/workflows/ci.yml "security" job, non-blocking there — "|| true")
-python3 /Users/jp/.claude/plugins/marketplaces/devex-charter-marketplace/skills/operating-model-bootstrap/scripts/validate_operating_model.py --target .   # profile drift check (verified script exists, 2026-09-22)
+python3 /Users/jp/.claude/plugins/marketplaces/join-the-team-marketplace/skills/operating-model-bootstrap/scripts/validate_operating_model.py --target .   # profile drift check (verified script exists, 2026-09-22)
 ```
 
 Exact review or post-commit SHA-binding command: not yet established — owner: JP;
