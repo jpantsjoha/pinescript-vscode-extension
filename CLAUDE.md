@@ -20,7 +20,7 @@ Read `docs/operating-model/OPERATING-MANUAL.md` and
 - Baseline team skills live under `.agents/skills/`; route by capability, not provider syntax.
 <!-- operating-model-contract:end -->
 
-The contract above is the join-the-team operating model (`docs/operating-model/`). The
+The contract above is the DevEx Charter (formerly join-the-team) operating model (`docs/operating-model/`). The
 rest of this file is the project constitution it binds; nothing below weakens it.
 
 ## The one rule that matters
