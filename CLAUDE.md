@@ -20,7 +20,7 @@ Read `docs/operating-model/OPERATING-MANUAL.md` and
 - Baseline team skills live under `.agents/skills/`; route by capability, not provider syntax.
 <!-- operating-model-contract:end -->
 
-The contract above is the join-the-team operating model (`docs/operating-model/`). The
+The contract above is the DevEx Charter (formerly join-the-team) operating model (`docs/operating-model/`). The
 rest of this file is the project constitution it binds; nothing below weakens it.
 
 ## The one rule that matters
@@ -43,6 +43,18 @@ run it before claiming completion.
 | Change packaging | `vsce package` succeeds · VSIX **extracted and the packaged code executed** · entry point resolves |
 | Release | Version consistent in package.json / CHANGELOG / README / git tag · audit green · `node scripts/diff-diagnostics.js --against <previous tag>` reviewed line by line · VSIX built from its tag and `verify-vsix` PASS · engine version-bump PR merged, then operator pushes `engine-vX.Y.Z`; `publish-engine.yml` checks the exact tarball and regression corpus, publishes with provenance, and verifies npm · never publish the engine locally |
 | Harness change | `npm run audit` green · hook pipe-tested on every branch · agents/skills carry frontmatter |
+
+### Merge gate (operator decision, 2026-11-09)
+
+GitHub Actions is retired for this repository: no workflow is a merge requirement and
+none is dispatched or retried. A pull request merges when, on its exact head SHA:
+
+1. the local gate passes: `npm run lint` and `npm test` (plus the task rows above);
+2. an independent fresh-context review by **Claude Sonnet 5.5** (medium effort, read-only,
+   no author history) returns PASS, and its verdict is posted on the PR.
+
+Any change after review needs a review of the delta. The workflow files under
+`.github/workflows/` are historical source only.
 
 ## Diagnostics come from MORE THAN ONE place
 

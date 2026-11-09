@@ -189,7 +189,7 @@ checks on the generated outputs specifically (verified: `npm run audit` "packagi
 
 | Delivery need | Baseline skill/capability | Project location or equivalent |
 |---|---|---|
-| Decomposition and routing | `delivery-orchestrator` | No repo-local equivalent found; `.claude/agents/` holds project-specific role agents instead (`documentation.md`, `product-owner.md`, `publisher.md`, `qa-validator.md`). Global `join-the-team:delivery-orchestrator` skill available at user scope. |
+| Decomposition and routing | `delivery-orchestrator` | No repo-local equivalent found; `.claude/agents/` holds project-specific role agents instead (`documentation.md`, `product-owner.md`, `publisher.md`, `qa-validator.md`). Global `devex-charter:delivery-orchestrator` skill available at user scope. |
 | System design and ADRs | `the-architect` | `docs/ADR-001-VALIDATION-STRATEGY.md`, `docs/ADR-002-TEST-STRATEGY.md`, `docs/ADR-003-TRADINGVIEW-SYNC-STRATEGY.md` (verified present 2026-09-22; a concurrent edit in this branch may relocate them to `docs/adr/`). |
 | Requirements and acceptance contract | `spec-first-delivery` | GitHub issues with a checkable Definition of Done (verified example: issue #24). |
 | Adversarial self-refutation | `adversarial-gate` | `.claude/agents/qa-validator.md` plus CLAUDE.md's Definition of Done table, which requires a paired "must still flag" test for every false-positive fix. |
